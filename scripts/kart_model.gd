@@ -37,6 +37,24 @@ var _brake_strength: float = 0.0
 # back out when it is released. See tuning.brake_slip_release_rate for why only one direction eases.
 var _brake_slip_influence: float = 0.0
 
+# The boost seam: forward speed is clamped to the tuned maximum every step, so nothing outside this
+# file can push the kart past it. apply_boost is the only way in.
+#
+# A boost is a one-shot injection of m/s and nothing else — no duration and no envelope. What ends
+# it is the kart bleeding the overspeed back down to its ceiling at _boost_bleed, so "how long the
+# boost lasts" is emergent (bump / bleed) rather than a second authored number that can disagree
+# with the first.
+#
+# _boost_credit is how much of the current overspeed a boost is still owed, and it exists to keep
+# this rule off normal driving: speed above the ceiling with no credit — driving onto grass — is
+# clamped hard, exactly as before, because an instant grass penalty is what makes the racing line
+# worth anything. Only credited overspeed bleeds.
+var _boost_bleed: float = DEFAULT_BOOST_BLEED
+var _boost_credit: float = 0.0
+
+## m/s^2 the kart sheds boost overspeed at when a pad does not name its own rate.
+const DEFAULT_BOOST_BLEED: float = 3.0
+
 # Solved outputs, kept for the readouts. Not inputs to anything.
 var _yaw_rate: float = 0.0
 var _lateral_speed: float = 0.0
@@ -124,6 +142,28 @@ func _integrate_forward_speed(input: KartInput, surface_multiplier: float, delta
 	var effective_acceleration: float = tuning.acceleration * surface_multiplier
 	var throttle: float = - input.brake if input.brake > 0.01 else 1.0
 
+	# Above the ceiling on boost credit, the kart is coasting down off a boost rather than driving.
+	# The throttle is deliberately inert here — it cannot hold the overspeed up, which is what makes
+	# the bleed a decay the driver watches rather than a tug-of-war they can win. The brake still
+	# bites, so a boost into a corner is a real choice.
+	#
+	# The credit is re-clamped to the overspeed actually present, so braking off a boost spends it
+	# rather than banking it for after the corner. It is also re-clamped when the CEILING drops
+	# instead — driving onto grass mid-boost — which can leave overspeed above what is credited;
+	# that excess is uncredited by definition and gets the instant grass clamp, not the bleed.
+	#
+	# Placed before the normal integration and returning, rather than correcting after it, so the
+	# bleed rate is a literal m/s^2 instead of the rate net of whatever acceleration just added.
+	_boost_credit = minf(_boost_credit, maxf(_forward_speed - effective_max, 0.0))
+	_forward_speed = minf(_forward_speed, effective_max + _boost_credit)
+	if _boost_credit > 0.0:
+		if throttle < -0.01:
+			_forward_speed += tuning.brake_deceleration * throttle * delta
+		var shed: float = _boost_bleed * delta
+		_boost_credit = maxf(0.0, _boost_credit - shed)
+		_forward_speed = maxf(effective_max, _forward_speed - shed)
+		return
+
 	if throttle > 0.01:
 		_forward_speed += effective_acceleration * throttle * delta
 	elif throttle < -0.01:
@@ -208,6 +248,30 @@ func apply_impact(strength: float) -> void:
 		_rear_slip_angle = 0.0
 
 
+## Puts `bump` m/s straight into forward speed, above the tuned ceiling, and sets the rate the
+## overspeed then bleeds back down at. Nothing here has a duration: how long the boost is felt for
+## is `bump / bleed`, and it shortens by itself if the driver brakes it away.
+##
+## Tops the overspeed UP TO the pad's own bump rather than adding to what is already there, so a
+## pad is a ceiling on how far above top speed it can put you and chained pads refresh the boost
+## instead of compounding it. Stacking reads fine for two pads and turns a pad run into a runaway.
+##
+## Never reduces: taking a weak pad while carrying a strong boost leaves the strong one alone, so no
+## pad is ever a thing to swerve around.
+func apply_boost(bump: float, bleed: float) -> void:
+	if bump <= 0.0:
+		return
+	var gain: float = maxf(bump - _boost_credit, 0.0)
+	if gain <= 0.0:
+		# A pad that grants nothing changes nothing. Without this, a weak pad with a slow bleed taken
+		# during a strong fast-bleeding boost would hand the strong boost the slow rate and stretch
+		# it — chaining by the back door, which is the thing the cap above exists to stop.
+		return
+	_forward_speed += gain
+	_boost_credit += gain
+	_boost_bleed = bleed if bleed > 0.0 else DEFAULT_BOOST_BLEED
+
+
 ## Takes the driver's hands away. A driver-input concept, not a lap concept: the model names no lap
 ## phase and holds no director reference. The step still runs while frozen; it suppresses
 ## throttle/brake/steer/slip and pins forward speed at zero, which pins yaw and lateral speed at
@@ -227,6 +291,8 @@ func reset() -> void:
 	_lateral_speed = 0.0
 	_slip_ceiling = deg_to_rad(tuning.slip_ceiling_low_speed_degrees)
 	_steer_ceiling = deg_to_rad(tuning.max_steer_angle_low_speed_degrees)
+	_boost_credit = 0.0
+	_boost_bleed = DEFAULT_BOOST_BLEED
 
 
 ## Fills a caller-owned KartState. The view gets a copy of the numbers and no handle on the model.
@@ -302,6 +368,17 @@ var drift_side: float:
 
 var frozen: bool:
 	get: return _frozen
+
+## m/s the kart is currently carrying above its ceiling on boost credit, 0.0 when not boosting. Not
+## a stored "boost amount" — it is the overspeed itself, so it cannot disagree with the speed on
+## screen.
+var overspeed: float:
+	get: return _boost_credit
+
+## Seconds until the overspeed is gone at the current bleed rate, assuming no braking. Derived
+## rather than counted down: there is no timer to drift.
+var boost_remaining: float:
+	get: return _boost_credit / _boost_bleed if _boost_bleed > 0.0 else 0.0
 
 
 # Speed as a 0..1 fraction of the tuned maximum. Both the ceiling and the rear grip interpolate

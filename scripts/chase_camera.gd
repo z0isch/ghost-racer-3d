@@ -21,6 +21,19 @@ extends Camera3D
 @export var max_speed_fov: float = 90.0
 @export var fov_smoothing: float = 12.0
 
+# The speed fraction above saturates at max_speed, so without these the entire overspeed range
+# renders identically to cruising and a boost reads as a number on the HUD rather than as speed.
+
+## Degrees added on top of [member max_speed_fov] at [member boost_fov_reference] of overspeed.
+@export var boost_fov_gain: float = 12.0
+## The overspeed, in m/s, that earns the full [member boost_fov_gain].
+@export var boost_fov_reference: float = 10.0
+## Smoothing on the way *up* while boosting, deliberately far stiffer than [member fov_smoothing]:
+## the punch is the whole point and a 12-rate ease spreads it over half a second, by which time the
+## bleed has already taken some of it back. The decay keeps the soft rate, so the widen snaps and
+## the settle does not.
+@export var boost_fov_attack: float = 30.0
+
 ## Look-ahead leads the aim point toward the kart's movement direction ([member Kart.velocity])
 ## rather than its heading, so the camera tracks a drift's slide. Aim point only — leading the
 ## follow position too would swing the camera out with every slide.
@@ -111,7 +124,19 @@ func _update_fov(delta: float) -> void:
 	var speed_fraction: float = clampf(_kart.speed / _kart.max_speed, 0.0, 1.0) if _kart.max_speed > 0.0 else 0.0
 	var target_fov: float = lerpf(base_fov, max_speed_fov, speed_fraction)
 
-	_current_fov = lerpf(_current_fov, target_fov, 1.0 - exp(-fov_smoothing * delta))
+	# Driven by the overspeed rather than by the speed, so the widen tracks the bleed — it opens on
+	# the bump and closes as the boost is spent, which is the same curve the driver feels through
+	# the wheels.
+	var overspeed_fraction: float = clampf(_kart.overspeed / boost_fov_reference, 0.0, 1.0) if boost_fov_reference > 0.0 else 0.0
+	target_fov += boost_fov_gain * overspeed_fraction
+
+	# Gated on there being a boost at all, rather than on the target merely rising, so ordinary
+	# acceleration keeps its existing ease and only the boost gets the snap.
+	var smoothing: float = fov_smoothing
+	if overspeed_fraction > 0.0 and target_fov > _current_fov:
+		smoothing = boost_fov_attack
+
+	_current_fov = lerpf(_current_fov, target_fov, 1.0 - exp(-smoothing * delta))
 	fov = _current_fov
 
 

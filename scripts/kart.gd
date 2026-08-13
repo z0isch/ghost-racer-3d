@@ -187,6 +187,22 @@ func _apply_barrier_impacts() -> void:
 
 # --- Public surface ---------------------------------------------------------------------------
 
+## A world event done to the kart, alongside the barrier impact the model already takes: the pad
+## field decides a pad was taken, the model owns what a boost does.
+func apply_boost(bump: float, bleed: float) -> void:
+	_model.apply_boost(bump, bleed)
+
+
+## m/s currently carried above the ceiling on boost credit, 0.0 when not boosting. Read by
+## ChaseCamera for the FOV punch.
+var overspeed: float:
+	get: return _model.overspeed
+
+## Seconds of boost left at the current bleed rate.
+var boost_remaining: float:
+	get: return _model.boost_remaining
+
+
 ## Absolute forward speed. Read by DebugHud and ChaseCamera.
 var speed: float:
 	get: return _model.speed

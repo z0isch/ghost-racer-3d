@@ -486,6 +486,126 @@ func test_the_model_is_deterministic() -> void:
 	check_near(a.yaw_rate, b.yaw_rate, 0.0, "same yaw rate")
 
 
+# --- Boost -------------------------------------------------------------------------------------
+# Rules 3 and 4 of apply_boost are both invisible until someone breaks them: nothing on screen
+# distinguishes "topped up" from "added" until a second pad is taken, and nothing distinguishes
+# "clamped" from "bled" until a driver cuts a corner mid-boost.
+
+func test_a_bump_lands_instantly_and_is_gone_after_bump_over_bleed_seconds() -> void:
+	var model: KartModel = _fresh()
+	_accelerate_to(model, model.tuning.max_speed)
+	var before: float = model.speed
+
+	model.apply_boost(7.0, 3.5)
+	check_near(model.speed, before + 7.0, 1e-6, "the bump lands in the same frame it is applied")
+	check_near(model.overspeed, 7.0, 1e-6, "and is read back as overspeed, not a hidden counter")
+
+	var _during: KartMotion = _hold(model, 0.0, 0.0, 7.0 / 3.5 - 0.05)
+	check_greater(model.overspeed, 0.0, "still bleeding a moment before bump / bleed seconds is up")
+
+	var _after: KartMotion = _hold(model, 0.0, 0.0, 0.2)
+	check_near(model.overspeed, 0.0, 1e-6, "and gone once bump / bleed seconds have passed")
+	check_near(model.speed, model.tuning.max_speed, 0.05, "settled back on the tuned ceiling")
+
+
+func test_throttle_cannot_hold_overspeed_up_and_the_brake_spends_it_faster() -> void:
+	# Auto-throttle means "no input" is already full throttle; the case this guards against is that
+	# full throttle's acceleration leaks into the overspeed and slows the bleed below the authored
+	# rate. It must not: the bleed is exactly bump - bleed * t regardless.
+	var throttled: KartModel = _fresh()
+	_accelerate_to(throttled, throttled.tuning.max_speed)
+	throttled.apply_boost(7.0, 2.0)
+	var _t: KartMotion = _hold(throttled, 0.0, 0.0, 0.5) # full auto-throttle, no brake
+
+	check_near(throttled.overspeed, 7.0 - 2.0 * 0.5, 1e-4,
+		"under full throttle the overspeed bleeds at exactly the authored rate, no faster or slower")
+
+	var braking: KartModel = _fresh()
+	_accelerate_to(braking, braking.tuning.max_speed)
+	braking.apply_boost(7.0, 2.0)
+	var brake_input: KartInput = KartInput.new()
+	brake_input.brake = 1.0
+	for i: int in range(roundi(0.5 / DELTA)):
+		var _b: KartMotion = braking.step(brake_input, 1.0, DELTA)
+
+	check_less(braking.overspeed, throttled.overspeed, "braking spends the boost faster than the bleed alone")
+
+
+func test_three_chained_pads_leave_the_same_overspeed_as_one() -> void:
+	var single: KartModel = _fresh()
+	_accelerate_to(single, single.tuning.max_speed)
+	single.apply_boost(7.0, 2.0)
+
+	var chained: KartModel = _fresh()
+	_accelerate_to(chained, chained.tuning.max_speed)
+	chained.apply_boost(7.0, 2.0)
+	chained.apply_boost(7.0, 2.0)
+	chained.apply_boost(7.0, 2.0)
+
+	check_near(chained.overspeed, single.overspeed, 1e-6,
+		"a pad tops the overspeed up to its own bump rather than adding to it")
+
+
+func test_a_pad_taken_mid_boost_tops_up_rather_than_adding() -> void:
+	var model: KartModel = _fresh()
+	_accelerate_to(model, model.tuning.max_speed)
+	model.apply_boost(7.0, 2.0)
+	var _partial: KartMotion = _hold(model, 0.0, 0.0, 0.5) # bleeds some of it off
+	var mid_overspeed: float = model.overspeed
+	check_less(mid_overspeed, 7.0, "the boost must have bled down some before the second pad")
+
+	model.apply_boost(7.0, 2.0)
+	check_near(model.overspeed, 7.0, 1e-6,
+		"a same-strength pad taken mid-boost tops back up to its bump, not mid_overspeed + bump")
+
+
+func test_a_weak_pad_during_a_strong_boost_changes_neither_overspeed_nor_bleed() -> void:
+	var model: KartModel = _fresh()
+	_accelerate_to(model, model.tuning.max_speed)
+	model.apply_boost(10.0, 6.0) # strong, fast-bleeding
+	var overspeed_before: float = model.overspeed
+
+	model.apply_boost(3.0, 0.5) # weak, slow-bleeding — grants nothing, since 3.0 < 10.0
+	check_near(model.overspeed, overspeed_before, 1e-6, "a weaker pad leaves the overspeed alone")
+
+	var _during: KartMotion = _hold(model, 0.0, 0.0, 0.2)
+	# If the weak pad's bleed rate had been adopted, 0.2 s at 0.5 m/s^2 would barely have moved the
+	# overspeed; at the strong 6.0 m/s^2 it drops by about 1.2 m/s.
+	check_less(model.overspeed, overspeed_before - 0.5,
+		"and the strong bleed rate must still be the one running, not the weak pad's slow one")
+
+
+func test_a_ceiling_drop_mid_boost_clamps_the_uncredited_excess_instantly() -> void:
+	# Driving onto grass while carrying a boost drops the ceiling out from under the credited
+	# overspeed. Only the credited portion may still bleed; the newly-uncredited excess above it
+	# is exactly the grass case rule_4 protects and must clamp in the same frame, not decay.
+	var model: KartModel = _fresh()
+	_accelerate_to(model, model.tuning.max_speed)
+	model.apply_boost(7.0, 2.0) # credit = 7, speed = max_speed + 7
+
+	var grass_ceiling: float = model.tuning.max_speed * model.tuning.grass_multiplier
+	var expected_cap: float = grass_ceiling + 7.0
+	var input: KartInput = KartInput.new()
+	var _motion: KartMotion = model.step(input, model.tuning.grass_multiplier, DELTA)
+
+	check(model.speed <= expected_cap + 1e-4,
+		"speed must not exceed the new ceiling plus the still-credited overspeed")
+	check_near(model.overspeed, 7.0, 0.5,
+		"the credited 7 m/s of boost is untouched by the ceiling drop itself")
+
+
+func test_the_first_grass_frame_with_no_boost_still_clamps_instantly() -> void:
+	var model: KartModel = _fresh()
+	_accelerate_to(model, model.tuning.max_speed)
+
+	var input: KartInput = KartInput.new()
+	var _motion: KartMotion = model.step(input, model.tuning.grass_multiplier, DELTA)
+
+	check_near(model.speed, model.tuning.max_speed * model.tuning.grass_multiplier, 1e-6,
+		"uncredited overspeed — driving onto grass — clamps hard and instantly, not gradually")
+	check_near(model.overspeed, 0.0, 1e-6, "no boost credit was ever granted")
+
+
 # --- Regression tripwire --------------------------------------------------------------------------
 
 func test_full_lock_flick_at_12_ms_rotates_within_the_tuned_band() -> void:

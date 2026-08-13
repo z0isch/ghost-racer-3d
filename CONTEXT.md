@@ -138,6 +138,7 @@ The time elapsed in the current lap, started at countdown-zero and stopped when 
 **Pace ghost**:
 A translucent, non-colliding replay of the highest earn rate lap driven this session, replaying position and heading only. It starts moving when the player does and exists only in memory for the current session. It cannot take coins and never will: it is a line to follow, not a rival with a purse of its own — a ghost that consumed coins would be taking them from you, and one that mimed a pickup on a coin still standing there would be a lie you would act on.
 Because promotion demands a strictly higher earn rate, the ghost goes **stale on purpose**: set a strong lap and it may stand for fifty more. That is the intended feel. The ghost is a standard to be beaten, not a mirror of what you just did, and it stops moving the moment it becomes hard to beat.
+It is not the only translucent car on the circuit — a **boost pad** is too — and the two are told apart in play, not by colour: the pace ghost is always *moving away from you at your own pace*, and a boost pad is *stationary*. That difference is what stops the two from being confused; colour is not doing the work and should not be relied on to.
 _Avoid_: Ghost car, replay, rival, opponent.
 
 ### Roles
@@ -162,3 +163,24 @@ _Avoid_: Score display, counter, money HUD.
 **Pickup popup**:
 The floating green **`$1`** you drive through when you take a coin: a billboarded label standing a metre ahead of the coin along your travel, rising and fading over 0.8 s. It is spawned at the coin rather than at the kart, so a handful of them trace where the money was rather than where you happened to be. Purely cosmetic and required to stay that way — nothing reads a popup back, and a popup that failed to appear would cost the player the feedback and nothing else. Green because the purse is green: the popup and the total it feeds are tied together by colour and by nothing else.
 _Avoid_: Toast, floater, damage number, notification, particle.
+
+### Boost
+
+**Boost pad**:
+A translucent, stationary ghost of the car standing on the road facing the direction of travel, **taken** by driving through it — the same verb as a coin and the same swept test, and taken once is taken for the rest of the lap. Every pad on a circuit is worth exactly the same, so a pad is a known quantity you route around; what varies is where the pads are, not what each is worth.
+A pad is a coin that pays in speed instead of money. That is the whole of the difference and it is worth stating positively: both are taken by the path rather than touched, both are consumed for the lap, both are restored whole at every countdown so two laps are offered the same track. Anything true of the coin field's lifecycle is true here.
+_Avoid_: Boost panel, ramp, speed strip, respawning (pads do not come back within a lap).
+
+**Bump**:
+The m/s a pad puts straight into forward speed the instant it is taken, above the tuned ceiling. One-shot: there is no envelope and no duration.
+_Avoid_: Boost amount, impulse, thrust, power.
+
+**Bleed**:
+The m/s² the kart sheds overspeed at until it is back at its ceiling. Together with the bump this is the whole of a boost — how long one lasts is `bump / bleed` and is never authored directly, so no second number can disagree with the first and no timer can drift out of sync with the speed.
+_Avoid_: Decay, falloff, boost duration (the thing this exists to not be).
+
+**Overspeed**:
+How far above its ceiling the kart currently is, in m/s. Not a stored "boost amount": it is read off the speed itself, so it cannot disagree with what the player sees. Zero is the normal condition.
+_Avoid_: Boost remaining, boost meter, turbo.
+
+Boost pads have no effect on money and no effect on the coin field. They change the denominator of the earn rate and nothing else. That is the whole of their relationship to the economy.

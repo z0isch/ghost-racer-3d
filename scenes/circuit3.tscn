@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://bxp3i4cnonh8y" path="res://addons/road-generator/nodes/road_manager.gd" id="1_qrfs1"]
 [ext_resource type="Script" uid="uid://cph7euje06kel" path="res://addons/road-generator/nodes/road_container.gd" id="2_kwvsp"]
 [ext_resource type="Script" uid="uid://difs1qg4mpcpw" path="res://addons/road-generator/nodes/road_point.gd" id="3_f7ioj"]
+[ext_resource type="PackedScene" uid="uid://dhb86lw6o4g5n" path="res://cars/FBX/SportsCar.fbx" id="4_boost_car"]
 
 [sub_resource type="StandardMaterial3D" id="Material_grass"]
 albedo_color = Color(0.25, 0.55, 0.2, 1)
@@ -403,3 +404,35 @@ metadata/value = 1
 transform = Transform3D(-0.8480481, 0.52991927, 0, 0, 0, -1, -0.52991927, -0.8480481, 0, 0, 0, 0)
 mesh = SubResource("CylinderMesh_coin")
 script = ExtResource("1_gen_coin_spin")
+
+[node name="BoostPads" type="Node3D" parent="." unique_id=2147155493]
+
+[node name="BoostPad00" type="Marker3D" parent="BoostPads" unique_id=1374442311]
+transform = Transform3D(0.9916716, -0.00036798866, 0.12879139, 0, 0.99999595, 0.002857234, -0.12879191, -0.0028334379, 0.9916676, -4.2897987, -0.049721263, -43.797813)
+
+[node name="Ghost" parent="BoostPads/BoostPad00" unique_id=1844778500 instance=ExtResource("4_boost_car")]
+transform = Transform3D(-0.55, 1.5874834e-11, 6.039832e-08, 1.4551915e-11, 0.6, -7.761022e-11, -8.3047695e-08, -1.1641534e-10, -0.4, 0, 0, 0)
+
+[node name="BoostPad01" type="Marker3D" parent="BoostPads" unique_id=409019905]
+transform = Transform3D(-0.5287445, -0.00047156363, -0.8487809, 0, 0.9999999, -0.00055557746, 0.84878105, -0.00029375855, -0.5287444, 9.491961, -0.001014024, -66.28304)
+
+[node name="Ghost" parent="BoostPads/BoostPad01" unique_id=295339759 instance=ExtResource("4_boost_car")]
+transform = Transform3D(-0.55, 0, 0, 0, 0.6, 0, 0, 0, -0.4, 0, 0.1, 0)
+
+[node name="BoostPad03" type="Marker3D" parent="BoostPads" unique_id=698206779]
+transform = Transform3D(-0.5287445, -0.00047156363, -0.8487809, 0, 0.9999999, -0.00055557746, 0.84878105, -0.00029375855, -0.5287444, 13.009676, 1.1083407, -56.74351)
+
+[node name="Ghost" parent="BoostPads/BoostPad03" unique_id=1665030089 instance=ExtResource("4_boost_car")]
+transform = Transform3D(-0.55, 0, 0, 0, 0.6, 0, 0, 0, -0.4, 0, 0.1, 0)
+
+[node name="BoostPad04" type="Marker3D" parent="BoostPads" unique_id=1870559822]
+transform = Transform3D(-0.5287445, -0.00047156363, -0.8487809, 0, 0.9999999, -0.00055557746, 0.84878105, -0.00029375855, -0.5287444, 11.80817, 3.4031997, -37.685757)
+
+[node name="Ghost" parent="BoostPads/BoostPad04" unique_id=185942427 instance=ExtResource("4_boost_car")]
+transform = Transform3D(-0.55, 0, 0, 0, 0.6, 0, 0, 0, -0.4, 0, 0.1, 0)
+
+[node name="BoostPad02" type="Marker3D" parent="BoostPads" unique_id=554510698]
+transform = Transform3D(-0.6466369, 0.115041085, -0.7540731, 0, 0.9885621, 0.15081462, 0.7627979, 0.09752231, -0.63924074, 10.415923, 4.253067, -1.3250408)
+
+[node name="Ghost" parent="BoostPads/BoostPad02" unique_id=848478461 instance=ExtResource("4_boost_car")]
+transform = Transform3D(-0.55, 0, 0, 0, 0.6, 0, 0, 0, -0.4, 0, 0.1, 0)
