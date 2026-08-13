@@ -22,6 +22,7 @@ acceleration = 5.0
 max_steer_angle_low_speed_degrees = 15.0
 max_steer_angle_high_speed_degrees = 4.0
 slip_ceiling_high_speed_degrees = 10.0
+slip_ceiling_high_speed_braking_degrees = 25.0
 rear_grip_high_speed_degrees_per_second = 360.0
 min_slip_speed = 0.0
 steer_grip_boost = 1.0

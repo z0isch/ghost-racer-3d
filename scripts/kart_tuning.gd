@@ -41,6 +41,21 @@ extends Resource
 ## commands exactly today's ceiling and the whole travel of the stick stays live.
 @export var slip_ceiling_low_speed_degrees: float = 60.0
 @export var slip_ceiling_high_speed_degrees: float = 20.0
+## The high-speed end of the ceiling while the brake is buried — the driver's way of buying rotation
+## back at the speeds the taper takes it away at.
+##
+## Only the high-speed end moves, which is the whole design: at low speed the ceiling is already
+## generous and the brake changes nothing, so the technique's payoff grows with speed and is largest
+## exactly where the kart is otherwise numb. It replaces no part of the safety model — the ceiling is
+## still a hard cap, just a cap the driver can raise at a price, and that price is the deceleration
+## they asked for to raise it.
+@export var slip_ceiling_high_speed_braking_degrees: float = 45.0
+## How fast the braking bonus fades once the brake is released, in influence per second.
+##
+## Not symmetric with the application, which is instant: releasing the brake shrinks the ceiling, and
+## the ceiling is a hard clamp, so an instant release would straighten an established angle in a
+## single frame. This is the rate that snap is spread over.
+@export var brake_slip_release_rate: float = 3.0
 ## Rear grip falls off with speed, making the same flick a snap at 4 m/s and a long committed arc
 ## at 12 m/s.
 @export var rear_grip_low_speed_degrees_per_second: float = 360.0

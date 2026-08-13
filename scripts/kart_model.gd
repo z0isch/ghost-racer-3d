@@ -32,6 +32,10 @@ var _rear_slip_angle: float = 0.0 # radians, positive = left
 
 var _frozen: bool = false
 var _brake_strength: float = 0.0
+# How much of the braking slip bonus is currently live, 0..1. Distinct from _brake_strength because
+# it is asymmetric in time: it takes the brake's value the instant the brake is applied, and eases
+# back out when it is released. See tuning.brake_slip_release_rate for why only one direction eases.
+var _brake_slip_influence: float = 0.0
 
 # Solved outputs, kept for the readouts. Not inputs to anything.
 var _yaw_rate: float = 0.0
@@ -52,6 +56,10 @@ func _init(kart_tuning: KartTuning = null) -> void:
 ## merely slow.
 func step(input: KartInput, surface_multiplier: float, delta: float) -> KartMotion:
 	_brake_strength = input.brake
+	# maxf, so applying the brake is instant and only the release is eased.
+	_brake_slip_influence = maxf(
+		_brake_strength,
+		move_toward(_brake_slip_influence, 0.0, tuning.brake_slip_release_rate * delta))
 
 	_integrate_forward_speed(input, surface_multiplier, delta)
 	_slip_ceiling = _current_slip_ceiling()
@@ -214,6 +222,7 @@ func reset() -> void:
 	_steer_angle = 0.0
 	_rear_slip_angle = 0.0
 	_brake_strength = 0.0
+	_brake_slip_influence = 0.0
 	_yaw_rate = 0.0
 	_lateral_speed = 0.0
 	_slip_ceiling = deg_to_rad(tuning.slip_ceiling_low_speed_degrees)
@@ -303,10 +312,25 @@ func _speed_fraction() -> float:
 
 # A long way round at low speed, barely any swing flat out. Too steep and fast corners go numb, too
 # shallow and the cap stops being felt at all.
+#
+# The brake raises the HIGH-SPEED END and nothing else, so the speed taper survives intact and the
+# bonus is scaled by the same speed fraction as everything else: nothing at a crawl, everything flat
+# out. That shape is the point. The taper exists because a fixed ceiling cannot be right across the
+# range, but its cost is that the kart goes numb exactly where the driving is fastest; braking is
+# the way back, paid for in the speed the brake is already taking.
+#
+# Two consequences worth naming. The ceiling remains a hard cap and the kart still cannot spin out —
+# the driver moves the cap, never escapes it. And _scrub_for_angle bills ceiling *usage*, so the same
+# held angle scrubs less under braking; the brake is already shedding speed far faster than the
+# scrub, so this is a discount on a bill the driver is paying twice over.
 func _current_slip_ceiling() -> float:
+	var high_speed_end: float = lerpf(
+		tuning.slip_ceiling_high_speed_degrees,
+		tuning.slip_ceiling_high_speed_braking_degrees,
+		_brake_slip_influence)
 	return deg_to_rad(lerpf(
 		tuning.slip_ceiling_low_speed_degrees,
-		tuning.slip_ceiling_high_speed_degrees,
+		high_speed_end,
 		_speed_fraction()))
 
 

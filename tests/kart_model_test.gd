@@ -269,6 +269,74 @@ func test_the_slip_ceiling_shrinks_with_speed() -> void:
 	check_less(fast.slip_ceiling_degrees, 26.0, "barely any swing flat out")
 
 
+# One frame with the brake buried, from a matched speed, so the ceiling is read before the
+# deceleration has moved the speed fraction the ceiling is interpolated on.
+func _ceiling_after_one_frame(speed: float, brake: float) -> float:
+	var model: KartModel = _fresh()
+	_accelerate_to(model, speed)
+	var input: KartInput = KartInput.new()
+	input.brake = brake
+	var _motion: KartMotion = model.step(input, 1.0, DELTA)
+	return model.slip_ceiling_degrees
+
+
+func test_braking_buys_rotation_back_at_speed() -> void:
+	# The taper's cost is that the kart goes numb exactly where the driving is fastest. The brake is
+	# the way back, and it has to be worth a lot to be worth the speed it costs.
+	var coasting: float = _ceiling_after_one_frame(13.0, 0.0)
+	var braking: float = _ceiling_after_one_frame(13.0, 1.0)
+
+	check_greater(braking - coasting, 15.0,
+		"burying the brake at speed must open the ceiling by a technique's worth of degrees")
+
+
+func test_the_braking_bonus_is_scaled_by_the_speed_taper() -> void:
+	# Only the high-speed end moves, so the bonus grows with speed: nothing at a crawl, everything
+	# flat out. Without this the brake would be a flat "more angle" button and the taper would stop
+	# meaning anything.
+	var slow_gain: float = _ceiling_after_one_frame(2.0, 1.0) - _ceiling_after_one_frame(2.0, 0.0)
+	var fast_gain: float = _ceiling_after_one_frame(13.0, 1.0) - _ceiling_after_one_frame(13.0, 0.0)
+
+	check_less(slow_gain, 5.0, "at a crawl the ceiling is already generous and the brake adds little")
+	check_greater(fast_gain - slow_gain, 10.0, "the payoff must grow with speed")
+
+
+func test_releasing_the_brake_does_not_straighten_the_kart_in_one_frame() -> void:
+	# The ceiling is a hard clamp, so collapsing the bonus the instant the brake comes off would
+	# snap an established angle straight. Only the release is eased; application stays instant.
+	var model: KartModel = _fresh()
+	_accelerate_to(model, 13.0)
+
+	var input: KartInput = KartInput.new()
+	input.brake = 1.0
+	var _braked: KartMotion = model.step(input, 1.0, DELTA)
+	var braking_ceiling: float = model.slip_ceiling_degrees
+
+	input.brake = 0.0
+	var _released: KartMotion = model.step(input, 1.0, DELTA)
+
+	check_greater(model.slip_ceiling_degrees, braking_ceiling - 5.0,
+		"one frame off the brake must not take the ceiling with it")
+
+
+func test_the_kart_cannot_spin_out_while_working_the_brake() -> void:
+	# The brake moves the cap; it must never let the driver escape it. Same thrash as
+	# test_the_kart_cannot_spin_out, with the brake stabbed in and out against the sticks.
+	var model: KartModel = _fresh()
+	var input: KartInput = KartInput.new()
+	var worst_ceiling_overshoot: float = 0.0
+	for i: int in range(1800):
+		input.steer = signf(sin(i * 0.11))
+		input.slip = signf(sin(i * 0.037))
+		input.brake = 1.0 if sin(i * 0.019) > 0.0 else 0.0
+		var _motion: KartMotion = model.step(input, 1.0, DELTA)
+		worst_ceiling_overshoot = maxf(worst_ceiling_overshoot,
+			absf(model.rear_slip_degrees) - model.slip_ceiling_degrees)
+
+	check_less(worst_ceiling_overshoot, 1e-6,
+		"the rear slip angle must never exceed the ceiling, brake or no brake")
+
+
 func test_full_deflection_always_commands_exactly_todays_ceiling() -> void:
 	# The stick is rescaled into the ceiling, not clipped by it, so the whole travel stays live at
 	# every speed. The trade is the second assertion: a stick position is a different number of
