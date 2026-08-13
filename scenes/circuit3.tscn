@@ -23,15 +23,15 @@ albedo_color = Color(0.20871013, 0.20871016, 0.20871013, 1)
 
 [sub_resource type="Curve3D" id="Curve3D_qrfs1"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 17.545038, -8, 0, 0, -3.3857884e-06, 0, 38.728905, 30, -6, 7, 36, -6, 7.0000005),
-"tilts": PackedFloat32Array(0, -0.27105534)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 15.439019, -4, 0, 0, -3.136723e-06, 0, 35.87993, 30, -6, 7, 34.5, -6, 7.0000005),
+"tilts": PackedFloat32Array(0, -0.3092011)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_kwvsp"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 9.120961, 8, 0, 0, -1.393265e-06, 0, 15.937095, 30, -6, 7, 24, -6, 6.9999995),
-"tilts": PackedFloat32Array(0, -0.7175417)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 11.226981, 4, 0, 0, -1.6423305e-06, 0, 18.786072, 30, -6, 7, 25.5, -6, 6.9999995),
+"tilts": PackedFloat32Array(0, -0.54429203)
 }
 point_count = 2
 
@@ -44,15 +44,15 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_ntw3p"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 14.446919, -6, 0, 0, 8.658179, 0, -7.0112553, -9, 6, 53, -51.887184, 6, 20.142502),
-"tilts": PackedFloat32Array(0, -0.09488696)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 16.408945, -4, 0, 0, 7.5670686, 0, -6.1276913, -9, 6, 53, -49.3699, 6, 23.251085),
+"tilts": PackedFloat32Array(0, -0.09039863)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_25r6w"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 26.219078, 6, 0, 0, 4.2937355, 0, -3.4769986, -9, 6, 53, -41.818054, 6, 32.576836),
-"tilts": PackedFloat32Array(0, -0.078114115)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 24.257051, 4, 0, 0, 5.3848467, 0, -4.360563, -9, 6, 53, -44.33534, 6, 29.468252),
+"tilts": PackedFloat32Array(0, -0.080794066)
 }
 point_count = 2
 
@@ -65,15 +65,15 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_esvvl"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0.359778, -6, 0, 0, 0.9980905, 0, 17.376144, 31.299, 0.1, -3.834999, -17.906477, 0.1, -20.918015),
-"tilts": PackedFloat32Array(0, -0.01791984)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 3.1991856, -4, 0, 0, 1.0740495, 0, 18.698545, 31.299, 0.1, -3.834999, -19.903185, 0.1, -20.803324),
+"tilts": PackedFloat32Array(0, -0.013139529)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_qkvbf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 17.396225, 6, 0, 0, 1.4538442, 0, 25.31054, 31.299, 0.1, -3.834999, -29.886728, 0.1, -20.229866),
-"tilts": PackedFloat32Array(0, -0.0056499406)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 14.556817, 4, 0, 0, 1.3778852, 0, 23.988138, 31.299, 0.1, -3.834999, -27.89002, 0.1, -20.344557),
+"tilts": PackedFloat32Array(0, -0.0063755834)
 }
 point_count = 2
 
@@ -86,15 +86,15 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_xjdrx"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, -5.9999995, 0, 0, -11.833978, 0, -7.1916275, -18.299, -0.1, -28.165, 20.220936, -0.1, 29.283352),
-"tilts": PackedFloat32Array(0, 0.008475776)
+"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, -3.9999998, 0, 0, -14.12143, 0, -8.581736, -18.299, -0.1, -28.165, 21.2596, -0.1, 27.574207),
+"tilts": PackedFloat32Array(0, 0.0102215)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_an3qf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, 5.9999995, 0, 0, -25.558695, 0, -15.532277, -18.299, -0.1, -28.165, 26.452923, -0.1, 19.028484),
-"tilts": PackedFloat32Array(0, 0.12814307)
+"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, 3.9999998, 0, 0, -23.27124, 0, -14.142168, -18.299, -0.1, -28.165, 25.414259, -0.1, 20.737629),
+"tilts": PackedFloat32Array(0, 0.042631753)
 }
 point_count = 2
 
@@ -107,14 +107,14 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_e1fha"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 13.92156, -6, 0, 0, 2.014787, 0, -10.365184, -34, 0, -28, 28.11024, 0, 26.855143),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 12.524421, -4.5, 0, 0, 2.4456215, 0, -12.581636, -34, 0, -28, 30.073496, 0, 27.236761),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_sllld"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 2.74444, 6, 0, 0, 4.599795, 0, -23.6639, -34, 0, -28, 39.889767, 0, 29.14485),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 4.14158, 4.5, 0, 0, 4.16896, 0, -21.447447, -34, 0, -28, 37.926514, 0, 28.763231),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
@@ -185,7 +185,7 @@ auto_lanes = false
 lanes = Array[int]([0])
 prior_mag = 8.333
 next_mag = 13.333
-lane_width = 8.0
+lane_width = 0.0
 prior_pt_init = NodePath("../RP_002")
 next_pt_init = NodePath("../RP_005")
 
@@ -208,6 +208,7 @@ traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
 prior_mag = 21.378521
 next_mag = 20.333
+lane_width = 0.0
 prior_pt_init = NodePath("../RP_003")
 next_pt_init = NodePath("../RP_001")
 
@@ -230,6 +231,7 @@ traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
 prior_mag = 21.878
 next_mag = 8.878
+lane_width = 0.0
 prior_pt_init = NodePath("../RP_004")
 next_pt_init = NodePath("../RP_002")
 
@@ -252,6 +254,7 @@ traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
 prior_mag = 17.333
 next_mag = 30.333
+lane_width = 0.0
 prior_pt_init = NodePath("../RP_005")
 next_pt_init = NodePath("../RP_003")
 
@@ -274,6 +277,7 @@ traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
 prior_mag = 27.333
 next_mag = 8.333
+lane_width = 0.0
 prior_pt_init = NodePath("../RP_001")
 next_pt_init = NodePath("../RP_004")
 
@@ -356,7 +360,7 @@ surface_material_override/0 = SubResource("Material_gate_start")
 [node name="Coins" type="Node3D" parent="." unique_id=51375204]
 
 [node name="Coin00" type="Marker3D" parent="Coins" unique_id=439602747]
-transform = Transform3D(-0.9245849, 0, 0.38097605, 0, 1, 0, -0.38097605, 0, -0.9245849, -4.460285, 0.39994302, -33.871544)
+transform = Transform3D(-0.9245849, 0, 0.38097605, 0, 1, 0, -0.38097605, 0, -0.9245849, -1.9372711, 0.39994302, -33.871544)
 metadata/value = 1
 
 [node name="Mesh" type="MeshInstance3D" parent="Coins/Coin00" unique_id=1337779831]
@@ -365,7 +369,7 @@ mesh = SubResource("CylinderMesh_coin")
 script = ExtResource("1_gen_coin_spin")
 
 [node name="Coin01" type="Marker3D" parent="Coins" unique_id=345923615]
-transform = Transform3D(0.7209712, 0, 0.6929651, 0, 1, 0, -0.6929651, 0, 0.7209712, -21.337927, 0.3001237, -62.2294)
+transform = Transform3D(0.7209712, 0, 0.6929651, 0, 1, 0, -0.6929651, 0, 0.7209712, -24.54981, 0.3001237, -62.741352)
 metadata/value = 1
 
 [node name="Mesh" type="MeshInstance3D" parent="Coins/Coin01" unique_id=1627542863]
@@ -392,7 +396,7 @@ mesh = SubResource("CylinderMesh_coin")
 script = ExtResource("1_gen_coin_spin")
 
 [node name="Coin04" type="Marker3D" parent="Coins" unique_id=951795350]
-transform = Transform3D(0.9997061, 0, -0.024244664, 0, 1, 0, 0.024244664, 0, 0.9997061, 29.98969, 0.40206668, -6.135864)
+transform = Transform3D(0.9997061, 0, -0.024244664, 0, 1, 0, 0.024244664, 0, 0.9997061, 19.87526, 0.40206668, -11.40743)
 metadata/value = 1
 
 [node name="Mesh" type="MeshInstance3D" parent="Coins/Coin04" unique_id=1636496429]
