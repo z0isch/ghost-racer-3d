@@ -1,0 +1,189 @@
+[gd_scene format=3 uid="uid://bqjxvhq6xqxqx"]
+
+[ext_resource type="PackedScene" uid="uid://c6h6rk0kk2m2q" path="res://scenes/kart.tscn" id="1_kart"]
+[ext_resource type="Script" uid="uid://bfwqdtfsatc44" path="res://scripts/chase_camera.gd" id="2_chase_camera"]
+[ext_resource type="Script" uid="uid://dxr1cdkqpjufc" path="res://scripts/kart_tuning.gd" id="3_4c57u"]
+[ext_resource type="Script" uid="uid://dbysge02jo6wo" path="res://scripts/debug_hud.gd" id="3_debug_hud"]
+[ext_resource type="Script" uid="uid://dmftaorexfhvj" path="res://scripts/lap_director.gd" id="5_lap_director"]
+[ext_resource type="Script" uid="uid://cimslld3mxxch" path="res://scripts/countdown_hud.gd" id="6_countdown_hud"]
+[ext_resource type="Script" uid="uid://wbsa1w3drfsf" path="res://scripts/lap_hud.gd" id="7_lap_hud"]
+[ext_resource type="Script" uid="uid://n3krn4s0chb4" path="res://scripts/pace_ghost.gd" id="8_pace_ghost"]
+[ext_resource type="PackedScene" uid="uid://dhb86lw6o4g5n" path="res://cars/FBX/SportsCar.fbx" id="9_ghost_model"]
+[ext_resource type="Script" uid="uid://c28f467qgtyl" path="res://scripts/coin_field.gd" id="10_coin_field"]
+[ext_resource type="Script" uid="uid://cmixgfvsp4uvv" path="res://scripts/purse.gd" id="11_purse"]
+[ext_resource type="Script" uid="uid://cu83wenc2s5sg" path="res://scripts/pickup_popups.gd" id="12_pickup_popups"]
+[ext_resource type="Script" uid="uid://bvqf8ytsnbmk3" path="res://scripts/purse_hud.gd" id="13_purse_hud"]
+[ext_resource type="PackedScene" uid="uid://55byqb2mm870" path="res://scenes/circuit3.tscn" id="14_w48qg"]
+
+[sub_resource type="Resource" id="Resource_npteq"]
+script = ExtResource("3_4c57u")
+acceleration = 5.0
+max_steer_angle_low_speed_degrees = 15.0
+max_steer_angle_high_speed_degrees = 7.0
+slip_ceiling_high_speed_degrees = 10.0
+rear_grip_high_speed_degrees_per_second = 360.0
+min_slip_speed = 0.0
+steer_grip_boost = 1.0
+drift_speed_scrub = 0.0
+grass_multiplier = 0.8
+metadata/_custom_type_script = "uid://dxr1cdkqpjufc"
+
+[node name="Main" type="Node3D" unique_id=273122702]
+
+[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=105771251]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30.206966, 40.839546, 7.898487)
+omni_range = 4096.0
+omni_attenuation = 0.12
+
+[node name="Kart" parent="." unique_id=658236697 instance=ExtResource("1_kart")]
+transform = Transform3D(0.8480481, -0.13715316, 0.51186264, 0, 0.96592563, 0.258819, -0.52991927, -0.21949095, 0.8191514, -14.479635, 5.2275114, -22.458918)
+tuning = SubResource("Resource_npteq")
+
+[node name="ChaseCamera" type="Camera3D" parent="." unique_id=1992052791]
+current = true
+script = ExtResource("2_chase_camera")
+target_path = NodePath("../Kart")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=988637534]
+script = ExtResource("3_debug_hud")
+target_path = NodePath("../Kart")
+
+[node name="SpeedLabel" type="Label" parent="HUD" unique_id=144426822]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 216.0
+offset_bottom = 40.0
+text = "Speed: 0.0"
+
+[node name="RoadLabel" type="Label" parent="HUD" unique_id=452692008]
+offset_left = 16.0
+offset_top = 40.0
+offset_right = 216.0
+offset_bottom = 64.0
+text = "On-road"
+
+[node name="CoinField" type="Node" parent="." unique_id=417553902]
+script = ExtResource("10_coin_field")
+kart_path = NodePath("../Kart")
+director_path = NodePath("../LapDirector")
+coins_path = NodePath("../Circuit3/Coins")
+
+[node name="Purse" type="Node" parent="." unique_id=417553903]
+script = ExtResource("11_purse")
+coin_field_path = NodePath("../CoinField")
+
+[node name="PickupPopups" type="Node3D" parent="." unique_id=417553904]
+script = ExtResource("12_pickup_popups")
+coin_field_path = NodePath("../CoinField")
+kart_path = NodePath("../Kart")
+
+[node name="LapDirector" type="Node" parent="." unique_id=299497301]
+script = ExtResource("5_lap_director")
+kart_path = NodePath("../Kart")
+chase_camera_path = NodePath("../ChaseCamera")
+start_line_path = NodePath("../Circuit3/StartLine")
+checkpoints_path = NodePath("../Circuit3/Checkpoints")
+coin_field_path = NodePath("../CoinField")
+restart_countdown_seconds = 1.0
+
+[node name="PaceGhost" type="Node3D" parent="." unique_id=871962825]
+script = ExtResource("8_pace_ghost")
+kart_path = NodePath("../Kart")
+director_path = NodePath("../LapDirector")
+ghost_color = Color(0.6901961, 0.003921569, 0.98039216, 0.3372549)
+
+[node name="SportsCar" parent="PaceGhost" unique_id=1655867908 instance=ExtResource("9_ghost_model")]
+transform = Transform3D(-0.55, 0, 3.4969112e-08, 0, 0.6, 0, -4.8082526e-08, 0, -0.4, 0, -0.4, 0)
+
+[node name="CountdownHud" type="CanvasLayer" parent="." unique_id=151872398]
+script = ExtResource("6_countdown_hud")
+director_path = NodePath("../LapDirector")
+
+[node name="CountdownLabel" type="Label" parent="CountdownHud" unique_id=1124207438]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 14
+theme_override_font_sizes/font_size = 128
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LapHud" type="CanvasLayer" parent="." unique_id=744120865]
+script = ExtResource("7_lap_hud")
+director_path = NodePath("../LapDirector")
+
+[node name="CurrentLabel" type="Label" parent="LapHud" unique_id=283114907]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -296.0
+offset_top = 16.0
+offset_right = -24.0
+offset_bottom = 68.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 44
+text = "0.00"
+horizontal_alignment = 2
+
+[node name="RateLabel" type="Label" parent="LapHud" unique_id=283114908]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -296.0
+offset_top = 72.0
+offset_right = -24.0
+offset_bottom = 98.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 20
+text = "RATE  --.--/s"
+horizontal_alignment = 2
+
+[node name="RecordLabel" type="Label" parent="LapHud" unique_id=283114909]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -296.0
+offset_top = 98.0
+offset_right = -24.0
+offset_bottom = 124.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 20
+text = "RECORD  --.--/s"
+horizontal_alignment = 2
+
+[node name="CheckpointLabel" type="Label" parent="LapHud" unique_id=630187224]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -296.0
+offset_top = 128.0
+offset_right = -24.0
+offset_bottom = 154.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 2
+
+[node name="PurseHud" type="CanvasLayer" parent="." unique_id=417553905]
+script = ExtResource("13_purse_hud")
+purse_path = NodePath("../Purse")
+
+[node name="PurseLabel" type="Label" parent="PurseHud" unique_id=417553906]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 16.0
+offset_right = 200.0
+offset_bottom = 68.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.29, 0.93, 0.42, 1)
+theme_override_font_sizes/font_size = 44
+text = "$0"
+horizontal_alignment = 1
+
+[node name="Circuit3" parent="." unique_id=1961655717 instance=ExtResource("14_w48qg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7063942, -1.9572029, -1.3011398)

@@ -1,0 +1,91 @@
+[gd_scene format=3 uid="uid://c6h6rk0kk2m2q"]
+
+[ext_resource type="Script" uid="uid://bkjo7x5g1jj5i" path="res://scripts/kart.gd" id="1_kart"]
+[ext_resource type="PackedScene" uid="uid://dhb86lw6o4g5n" path="res://cars/FBX/SportsCar.fbx" id="2_yjkmi"]
+[ext_resource type="Script" uid="uid://csbebaqbrv1ah" path="res://scripts/kart_cosmetics.gd" id="3_cosmetics"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_body"]
+
+[sub_resource type="Gradient" id="Gradient_smoke"]
+offsets = PackedFloat32Array(0, 0.2, 1)
+colors = PackedColorArray(0.9, 0.9, 0.92, 0, 0.88, 0.88, 0.9, 0.5, 0.75, 0.75, 0.8, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_smoke"]
+gradient = SubResource("Gradient_smoke")
+
+[sub_resource type="Curve" id="Curve_smoke_scale"]
+_data = [Vector2(0, 0.35), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_smoke_scale"]
+curve = SubResource("Curve_smoke_scale")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_smoke"]
+lifetime_randomness = 0.3
+emission_shape = 1
+emission_sphere_radius = 0.12
+direction = Vector3(0, 0.4, 1)
+spread = 35.0
+initial_velocity_min = 1.0
+initial_velocity_max = 2.5
+angular_velocity_min = -90.0
+angular_velocity_max = 90.0
+gravity = Vector3(0, 0.8, 0)
+damping_min = 2.0
+damping_max = 3.5
+scale_min = 0.5
+scale_curve = SubResource("CurveTexture_smoke_scale")
+color_ramp = SubResource("GradientTexture1D_smoke")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_smoke"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.5609549, 0.5609549, 0.5609549, 1)
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
+
+[sub_resource type="QuadMesh" id="QuadMesh_smoke"]
+material = SubResource("StandardMaterial3D_smoke")
+size = Vector2(0.8, 0.8)
+
+[node name="Kart" type="CharacterBody3D" unique_id=574199460]
+collision_mask = 3
+script = ExtResource("1_kart")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=579138]
+shape = SubResource("SphereShape3D_body")
+
+[node name="GroundRay" type="RayCast3D" parent="." unique_id=427231096]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.8)
+target_position = Vector3(0, -2.5, 0)
+
+[node name="Cosmetics" type="Node3D" parent="." unique_id=712334901]
+script = ExtResource("3_cosmetics")
+
+[node name="Chassis" type="Node3D" parent="Cosmetics" unique_id=481920377]
+
+[node name="DriftSmokeLeft" type="GPUParticles3D" parent="Cosmetics/Chassis" unique_id=310774421]
+transform = Transform3D(0.9999863, 0, -0.005235964, 0, 1, 0, 0.005235964, 0, 0.9999863, 0.4172073, -0.21164513, -0.14717314)
+emitting = false
+amount = 1000
+lifetime = 0.7
+process_material = SubResource("ParticleProcessMaterial_smoke")
+draw_pass_1 = SubResource("QuadMesh_smoke")
+
+[node name="DriftSmokeRight" type="GPUParticles3D" parent="Cosmetics/Chassis" unique_id=310774422]
+transform = Transform3D(1, 0, 0, 0, 0.4694716, 0.88294756, 0, -0.88294756, 0.4694716, -0.40597177, -0.22359046, -0.092002004)
+emitting = false
+amount = 1000
+amount_ratio = 0.6
+lifetime = 0.7
+process_material = SubResource("ParticleProcessMaterial_smoke")
+draw_pass_1 = SubResource("QuadMesh_smoke")
+
+[node name="Visual" type="Node3D" parent="Cosmetics/Chassis" unique_id=569443586]
+
+[node name="SportsCar" parent="Cosmetics/Chassis/Visual" unique_id=1665030089 instance=ExtResource("2_yjkmi")]
+transform = Transform3D(-0.55, 0, 3.4969112e-08, 0, 0.6, 0, -4.8082526e-08, 0, -0.4, 0, -0.4, 0)

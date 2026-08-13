@@ -1,0 +1,12 @@
+# Godot 4+ specific ignores
+.godot/
+.import/
+export.cfg
+export_presets.cfg
+
+# Export output. The web build alone is ~39 MB of wasm; not a repo artefact.
+build/
+
+# System / editor cruft
+.DS_Store
+Thumbs.db
