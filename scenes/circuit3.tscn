@@ -22,105 +22,105 @@ albedo_color = Color(0.21950102, 0.21950102, 0.21950102, 1)
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sllld"]
 albedo_color = Color(0.20871013, 0.20871016, 0.20871013, 1)
 
-[sub_resource type="Curve3D" id="Curve3D_qrfs1"]
-_data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 15.439019, -4, 0, 0, -3.136723e-06, 0, 35.87993, 30, -6, 7, 34.5, -6, 7.0000005),
-"tilts": PackedFloat32Array(0, -0.3092011)
-}
-point_count = 2
-
 [sub_resource type="Curve3D" id="Curve3D_kwvsp"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 11.226981, 4, 0, 0, -1.6423305e-06, 0, 18.786072, 30, -6, 7, 25.5, -6, 6.9999995),
-"tilts": PackedFloat32Array(0, -0.54429203)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 16.49203, -6, 0, 0, -3.3857884e-06, 0, 38.728905, 30, -6, 7, 36, -6, 7.0000005),
+"tilts": PackedFloat32Array(0, -0.28379405)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_f7ioj"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 10.173971, 6, 0, 0, -1.393265e-06, 0, 15.937095, 30, -6, 7, 24, -6, 6.9999995),
+"tilts": PackedFloat32Array(0, -0.6435019)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_ntw3p"]
 _data = {
 "points": PackedVector3Array(0, 0, 0, 0, 0, 13.333, 0, 0, 0, -2.3895268e-06, 0, 27.333, 30, -6, 7, 30, -6, 7),
 "tilts": PackedFloat32Array(0, -0.39479107)
 }
 point_count = 2
 
-[sub_resource type="Curve3D" id="Curve3D_ntw3p"]
-_data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 16.408945, -4, 0, 0, 7.5670686, 0, -6.1276913, -9, 6, 53, -49.3699, 6, 23.251085),
-"tilts": PackedFloat32Array(0, -0.09039863)
-}
-point_count = 2
-
 [sub_resource type="Curve3D" id="Curve3D_25r6w"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 24.257051, 4, 0, 0, 5.3848467, 0, -4.360563, -9, 6, 53, -44.33534, 6, 29.468252),
-"tilts": PackedFloat32Array(0, -0.080794066)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 14.446919, -6, 0, 0, 8.112624, 0, -6.5694733, -9, 6, 53, -50.62854, 6, 21.696793),
+"tilts": PackedFloat32Array(0, -0.09347261)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_8sjf6"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 26.219078, 6, 0, 0, 4.839291, 0, -3.9187806, -9, 6, 53, -43.0767, 6, 31.022545),
+"tilts": PackedFloat32Array(0, -0.078900255)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_esvvl"]
 _data = {
 "points": PackedVector3Array(0, 0, 0, 0, 0, 20.332998, 0, 0, 0, 6.4759574, 0, -5.244127, -9, 6, 53, -46.85262, 6, 26.359669),
 "tilts": PackedFloat32Array(0, -0.08513592)
 }
 point_count = 2
 
-[sub_resource type="Curve3D" id="Curve3D_esvvl"]
-_data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 3.1991856, -4, 0, 0, 1.0740495, 0, 18.698545, 31.299, 0.1, -3.834999, -19.903185, 0.1, -20.803324),
-"tilts": PackedFloat32Array(0, -0.013139529)
-}
-point_count = 2
-
 [sub_resource type="Curve3D" id="Curve3D_qkvbf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 14.556817, 4, 0, 0, 1.3778852, 0, 23.988138, 31.299, 0.1, -3.834999, -27.89002, 0.1, -20.344557),
-"tilts": PackedFloat32Array(0, -0.0063755834)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0.359778, -6, 0, 0, 0.9980905, 0, 17.376144, 31.299, 0.1, -3.834999, -17.906477, 0.1, -20.918015),
+"tilts": PackedFloat32Array(0, -0.01791984)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_x05ix"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 17.396225, 6, 0, 0, 1.4538442, 0, 25.31054, 31.299, 0.1, -3.834999, -29.886728, 0.1, -20.229866),
+"tilts": PackedFloat32Array(0, -0.0056499406)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_xjdrx"]
 _data = {
 "points": PackedVector3Array(0, 0, 0, 0, 0, 8.878001, 0, 0, 0, 1.2259674, 0, 21.343342, 31.299, 0.1, -3.834999, -23.896603, 0.1, -20.57394),
 "tilts": PackedFloat32Array(0, -0.008581632)
 }
 point_count = 2
 
-[sub_resource type="Curve3D" id="Curve3D_xjdrx"]
-_data = {
-"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, -3.9999998, 0, 0, -14.12143, 0, -8.581736, -18.299, -0.1, -28.165, 21.2596, -0.1, 27.574207),
-"tilts": PackedFloat32Array(0, 0.0102215)
-}
-point_count = 2
-
 [sub_resource type="Curve3D" id="Curve3D_an3qf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, 3.9999998, 0, 0, -23.27124, 0, -14.142168, -18.299, -0.1, -28.165, 25.414259, -0.1, 20.737629),
-"tilts": PackedFloat32Array(0, 0.042631753)
+"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, -5.9999995, 0, 0, -11.833978, 0, -7.1916275, -18.299, -0.1, -28.165, 20.220936, -0.1, 29.283352),
+"tilts": PackedFloat32Array(0, 0.008475776)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_mxsjf"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, 5.9999995, 0, 0, -25.558695, 0, -15.532277, -18.299, -0.1, -28.165, 26.452923, -0.1, 19.028484),
+"tilts": PackedFloat32Array(0, 0.12814307)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_e1fha"]
 _data = {
 "points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, 0, 0, 0, -18.696335, 0, -11.361952, -18.299, -0.1, -28.165, 23.33693, -0.1, 24.155918),
 "tilts": PackedFloat32Array(0, 0.016917989)
 }
 point_count = 2
 
-[sub_resource type="Curve3D" id="Curve3D_e1fha"]
-_data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 12.524421, -4.5, 0, 0, 2.4456215, 0, -12.581636, -34, 0, -28, 30.073496, 0, 27.236761),
-"tilts": PackedFloat32Array(0, 0)
-}
-point_count = 2
-
 [sub_resource type="Curve3D" id="Curve3D_sllld"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 4.14158, 4.5, 0, 0, 4.16896, 0, -21.447447, -34, 0, -28, 37.926514, 0, 28.763231),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 13.92156, -6, 0, 0, 2.014787, 0, -10.365184, -34, 0, -28, 28.11024, 0, 26.855143),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_nad8w"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 2.74444, 6, 0, 0, 4.599795, 0, -23.6639, -34, 0, -28, 39.889767, 0, 29.14485),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_bluvq"]
 _data = {
 "points": PackedVector3Array(0, 0, 0, 0, 0, 8.333, 0, 0, 0, 3.3072908, 0, -17.014542, -34, 0, -28, 34.000004, 0, 27.999996),
 "tilts": PackedFloat32Array(0, 0)
@@ -186,20 +186,19 @@ auto_lanes = false
 lanes = Array[int]([0])
 prior_mag = 8.333
 next_mag = 13.333
-lane_width = 0.0
 prior_pt_init = NodePath("../RP_002")
 next_pt_init = NodePath("../RP_005")
 
 [node name="edge_R" type="Path3D" parent="RoadManager/RoadContainer/RP_001" unique_id=1343542927]
-curve = SubResource("Curve3D_qrfs1")
-metadata/_edit_lock_ = true
-
-[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_001" unique_id=867821354]
 curve = SubResource("Curve3D_kwvsp")
 metadata/_edit_lock_ = true
 
-[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_001" unique_id=1673968826]
+[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_001" unique_id=867821354]
 curve = SubResource("Curve3D_f7ioj")
+metadata/_edit_lock_ = true
+
+[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_001" unique_id=1673968826]
+curve = SubResource("Curve3D_ntw3p")
 metadata/_edit_lock_ = true
 
 [node name="RP_002" type="Node3D" parent="RoadManager/RoadContainer" unique_id=50327822]
@@ -209,20 +208,19 @@ traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
 prior_mag = 21.378521
 next_mag = 20.333
-lane_width = 0.0
 prior_pt_init = NodePath("../RP_003")
 next_pt_init = NodePath("../RP_001")
 
 [node name="edge_R" type="Path3D" parent="RoadManager/RoadContainer/RP_002" unique_id=1994731042]
-curve = SubResource("Curve3D_ntw3p")
-metadata/_edit_lock_ = true
-
-[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_002" unique_id=463700656]
 curve = SubResource("Curve3D_25r6w")
 metadata/_edit_lock_ = true
 
-[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_002" unique_id=2031783659]
+[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_002" unique_id=463700656]
 curve = SubResource("Curve3D_8sjf6")
+metadata/_edit_lock_ = true
+
+[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_002" unique_id=2031783659]
+curve = SubResource("Curve3D_esvvl")
 metadata/_edit_lock_ = true
 
 [node name="RP_003" type="Node3D" parent="RoadManager/RoadContainer" unique_id=608918129]
@@ -232,20 +230,19 @@ traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
 prior_mag = 21.878
 next_mag = 8.878
-lane_width = 0.0
 prior_pt_init = NodePath("../RP_004")
 next_pt_init = NodePath("../RP_002")
 
 [node name="edge_R" type="Path3D" parent="RoadManager/RoadContainer/RP_003" unique_id=529524036]
-curve = SubResource("Curve3D_esvvl")
-metadata/_edit_lock_ = true
-
-[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_003" unique_id=1903119592]
 curve = SubResource("Curve3D_qkvbf")
 metadata/_edit_lock_ = true
 
-[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_003" unique_id=1961230243]
+[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_003" unique_id=1903119592]
 curve = SubResource("Curve3D_x05ix")
+metadata/_edit_lock_ = true
+
+[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_003" unique_id=1961230243]
+curve = SubResource("Curve3D_xjdrx")
 metadata/_edit_lock_ = true
 
 [node name="RP_004" type="Node3D" parent="RoadManager/RoadContainer" unique_id=559448363]
@@ -255,20 +252,19 @@ traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
 prior_mag = 17.333
 next_mag = 30.333
-lane_width = 0.0
 prior_pt_init = NodePath("../RP_005")
 next_pt_init = NodePath("../RP_003")
 
 [node name="edge_R" type="Path3D" parent="RoadManager/RoadContainer/RP_004" unique_id=1693429504]
-curve = SubResource("Curve3D_xjdrx")
-metadata/_edit_lock_ = true
-
-[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_004" unique_id=511137205]
 curve = SubResource("Curve3D_an3qf")
 metadata/_edit_lock_ = true
 
-[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_004" unique_id=1020836075]
+[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_004" unique_id=511137205]
 curve = SubResource("Curve3D_mxsjf")
+metadata/_edit_lock_ = true
+
+[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_004" unique_id=1020836075]
+curve = SubResource("Curve3D_e1fha")
 metadata/_edit_lock_ = true
 
 [node name="RP_005" type="Node3D" parent="RoadManager/RoadContainer" unique_id=1057962735]
@@ -278,20 +274,19 @@ traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
 prior_mag = 27.333
 next_mag = 8.333
-lane_width = 0.0
 prior_pt_init = NodePath("../RP_001")
 next_pt_init = NodePath("../RP_004")
 
 [node name="edge_R" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=1692800137]
-curve = SubResource("Curve3D_e1fha")
-metadata/_edit_lock_ = true
-
-[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=1750820954]
 curve = SubResource("Curve3D_sllld")
 metadata/_edit_lock_ = true
 
-[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=1757592969]
+[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=1750820954]
 curve = SubResource("Curve3D_nad8w")
+metadata/_edit_lock_ = true
+
+[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=1757592969]
+curve = SubResource("Curve3D_bluvq")
 metadata/_edit_lock_ = true
 
 [node name="StartLine" type="Marker3D" parent="." unique_id=2098442364]
