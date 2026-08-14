@@ -69,21 +69,27 @@ func _physics_process(delta: float) -> void:
 	if _target == null:
 		return
 
+	_update_fov(delta)
+
 	_smoothed_target_y = lerpf(_smoothed_target_y, _target.global_position.y, 1.0 - exp(-height_smoothing * delta))
 	_update_drift_framing(delta)
-	var distance: float = follow_distance + drift_pullback * _drift_framing
+	# Widening the FOV without pulling back is what stretches the kart: it sits close enough to the
+	# lens that a wider angle reads as a wide-angle close-up on the car itself, not just a wider view
+	# of the track. Scaling follow distance and height by the same factor that widens the FOV cancels
+	# that — the kart keeps roughly the screen size and framing it had at base_fov, just from
+	# farther away, which is what leaves the wide-angle distortion behind.
+	var fov_pullback: float = _fov_distance_scale()
+	var distance: float = (follow_distance + drift_pullback * _drift_framing) * fov_pullback
 	var desired_position: Vector3 = (
 		_flat_target_position()
 		+ _flat_behind() * distance
 		+ _flat_right() * _drift_outside_sign() * drift_lateral_offset * _drift_framing
-		+ Vector3.UP * follow_height
+		+ Vector3.UP * follow_height * fov_pullback
 	)
 
 	global_position = global_position.lerp(desired_position, 1.0 - exp(-position_smoothing * delta))
 	_update_look_ahead(delta)
 	look_at(_aim_point(), Vector3.UP)
-
-	_update_fov(delta)
 
 
 func _update_drift_framing(delta: float) -> void:
@@ -138,6 +144,13 @@ func _update_fov(delta: float) -> void:
 
 	_current_fov = lerpf(_current_fov, target_fov, 1.0 - exp(-smoothing * delta))
 	fov = _current_fov
+
+
+# tan(fov/2) is proportional to how much world space a unit of distance covers on screen, so its
+# ratio against the base is exactly the pullback that keeps the kart's apparent size fixed as fov
+# widens off base_fov. 1.0 at base_fov; grows smoothly with the same curve fov itself eases on.
+func _fov_distance_scale() -> float:
+	return tan(deg_to_rad(_current_fov) * 0.5) / tan(deg_to_rad(base_fov) * 0.5)
 
 
 ## Snaps to the target with no lag, so a teleport doesn't leave the camera catching up from across

@@ -45,6 +45,14 @@ tuning = SubResource("Resource_npteq")
 current = true
 script = ExtResource("2_chase_camera")
 target_path = NodePath("../Kart")
+follow_height = 2.3
+base_fov = 70.0
+max_speed_fov = 85.0
+boost_fov_gain = 2.5
+boost_fov_reference = 2.5
+boost_fov_attack = 7.5
+drift_pullback = 0.1
+drift_lateral_offset = 0.3
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=988637534]
 script = ExtResource("3_debug_hud")
