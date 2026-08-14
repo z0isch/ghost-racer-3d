@@ -136,7 +136,7 @@ _Avoid_: Best lap, high score, personal best.
 The time elapsed in the current lap, started at countdown-zero and stopped when the final checkpoint is taken. The thing you feel while driving, and on screen — but not a record in its own right. A lap is not good because it was quick; it is good because it earned well for its length.
 
 **Ghost line**:
-The recorded position-and-heading line of the record lap, owned by the lap director. Both the pace ghost and the boost ghosts stand on it — the pace ghost moving along it, the boost ghosts parked on it. Session-scoped: promoted only on a strictly higher earn rate, thrown away on abort.
+The recorded position-and-heading line of the record lap, owned by the lap director. Both the pace ghost and the boost ghosts stand on it — the pace ghost moving along it, the boost ghosts parked a step to one side of it. Session-scoped: promoted only on a strictly higher earn rate, thrown away on abort.
 _Avoid_: Racing line (that is the abstract ideal, not a recording), replay, path.
 
 **Pace ghost**:
@@ -171,8 +171,9 @@ _Avoid_: Toast, floater, damage number, notification, particle.
 ### Boost
 
 **Boost ghost**:
-A translucent, stationary ghost of the car standing on the ghost line facing the direction of travel, **taken** by driving through it — the same verb as a coin and the same swept test, and taken once is taken for the rest of the lap. Placed automatically, evenly spaced by arc length along the ghost line — not authored into the circuit. Because the line is the record lap's own, improving your line moves the boost with you: the boost is only there if you repeat what earned it. Every ghost on a circuit is worth exactly the same, so the count is a known quantity you route around; what varies is where they sit, not what each is worth. The count is a single number for the whole circuit, expected to be driven by a later system.
-A boost ghost is a coin that pays in speed instead of money. That is the whole of the difference and it is worth stating positively: both are taken by the path rather than touched, both are consumed for the lap, both are restored whole at every countdown so two laps are offered the same track. Anything true of the coin field's lifecycle is true here.
+A translucent, stationary ghost of the car standing a short step off the ghost line facing the direction of travel, **taken** by driving through it — the same verb as a coin and the same swept test, and taken once is taken for the rest of the lap. Placed automatically along the ghost line — not authored into the circuit. Because the line is the record lap's own, improving your line moves the boost with you: the boost is only there if you repeat what earned it. Every ghost on a circuit is worth exactly the same, so the count is a known quantity you route around; what varies is where they sit, not what each is worth. The count is a single number for the whole circuit, expected to be driven by a later system.
+A boost ghost is a coin that pays in speed instead of money. That is the whole of the difference and it is worth stating positively: both are taken by the path rather than touched, both are consumed for the lap, both are restored whole at every countdown. Anything true of the coin field's lifecycle is true here.
+Where the coins differ: the boost ghosts are **re-rolled** at every countdown rather than restored to where they stood, so two laps of a circuit are not the same track. Each ghost is drawn inside its own slot of the lap and pushed to one side of the line or the other, which is what keeps a ghost a decision — drive the line exactly and it will not be handed to you — and what keeps the field from settling into the same shape for the fifty laps a stale ghost line can stand.
 No boost ghosts on lap 1, for the same reason there is no pace ghost: there is no line yet.
 _Avoid_: Boost pad, boost panel, ramp, speed strip, respawning (boost ghosts do not come back within a lap).
 

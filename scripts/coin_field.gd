@@ -55,6 +55,20 @@ func _physics_process(_delta: float) -> void:
 	_sweep_coins.call_deferred()
 
 
+## Where every coin on the circuit stands, in arclength order. Built per call rather than kept
+## beside [member _coins]: a second copy of the placement is a second thing to keep true, and the
+## only caller reads it once per countdown.
+##
+## Taken-ness is deliberately not filtered. The callers place things against the field's shape, and
+## the shape is what the countdown restores — a coin that was taken last lap is standing again by
+## the time anything acts on this.
+func coin_origins() -> PackedVector3Array:
+	var origins := PackedVector3Array()
+	for coin: Coin in _coins:
+		origins.append(coin.origin)
+	return origins
+
+
 ## Horizontal distance from a swept segment to a coin. Static and free of node access: it is the
 ## seam the geometry suite tests, and a TestCase is a RefCounted that cannot touch the scene tree.
 ##

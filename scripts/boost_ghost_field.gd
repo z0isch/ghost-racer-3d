@@ -12,8 +12,10 @@ extends Node
 ## not the camera's FOV punch, not the kart's speed.
 ##
 ## Unlike CoinField's coins, the ghosts are not authored into the circuit: they are placed at
-## runtime, evenly spaced by arc length along the lap director's ghost line, so a re-place first
-## frees whatever stood there before rather than restoring a fixed set.
+## runtime along the lap director's ghost line, one per equal slot of it and jittered inside that
+## slot, so a re-place first frees whatever stood there before rather than restoring a fixed set.
+## The ghost line only changes when a lap takes the record, so the jitter is the only thing standing
+## between the driver and the identical field lap after lap.
 
 ## One ghost, the instant it is taken. Position only — there is no per-ghost value to report, since
 ## every ghost grants the same bump.
@@ -45,6 +47,16 @@ const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 ## gate.
 @export var end_margin: float = 10.0
 
+## Fraction of its own slot a ghost may wander across. 0.0 pins every ghost to its slot's midpoint,
+## which is a fixed field for as long as the ghost line stands; 1.0 lets a ghost reach the slot edge
+## it shares with its neighbour.
+@export_range(0.0, 1.0) var placement_jitter: float = 0.3
+
+## Metres a ghost stands off the racing line, to one side or the other. Nothing here knows the
+## circuit's width, so this is kept inside the narrowest part of the track by hand — the same
+## judgement [member ghost_count] is set by.
+@export var placement_lateral: float = 1.0
+
 ## m/s put straight into forward speed, above the tuned ceiling. Every ghost on the circuit.
 @export var bump: float = 10.0
 ## m/s^2 the overspeed comes back off at. Every ghost on the circuit.
@@ -67,6 +79,9 @@ var _ghosts: Array[Ghost] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
 var _has_last_kart_position: bool = false
 var _elapsed: float = 0.0
+# Seeded randomly on creation by Godot and never re-seeded: a fresh draw at every countdown is the
+# whole point, so there is no layout worth reproducing.
+var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
@@ -109,20 +124,33 @@ func _process(delta: float) -> void:
 			ghost.material.albedo_color = color
 
 
-## Poses for [param count] boost ghosts, evenly spaced by arc length along the ghost line, with
-## [param margin_start] / [param margin_end] metres at each end left clear. Empty for a count of
-## zero or a line too short to hold the margins.
+## Poses for [param count] boost ghosts along the ghost line, one per equal slot of the span left
+## by [param margin_start] / [param margin_end]. Empty for a count of zero or a line too short to
+## hold the margins.
+##
+## Stratified rather than uniformly random: a ghost is drawn inside its own slot, never across the
+## whole line, so a field re-rolled at every countdown can neither clump three ghosts into one
+## corner nor leave a quarter of the lap bare. [param jitter] is the fraction of its slot a ghost
+## may cross; at 0.0 every ghost sits exactly on its slot's midpoint.
+##
+## [param lateral] is the metres a ghost stands off the line, and is the half of this that makes a
+## ghost a decision rather than something the line hands you: the side is a coin flip and the
+## magnitude is half the value to all of it, so a nonzero setting never quietly puts a ghost back on
+## the racing line the driver is already taking.
 ##
 ## Parameters named margin_start/margin_end rather than start_margin/end_margin (which the
 ## exported [member start_margin]/[member end_margin] already claim on this class): GDScript's
 ## shadowed_variable check fires on a static function parameter reusing an instance member's name,
 ## even though the two never interact.
-static func place_evenly(
+static func place_along(
 	positions: PackedVector3Array,
 	yaws: PackedFloat32Array,
 	count: int,
 	margin_start: float,
 	margin_end: float,
+	rng: RandomNumberGenerator,
+	jitter: float,
+	lateral: float,
 ) -> Array[Transform3D]:
 	var result: Array[Transform3D] = []
 	if count <= 0 or positions.size() < 2:
@@ -140,11 +168,20 @@ static func place_evenly(
 	if usable <= 0.0:
 		return result
 
-	# Midpoints, not endpoints: i * usable / (count - 1) divides by zero at count == 1 and puts
+	# Slot midpoints, not endpoints: i * usable / (count - 1) divides by zero at count == 1 and puts
 	# ghosts hard against the margins they were just told to respect.
+	var slot: float = usable / count
 	for i in count:
-		var target: float = margin_start + (i + 0.5) * usable / count
-		result.append(_pose_at(positions, yaws, cumulative, target))
+		var centre: float = margin_start + (i + 0.5) * slot
+		var target: float = centre + rng.randf_range(-0.5, 0.5) * jitter * slot
+		var pose: Transform3D = _pose_at(positions, yaws, cumulative, target)
+
+		var side: float = 1.0 if rng.randf() < 0.5 else -1.0
+		var offset: float = side * rng.randf_range(0.5, 1.0) * lateral
+		# basis.x is the pose's own right vector, so the offset leans with the line through a corner
+		# instead of being re-derived from the yaw here. translated, not translated_local: the vector
+		# is already in the line's space.
+		result.append(pose.translated(pose.basis.x * offset))
 
 	return result
 
@@ -183,8 +220,15 @@ func _place_ghosts() -> void:
 	if _ghosts_root == null or _director == null:
 		return
 
-	var poses: Array[Transform3D] = place_evenly(
-		_director.ghost_line_positions, _director.ghost_line_yaws, ghost_count, start_margin, end_margin
+	var poses: Array[Transform3D] = place_along(
+		_director.ghost_line_positions,
+		_director.ghost_line_yaws,
+		ghost_count,
+		start_margin,
+		end_margin,
+		_rng,
+		placement_jitter,
+		placement_lateral,
 	)
 	for pose: Transform3D in poses:
 		_ghosts.append(_spawn_ghost(pose))
