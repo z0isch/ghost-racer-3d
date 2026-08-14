@@ -148,4 +148,4 @@ draw_pass_1 = SubResource("QuadMesh_boost_flame")
 [node name="Visual" type="Node3D" parent="Cosmetics/Chassis" unique_id=569443586]
 
 [node name="SportsCar" parent="Cosmetics/Chassis/Visual" unique_id=1665030089 instance=ExtResource("2_yjkmi")]
-transform = Transform3D(-0.55, 0, 3.4969112e-08, 0, 0.6, 0, -4.8082526e-08, 0, -0.4, 0, -0.4, 0)
+transform = Transform3D(-0.55, 0, 6.039832e-08, 0, 0.8, 0, -8.3047695e-08, 0, -0.4, 0, -0.4, 0)

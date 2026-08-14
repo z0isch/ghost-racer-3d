@@ -40,10 +40,10 @@ const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 
 ## Metres of ghost line left clear at the start, so a ghost is never handed before the driver has
 ## picked up speed off the line.
-@export var start_margin: float = 40.0
+@export var start_margin: float = 10.0
 ## Metres of ghost line left clear at the end, so a ghost is never handed right before the final
 ## gate.
-@export var end_margin: float = 40.0
+@export var end_margin: float = 10.0
 
 ## m/s put straight into forward speed, above the tuned ceiling. Every ghost on the circuit.
 @export var bump: float = 10.0
