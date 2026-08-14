@@ -303,11 +303,13 @@ func snapshot_into(state: KartState) -> void:
 	state.rear_slip_fraction = rear_slip_fraction
 	state.steer_fraction = steer_fraction
 	state.front_axle_offset = tuning.front_axle_offset
+	state.rear_axle_offset = tuning.rear_axle_offset
 	state.body_slip_degrees = body_slip_degrees
 	state.is_drifting = is_drifting
 	state.drift_side = drift_side
 	state.brake_strength = _brake_strength
 	state.frozen = _frozen
+	state.overspeed = overspeed
 
 
 # --- Readouts ---------------------------------------------------------------------------------

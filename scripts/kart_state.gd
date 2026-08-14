@@ -27,6 +27,10 @@ var steer_fraction: float = 0.0
 ## hardcoded guess that stops matching the moment the tuning pair is dialled.
 var front_axle_offset: float = 1.0
 
+## How far behind the body origin the rear axle sits, in metres. Same role as front_axle_offset,
+## but for the wheelie pivot: rearing up hinges on the rear tyres, not the body centre.
+var rear_axle_offset: float = 3.0
+
 ## Direction the body origin travels relative to heading, in degrees: a wheelbase-weighted blend of
 ## the two axle angles. Derived output, never an input, and not the rear slip angle.
 var body_slip_degrees: float = 0.0
@@ -42,3 +46,7 @@ var brake_strength: float = 0.0
 ## whether the driver's hands have been taken away.
 var is_grounded: bool = true
 var frozen: bool = false
+
+## Speed currently owed to a boost, above the tuned ceiling. 0 when no boost is live; what the
+## flame effect reads to know it should be burning. See KartModel.overspeed.
+var overspeed: float = 0.0

@@ -52,6 +52,50 @@ particles_anim_loop = false
 material = SubResource("StandardMaterial3D_smoke")
 size = Vector2(0.8, 0.8)
 
+[sub_resource type="Gradient" id="Gradient_boost_flame"]
+offsets = PackedFloat32Array(0, 0.4, 1)
+colors = PackedColorArray(1, 0.95, 0.6, 1, 1, 0.5, 0.05, 0.9, 0.9, 0.1, 0.02, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_boost_flame"]
+gradient = SubResource("Gradient_boost_flame")
+
+[sub_resource type="Curve" id="Curve_boost_flame_scale"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_boost_flame_scale"]
+curve = SubResource("Curve_boost_flame_scale")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_boost_flame"]
+emission_shape = 1
+emission_sphere_radius = 0.06
+direction = Vector3(0, 0, 1)
+spread = 0.0
+initial_velocity_max = 5.0
+angular_velocity_min = -180.0
+angular_velocity_max = 180.0
+gravity = Vector3(0, 0.4, 0)
+damping_min = 4.0
+damping_max = 6.0
+scale_min = 0.0
+scale_max = 0.14999999
+scale_curve = SubResource("CurveTexture_boost_flame_scale")
+color_ramp = SubResource("GradientTexture1D_boost_flame")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_boost_flame"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
+
+[sub_resource type="QuadMesh" id="QuadMesh_boost_flame"]
+material = SubResource("StandardMaterial3D_boost_flame")
+size = Vector2(0.35, 0.35)
+
 [node name="Kart" type="CharacterBody3D" unique_id=574199460]
 collision_mask = 3
 script = ExtResource("1_kart")
@@ -84,6 +128,22 @@ amount_ratio = 0.6
 lifetime = 0.7
 process_material = SubResource("ParticleProcessMaterial_smoke")
 draw_pass_1 = SubResource("QuadMesh_smoke")
+
+[node name="BoostFlameLeft" type="GPUParticles3D" parent="Cosmetics/Chassis" unique_id=310774423]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.20406702, -0.1926475, 0.69560707)
+emitting = false
+amount = 10000
+lifetime = 0.35
+process_material = SubResource("ParticleProcessMaterial_boost_flame")
+draw_pass_1 = SubResource("QuadMesh_boost_flame")
+
+[node name="BoostFlameRight" type="GPUParticles3D" parent="Cosmetics/Chassis" unique_id=310774424]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.16770726, -0.20481312, 0.7147087)
+emitting = false
+amount = 10000
+lifetime = 0.35
+process_material = SubResource("ParticleProcessMaterial_boost_flame")
+draw_pass_1 = SubResource("QuadMesh_boost_flame")
 
 [node name="Visual" type="Node3D" parent="Cosmetics/Chassis" unique_id=569443586]
 

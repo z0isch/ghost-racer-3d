@@ -43,10 +43,31 @@ extends Node3D
 ## High-frequency motor magnitude at full slip.
 @export var drift_vibration_strong: float = 0.15
 
+## Overspeed at which the boost flames reach full size/density. Matches BoostPadField's default
+## bump, so a fresh pad reads as a full flame rather than a partial one.
+@export var boost_flame_max_overspeed: float = 10.0
+## Emission ratio the instant any overspeed is present, so the flame snaps visible rather than
+## fading in from nothing.
+@export var boost_flame_min_ratio: float = 0.5
+
+## How far the nose lifts at the peak of a boost wheelie.
+@export var wheelie_angle_max_degrees: float = 10.0
+## Seconds to snap up to the peak angle. Short: this is a pop, not a climb.
+@export var wheelie_rise_time: float = 0.3
+## Seconds to drop back to level once at the peak. Short and accelerating: a slam, not a settle.
+@export var wheelie_slam_time: float = 0.5
+
 var _bank_degrees: float = 0.0
 var _yaw_degrees: float = 0.0
 var _squash_impulse: float = 0.0 # >0 stretched, <0 squashed; decays to 0
 var _was_grounded: bool = true
+
+enum _WheeliePhase {INACTIVE, RISING, SLAMMING}
+
+var _prev_overspeed: float = 0.0
+var _wheelie_phase: int = _WheeliePhase.INACTIVE
+var _wheelie_slam_elapsed: float = 0.0
+var _wheelie_pitch_degrees: float = 0.0
 
 var _smoke_material_left: ParticleProcessMaterial
 var _smoke_material_right: ParticleProcessMaterial
@@ -58,6 +79,8 @@ var _smoke_material_right: ParticleProcessMaterial
 @onready var _visual: Node3D = $Chassis/Visual
 @onready var _smoke_left: GPUParticles3D = $Chassis/DriftSmokeLeft
 @onready var _smoke_right: GPUParticles3D = $Chassis/DriftSmokeRight
+@onready var _boost_flame_left: GPUParticles3D = $Chassis/BoostFlameLeft
+@onready var _boost_flame_right: GPUParticles3D = $Chassis/BoostFlameRight
 
 
 func _ready() -> void:
@@ -71,6 +94,8 @@ func update_view(state: KartState, delta: float) -> void:
 	_update_lean(state, delta)
 	_update_squash(state, delta)
 	_update_smoke(state)
+	_update_boost_flames(state)
+	_update_wheelie(state, delta)
 	_update_vibration(state)
 
 
@@ -80,6 +105,10 @@ func reset() -> void:
 	_yaw_degrees = 0.0
 	_squash_impulse = 0.0
 	_was_grounded = true
+	_prev_overspeed = 0.0
+	_wheelie_phase = _WheeliePhase.INACTIVE
+	_wheelie_slam_elapsed = 0.0
+	_wheelie_pitch_degrees = 0.0
 	_chassis.rotation = Vector3.ZERO
 	_chassis.position = Vector3.ZERO
 	_visual.scale = Vector3.ONE
@@ -89,6 +118,9 @@ func reset() -> void:
 	_smoke_right.restart()
 	_set_smoke(false, 0.0)
 	_set_smoke_color(smoke_color)
+	_boost_flame_left.restart()
+	_boost_flame_right.restart()
+	_set_boost_flames(false, 0.0)
 	_stop_vibration()
 
 
@@ -125,6 +157,58 @@ func _update_lean(state: KartState, delta: float) -> void:
 func _pivot_correction(front_axle_offset: float, yaw: float) -> Vector3:
 	var pivot: Vector3 = Vector3(0.0, 0.0, -front_axle_offset)
 	return pivot - Basis(Vector3.UP, yaw) * pivot
+
+
+# Any overspeed increase — the initial pickup, or a fresh pad landing on top of a boost already in
+# progress — kicks (or re-kicks) the nose into RISING. Re-triggering mid-slam does not reset to 0
+# first: RISING approaches wheelie_angle_max_degrees at a constant rate from wherever the pitch
+# currently sits, so a re-boost reads as the nose catching a second wind, not a stutter. Not tied
+# to overspeed's magnitude or decay — bleed is gradual and would never read as a pop — just onset.
+#
+# Runs after _update_lean, which overwrites rotation/position outright, so this only ever adds a
+# pitch component and an additional pivot offset on top of whatever the lean pass produced.
+func _update_wheelie(state: KartState, delta: float) -> void:
+	var boost_started: bool = not state.frozen and state.overspeed > _prev_overspeed
+	_prev_overspeed = state.overspeed
+
+	if state.frozen:
+		_wheelie_phase = _WheeliePhase.INACTIVE
+		_wheelie_pitch_degrees = 0.0
+	else:
+		if boost_started:
+			_wheelie_phase = _WheeliePhase.RISING
+
+		match _wheelie_phase:
+			_WheeliePhase.RISING:
+				var rise_speed: float = wheelie_angle_max_degrees / maxf(wheelie_rise_time, 0.001)
+				_wheelie_pitch_degrees = move_toward(_wheelie_pitch_degrees, wheelie_angle_max_degrees, rise_speed * delta)
+				if _wheelie_pitch_degrees >= wheelie_angle_max_degrees:
+					_wheelie_phase = _WheeliePhase.SLAMMING
+					_wheelie_slam_elapsed = 0.0
+			_WheeliePhase.SLAMMING:
+				_wheelie_slam_elapsed += delta
+				# Cubic ease-in: slow to leave the peak, accelerating into the slam.
+				var t: float = clampf(_wheelie_slam_elapsed / wheelie_slam_time, 0.0, 1.0)
+				_wheelie_pitch_degrees = wheelie_angle_max_degrees * (1.0 - t * t * t)
+				if t >= 1.0:
+					_wheelie_phase = _WheeliePhase.INACTIVE
+					_wheelie_pitch_degrees = 0.0
+			_WheeliePhase.INACTIVE:
+				_wheelie_pitch_degrees = 0.0
+
+	if _wheelie_pitch_degrees == 0.0:
+		return
+	var pitch: float = deg_to_rad(_wheelie_pitch_degrees)
+	_chassis.rotation.x = pitch
+	_chassis.position += _rear_pivot_correction(state.rear_axle_offset, pitch)
+
+
+# Same trick as _pivot_correction, hinged on the rear axle instead of the front: the nose swings
+# up while the rear tyres' contact point stays put, rather than the whole chassis rising from its
+# centre. Forward is -Z, so the rear sits at +rear_axle_offset.
+func _rear_pivot_correction(rear_axle_offset: float, pitch: float) -> Vector3:
+	var pivot: Vector3 = Vector3(0.0, 0.0, rear_axle_offset)
+	return pivot - Basis(Vector3.RIGHT, pitch) * pivot
 
 
 # Roughly volume-preserving: a negative impulse dips Y and widens XZ, a positive one the opposite.
@@ -166,6 +250,25 @@ func _set_smoke(is_emitting: bool, ratio: float) -> void:
 	_smoke_right.emitting = is_emitting
 	_smoke_left.amount_ratio = ratio
 	_smoke_right.amount_ratio = ratio
+
+
+# Fires purely off state.overspeed, so it tracks whatever pad or source credited the boost rather
+# than duplicating BoostPadField's bump/bleed bookkeeping here. Not grounded-gated, unlike smoke:
+# a boost taken airborne should still show flame.
+func _update_boost_flames(state: KartState) -> void:
+	var is_emitting: bool = not state.frozen and state.overspeed > 7.0
+	var ratio: float = 0.0
+	if is_emitting:
+		var fraction: float = clampf(state.overspeed / boost_flame_max_overspeed, 0.0, 1.0)
+		ratio = lerpf(boost_flame_min_ratio, 1.0, fraction)
+	_set_boost_flames(is_emitting, ratio)
+
+
+func _set_boost_flames(is_emitting: bool, ratio: float) -> void:
+	_boost_flame_left.emitting = is_emitting
+	_boost_flame_right.emitting = is_emitting
+	_boost_flame_left.amount_ratio = ratio
+	_boost_flame_right.amount_ratio = ratio
 
 
 # Both emitters share one ParticleProcessMaterial in kart.tscn, so this usually writes the same
