@@ -14,7 +14,7 @@
 [ext_resource type="Script" uid="uid://cu83wenc2s5sg" path="res://scripts/pickup_popups.gd" id="12_pickup_popups"]
 [ext_resource type="Script" uid="uid://bvqf8ytsnbmk3" path="res://scripts/purse_hud.gd" id="13_purse_hud"]
 [ext_resource type="PackedScene" uid="uid://55byqb2mm870" path="res://scenes/circuit3.tscn" id="14_w48qg"]
-[ext_resource type="Script" uid="uid://dp8kjh2e26s71" path="res://scripts/boost_pad_field.gd" id="15_boost_pad_field"]
+[ext_resource type="Script" uid="uid://dp8kjh2e26s71" path="res://scripts/boost_ghost_field.gd" id="15_boost_ghost_field"]
 
 [sub_resource type="Resource" id="Resource_npteq"]
 script = ExtResource("3_4c57u")
@@ -57,6 +57,7 @@ drift_lateral_offset = 0.3
 [node name="HUD" type="CanvasLayer" parent="." unique_id=988637534]
 script = ExtResource("3_debug_hud")
 target_path = NodePath("../Kart")
+boost_ghost_field_path = NodePath("../BoostGhostField")
 
 [node name="SpeedLabel" type="Label" parent="HUD" unique_id=144426822]
 offset_left = 16.0
@@ -72,17 +73,24 @@ offset_right = 216.0
 offset_bottom = 64.0
 text = "On-road"
 
+[node name="GhostCountLabel" type="Label" parent="HUD" unique_id=452692009]
+offset_left = 16.0
+offset_top = 64.0
+offset_right = 216.0
+offset_bottom = 88.0
+text = "Boost ghosts: 5"
+
 [node name="CoinField" type="Node" parent="." unique_id=417553902]
 script = ExtResource("10_coin_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../LapDirector")
 coins_path = NodePath("../Circuit3/Coins")
 
-[node name="BoostPadField" type="Node" parent="." unique_id=417553907]
-script = ExtResource("15_boost_pad_field")
+[node name="BoostGhostField" type="Node" parent="." unique_id=417553907]
+script = ExtResource("15_boost_ghost_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../LapDirector")
-pads_path = NodePath("../Circuit3/BoostPads")
+ghosts_path = NodePath("../Circuit3/BoostGhosts")
 
 [node name="Purse" type="Node" parent="." unique_id=417553903]
 script = ExtResource("11_purse")

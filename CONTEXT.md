@@ -135,16 +135,20 @@ _Avoid_: Best lap, high score, personal best.
 **Lap clock**:
 The time elapsed in the current lap, started at countdown-zero and stopped when the final checkpoint is taken. The thing you feel while driving, and on screen — but not a record in its own right. A lap is not good because it was quick; it is good because it earned well for its length.
 
+**Ghost line**:
+The recorded position-and-heading line of the record lap, owned by the lap director. Both the pace ghost and the boost ghosts stand on it — the pace ghost moving along it, the boost ghosts parked on it. Session-scoped: promoted only on a strictly higher earn rate, thrown away on abort.
+_Avoid_: Racing line (that is the abstract ideal, not a recording), replay, path.
+
 **Pace ghost**:
-A translucent, non-colliding replay of the highest earn rate lap driven this session, replaying position and heading only. It starts moving when the player does and exists only in memory for the current session. It cannot take coins and never will: it is a line to follow, not a rival with a purse of its own — a ghost that consumed coins would be taking them from you, and one that mimed a pickup on a coin still standing there would be a lie you would act on.
+A translucent, non-colliding replay of the ghost line, replaying position and heading only. It starts moving when the player does and exists only in memory for the current session. It cannot take coins and never will: it is a line to follow, not a rival with a purse of its own — a ghost that consumed coins would be taking them from you, and one that mimed a pickup on a coin still standing there would be a lie you would act on.
 Because promotion demands a strictly higher earn rate, the ghost goes **stale on purpose**: set a strong lap and it may stand for fifty more. That is the intended feel. The ghost is a standard to be beaten, not a mirror of what you just did, and it stops moving the moment it becomes hard to beat.
-It is not the only translucent car on the circuit — a **boost pad** is too — and the two are told apart in play, not by colour: the pace ghost is always *moving away from you at your own pace*, and a boost pad is *stationary*. That difference is what stops the two from being confused; colour is not doing the work and should not be relied on to.
+It is not the only translucent car on the circuit — the **boost ghosts** are too, standing on the same ghost line — and the two are told apart in play by **both colour and motion**, neither primary: the pace ghost is blue and always *moving away from you at your own pace*, and a boost ghost is amber and *stationary*. This reverses an earlier position: when boost ghosts were scattered off the line, colour did no work and motion alone was the tell. Placing them *on* the ghost line is exactly the case that breaks stationary-vs-moving as a glance-level signal, which is why colour became load-bearing too.
 _Avoid_: Ghost car, replay, rival, opponent.
 
 ### Roles
 
 **Lap director**:
-The single owner of all mutable lap state — the lap phase, checkpoint progress, the lap clock, lap earnings, the record earn rate, and the lifecycle of the pace ghost's recording and playback. Everything else in the game either reports to it or reads from it. (The ghost's sample buffers live on the pace ghost node and the coins live on the coin field, both of which the director drives through lap events; authority over a lifecycle is not a requirement that the data be fields on the director.)
+The single owner of all mutable lap state — the lap phase, checkpoint progress, the lap clock, lap earnings, the record earn rate, and the ghost line itself, both the in-progress recording and the promoted line. Everything else in the game either reports to it or reads from it. (The pace ghost reads the ghost line for pure playback and the coins live on the coin field, which the director drives through lap events; authority over a lifecycle is not a requirement that every consumer's data be fields on the director.)
 Lap earnings sit here rather than on the coin field because they are the numerator of the earn rate and the lap clock is the denominator — splitting a fraction across two owners is how the two come to disagree. The purse sits elsewhere for the opposite reason: it is not lap state at all.
 _Avoid_: Lap manager, race manager, game manager.
 
@@ -166,10 +170,11 @@ _Avoid_: Toast, floater, damage number, notification, particle.
 
 ### Boost
 
-**Boost pad**:
-A translucent, stationary ghost of the car standing on the road facing the direction of travel, **taken** by driving through it — the same verb as a coin and the same swept test, and taken once is taken for the rest of the lap. Every pad on a circuit is worth exactly the same, so a pad is a known quantity you route around; what varies is where the pads are, not what each is worth.
-A pad is a coin that pays in speed instead of money. That is the whole of the difference and it is worth stating positively: both are taken by the path rather than touched, both are consumed for the lap, both are restored whole at every countdown so two laps are offered the same track. Anything true of the coin field's lifecycle is true here.
-_Avoid_: Boost panel, ramp, speed strip, respawning (pads do not come back within a lap).
+**Boost ghost**:
+A translucent, stationary ghost of the car standing on the ghost line facing the direction of travel, **taken** by driving through it — the same verb as a coin and the same swept test, and taken once is taken for the rest of the lap. Placed automatically, evenly spaced by arc length along the ghost line — not authored into the circuit. Because the line is the record lap's own, improving your line moves the boost with you: the boost is only there if you repeat what earned it. Every ghost on a circuit is worth exactly the same, so the count is a known quantity you route around; what varies is where they sit, not what each is worth. The count is a single number for the whole circuit, expected to be driven by a later system.
+A boost ghost is a coin that pays in speed instead of money. That is the whole of the difference and it is worth stating positively: both are taken by the path rather than touched, both are consumed for the lap, both are restored whole at every countdown so two laps are offered the same track. Anything true of the coin field's lifecycle is true here.
+No boost ghosts on lap 1, for the same reason there is no pace ghost: there is no line yet.
+_Avoid_: Boost pad, boost panel, ramp, speed strip, respawning (boost ghosts do not come back within a lap).
 
 **Bump**:
 The m/s a pad puts straight into forward speed the instant it is taken, above the tuned ceiling. One-shot: there is no envelope and no duration.
@@ -183,4 +188,4 @@ _Avoid_: Decay, falloff, boost duration (the thing this exists to not be).
 How far above its ceiling the kart currently is, in m/s. Not a stored "boost amount": it is read off the speed itself, so it cannot disagree with what the player sees. Zero is the normal condition.
 _Avoid_: Boost remaining, boost meter, turbo.
 
-Boost pads have no effect on money and no effect on the coin field. They change the denominator of the earn rate and nothing else. That is the whole of their relationship to the economy.
+Boost ghosts have no effect on money and no effect on the coin field. They change the denominator of the earn rate and nothing else. That is the whole of their relationship to the economy.

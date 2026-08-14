@@ -2,7 +2,8 @@ class_name LapDirector
 extends Node
 
 ## The single owner of all mutable lap state: the lap phase, the lap clock, checkpoint progress, the
-## lap's earnings and the record earn rate, and the lifecycle of the pace ghost's buffers.
+## lap's earnings and the record earn rate, and the ghost line — both the in-progress recording and
+## the promoted line the pace ghost and the boost ghosts stand on.
 ##
 ## Lap earnings live here rather than on CoinField because they are the numerator of the earn rate
 ## and the lap clock is the denominator; splitting a fraction across two owners is how the two come
@@ -73,6 +74,20 @@ var _checkpoints: Array[Checkpoint] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
 var _has_last_kart_position: bool = false
 
+# The kart body's pose is exactly position + Y-yaw (rotate_y is the only write to its basis; bank,
+# cant and squash live on the Visual child), so these 16 bytes are exact rather than an
+# approximation. Paired packed arrays cost 16 bytes/sample against 48 for typed Arrays and 944 for a
+# RefCounted sample class; the price is lockstep, so append, clear and duplicate always come in
+# pairs, confined to _append_sample / complete_lap / lap abort.
+#
+# Double-buffered: the lap being driven is written while the record lap is read, and the two are
+# usually not adjacent laps. Promotion happens in complete_lap and only there, so no partial
+# recording has a path to the ghost line.
+var _recording_positions: PackedVector3Array = PackedVector3Array()
+var _recording_yaws: PackedFloat32Array = PackedFloat32Array()
+var _ghost_line_positions: PackedVector3Array = PackedVector3Array()
+var _ghost_line_yaws: PackedFloat32Array = PackedFloat32Array()
+
 ## Polled by the HUD each _process; a per-frame clock pushed through a signal would be a signal in
 ## name only. Discrete lap edges use the signals above.
 var phase: LapPhase:
@@ -113,6 +128,17 @@ var checkpoint_index: int:
 var checkpoint_count: int:
 	get: return _checkpoint_count
 
+## The record lap's line. Copy-on-write, so reading is ~free and callers must not mutate. Two
+## read-only getters rather than a sample_at(t) accessor: the boost ghost field walks the whole
+## polyline summing segment lengths, which a per-sample accessor cannot serve without a second
+## method — an interface that "hides" the arrays while exposing a raw-array escape hatch hides
+## nothing.
+var ghost_line_positions: PackedVector3Array:
+	get: return _ghost_line_positions
+
+var ghost_line_yaws: PackedFloat32Array:
+	get: return _ghost_line_yaws
+
 
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
@@ -150,6 +176,10 @@ func _physics_process(delta: float) -> void:
 	# The director owns "reset", and it means abort: discard the lap and re-run the countdown from
 	# any phase, skipping Finished since there is no time to show.
 	if Input.is_action_just_pressed("reset"):
+		# The partial recording is thrown away here rather than left standing: a lap abandoned at
+		# 90% can never become a ghost line, and the previous line is left untouched.
+		_recording_positions.clear()
+		_recording_yaws.clear()
 		lap_aborted.emit()
 		_begin_countdown(restart_countdown_seconds)
 		return
@@ -163,8 +193,10 @@ func _physics_process(delta: float) -> void:
 		LapPhase.RACING:
 			_current_lap_time += delta
 			# Queued, not called: this runs at the head of the physics frame, and the swept test
-			# needs the position the kart ends the frame at.
+			# needs the position the kart ends the frame at. Sampling is queued after the sweep so a
+			# lap-ending crossing in this same flush swaps the buffers before the sample is appended.
 			_sweep_pending_checkpoint.call_deferred()
+			_append_sample.call_deferred()
 
 		LapPhase.FINISHED:
 			_phase_remaining -= delta
@@ -188,6 +220,14 @@ func complete_lap() -> void:
 	var is_record: bool = _record_earn_rate < 0.0 or rate > _record_earn_rate
 	if is_record:
 		_record_earn_rate = rate
+		# Packed arrays are copy-on-write, so duplicate() is ~1 µs and the copy is never
+		# materialised: the recording is cleared on the next two lines regardless.
+		_ghost_line_positions = _recording_positions.duplicate()
+		_ghost_line_yaws = _recording_yaws.duplicate()
+	# Unconditional, so a losing lap's samples cannot leak into the next recording and the ghost
+	# line can stand unchanged for many laps.
+	_recording_positions.clear()
+	_recording_yaws.clear()
 
 	_phase = LapPhase.FINISHED
 	_phase_remaining = finished_hold_seconds
@@ -299,6 +339,23 @@ func _sweep_pending_checkpoint() -> void:
 	_update_gate_visibility()
 	if _checkpoint_index >= _checkpoints.size():
 		complete_lap()
+
+
+# Appended once per physics frame, uncapped: ~1000 samples for a 16 s lap, ~16 KB. Any coarser rate
+# visibly cuts corners at the distance per frame the kart covers at top speed.
+#
+# Queued, not taken inline: the sample must be the pose the kart finishes the frame at, and the
+# kart moves after the director in the same frame, so sampling inline would pair the new clock with
+# the previous frame's pose and lay the whole line one frame behind what was driven.
+func _append_sample() -> void:
+	# Re-checked: the checkpoint sweep is queued first in the same flush and can complete the lap,
+	# swapping the buffers underneath this call and leaving a stray sample at the head of the next
+	# lap's recording.
+	if _phase != LapPhase.RACING or _kart == null:
+		return
+
+	_recording_positions.append(_kart.global_position)
+	_recording_yaws.append(_kart.global_rotation.y)
 
 
 # The one entry point into Countdown: scene load, lap completion and abort all come through here,

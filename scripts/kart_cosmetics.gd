@@ -43,8 +43,8 @@ extends Node3D
 ## High-frequency motor magnitude at full slip.
 @export var drift_vibration_strong: float = 0.15
 
-## Overspeed at which the boost flames reach full size/density. Matches BoostPadField's default
-## bump, so a fresh pad reads as a full flame rather than a partial one.
+## Overspeed at which the boost flames reach full size/density. Matches BoostGhostField's default
+## bump, so a fresh boost reads as a full flame rather than a partial one.
 @export var boost_flame_max_overspeed: float = 10.0
 ## Emission ratio the instant any overspeed is present, so the flame snaps visible rather than
 ## fading in from nothing.
@@ -252,8 +252,8 @@ func _set_smoke(is_emitting: bool, ratio: float) -> void:
 	_smoke_right.amount_ratio = ratio
 
 
-# Fires purely off state.overspeed, so it tracks whatever pad or source credited the boost rather
-# than duplicating BoostPadField's bump/bleed bookkeeping here. Not grounded-gated, unlike smoke:
+# Fires purely off state.overspeed, so it tracks whatever ghost or source credited the boost rather
+# than duplicating BoostGhostField's bump/bleed bookkeeping here. Not grounded-gated, unlike smoke:
 # a boost taken airborne should still show flame.
 func _update_boost_flames(state: KartState) -> void:
 	var is_emitting: bool = not state.frozen and state.overspeed > 7.0
