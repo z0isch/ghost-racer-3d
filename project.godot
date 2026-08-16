@@ -90,3 +90,5 @@ dev_boost_fewer={
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
+anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/screen_space_aa=1

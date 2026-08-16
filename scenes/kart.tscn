@@ -115,7 +115,7 @@ script = ExtResource("3_cosmetics")
 [node name="DriftSmokeLeft" type="GPUParticles3D" parent="Cosmetics/Chassis" unique_id=310774421]
 transform = Transform3D(0.9999863, 0, -0.005235964, 0, 1, 0, 0.005235964, 0, 0.9999863, 0.4172073, -0.21164513, -0.14717314)
 emitting = false
-amount = 1000
+amount = 100
 lifetime = 0.7
 process_material = SubResource("ParticleProcessMaterial_smoke")
 draw_pass_1 = SubResource("QuadMesh_smoke")
@@ -123,8 +123,7 @@ draw_pass_1 = SubResource("QuadMesh_smoke")
 [node name="DriftSmokeRight" type="GPUParticles3D" parent="Cosmetics/Chassis" unique_id=310774422]
 transform = Transform3D(1, 0, 0, 0, 0.4694716, 0.88294756, 0, -0.88294756, 0.4694716, -0.40597177, -0.22359046, -0.092002004)
 emitting = false
-amount = 1000
-amount_ratio = 0.6
+amount = 100
 lifetime = 0.7
 process_material = SubResource("ParticleProcessMaterial_smoke")
 draw_pass_1 = SubResource("QuadMesh_smoke")

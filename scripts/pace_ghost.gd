@@ -15,7 +15,7 @@ extends Node3D
 
 ## Settings, not mechanism: nothing below branches on the look.
 @export var ghost_color: Color = Color(0.55, 0.85, 1.0, 0.35)
-## Under the scene's single OmniLight, a shaded ghost reads as a dark smear across the circuit.
+## Under the scene's single key light, a shaded ghost reads as a dark smear across the circuit.
 @export var unshaded: bool = true
 ## Stops the ghost's own faces blending over each other, so it reads as one body.
 @export var depth_write: bool = true
