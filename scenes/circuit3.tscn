@@ -5,8 +5,25 @@
 [ext_resource type="Script" uid="uid://cph7euje06kel" path="res://addons/road-generator/nodes/road_container.gd" id="2_kwvsp"]
 [ext_resource type="Script" uid="uid://difs1qg4mpcpw" path="res://addons/road-generator/nodes/road_point.gd" id="3_f7ioj"]
 
+[sub_resource type="Gradient" id="Gradient_bluvq"]
+offsets = PackedFloat32Array(0, 0.355)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ground"]
+noise_type = 3
+frequency = 0.2397
+domain_warp_enabled = true
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ground"]
+noise = SubResource("FastNoiseLite_ground")
+color_ramp = SubResource("Gradient_bluvq")
+seamless = true
+normalize = false
+
 [sub_resource type="StandardMaterial3D" id="Material_grass"]
-albedo_color = Color(0.27444583, 0.14296448, 0.0032668265, 1)
+albedo_color = Color(0.43809798, 0.23269922, 0, 1)
+albedo_texture = SubResource("NoiseTexture2D_ground")
+roughness = 0.95
+uv1_scale = Vector3(80, 80, 1)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
 material = SubResource("Material_grass")
