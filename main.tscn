@@ -45,6 +45,7 @@ rear_grip_high_speed_degrees_per_second = 360.0
 min_slip_speed = 0.0
 steer_grip_boost = 1.0
 drift_speed_scrub = 0.0
+store_boost_charges = false
 metadata/_custom_type_script = "uid://dxr1cdkqpjufc"
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_moebius"]
@@ -143,6 +144,14 @@ offset_right = 216.0
 offset_bottom = 88.0
 theme_override_colors/font_color = Color(0, 0, 0, 1)
 text = "Boost ghosts: 5"
+
+[node name="BoostChargesLabel" type="Label" parent="HUD" unique_id=452692010]
+offset_left = 16.0
+offset_top = 88.0
+offset_right = 216.0
+offset_bottom = 112.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+text = "Boost charges: 0"
 
 [node name="CoinField" type="Node" parent="." unique_id=417553902]
 script = ExtResource("10_coin_field")

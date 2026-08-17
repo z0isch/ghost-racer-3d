@@ -50,3 +50,7 @@ var frozen: bool = false
 ## Speed currently owed to a boost, above the tuned ceiling. 0 when no boost is live; what the
 ## flame effect reads to know it should be burning. See KartModel.overspeed.
 var overspeed: float = 0.0
+
+## Boost charges banked and waiting on the boost button, 0 when none are held. See
+## KartModel.boost_charges.
+var boost_charges: int = 0

@@ -172,13 +172,17 @@ _Avoid_: Toast, floater, damage number, notification, particle.
 
 **Boost ghost**:
 A translucent, stationary ghost of the car standing a short step off the ghost line facing the direction of travel, **taken** by driving through it — the same verb as a coin and the same swept test, and taken once is taken for the rest of the lap. Placed automatically along the ghost line — not authored into the circuit. Because the line is the record lap's own, improving your line moves the boost with you: the boost is only there if you repeat what earned it. Every ghost on a circuit is worth exactly the same, so the count is a known quantity you route around; what varies is where they sit, not what each is worth. The count is a single number for the whole circuit, expected to be driven by a later system.
-A boost ghost is a coin that pays in speed instead of money. That is the whole of the difference and it is worth stating positively: both are taken by the path rather than touched, both are consumed for the lap, both are restored whole at every countdown. Anything true of the coin field's lifecycle is true here.
+A boost ghost is a coin that pays in a **boost charge** instead of money. That is the whole of the difference and it is worth stating positively: both are taken by the path rather than touched, both are consumed for the lap, both are restored whole at every countdown. Anything true of the coin field's lifecycle is true here.
 Where the coins differ: the boost ghosts are **re-rolled** at every countdown rather than restored to where they stood, so two laps of a circuit are not the same track. Each ghost is drawn inside its own slot of the lap and pushed to one side of the line or the other, which is what keeps a ghost a decision — drive the line exactly and it will not be handed to you — and what keeps the field from settling into the same shape for the fifty laps a stale ghost line can stand.
 No boost ghosts on lap 1, for the same reason there is no pace ghost: there is no line yet.
 _Avoid_: Boost pad, boost panel, ramp, speed strip, respawning (boost ghosts do not come back within a lap).
 
+**Boost charge**:
+What taking a boost ghost banks, rather than boosting the kart on contact. Charges accrue — taking a second ghost while one is already banked makes two — and each is spent independently on a press of the boost button, applying one ordinary boost (a bump and a bleed) at the moment the driver chooses rather than the moment the ghost happened to stand. This is what turns a boost ghost from something you merely pass through into something you save for the straight, or the corner exit, or bank up before spending. Cleared at every countdown, matching the ghost field's own lifecycle.
+_Avoid_: Boost meter (there is no continuous meter, only a count), turbo, stored boost.
+
 **Bump**:
-The m/s a pad puts straight into forward speed the instant it is taken, above the tuned ceiling. One-shot: there is no envelope and no duration.
+The m/s a spent charge puts straight into forward speed, above the tuned ceiling. One-shot: there is no envelope and no duration.
 _Avoid_: Boost amount, impulse, thrust, power.
 
 **Bleed**:

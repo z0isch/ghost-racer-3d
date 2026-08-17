@@ -55,6 +55,16 @@ var _boost_credit: float = 0.0
 ## m/s^2 the kart sheds boost overspeed at when a pad does not name its own rate.
 const DEFAULT_BOOST_BLEED: float = 3.0
 
+# A ghost no longer boosts on contact: it banks a charge, and apply_boost only fires when the
+# driver spends one. Bump/bleed are stored rather than re-derived, because the recipe a charge was
+# earned with is the recipe it is spent with — a boost ghost field could vary its bump/bleed over a
+# session even though today's does not, and a charge should not silently start paying out at
+# whatever rate the field happens to be offering when the button is pressed rather than when the
+# ghost was taken.
+var _boost_charges: int = 0
+var _charge_bump: float = 0.0
+var _charge_bleed: float = 0.0
+
 # Solved outputs, kept for the readouts. Not inputs to anything.
 var _yaw_rate: float = 0.0
 var _lateral_speed: float = 0.0
@@ -272,6 +282,36 @@ func apply_boost(bump: float, bleed: float) -> void:
 	_boost_bleed = bleed if bleed > 0.0 else DEFAULT_BOOST_BLEED
 
 
+## Banks one boost charge, taken from a ghost but not yet spent. Stores the bump/bleed it was
+## earned with, overwriting whatever an earlier charge stored: every ghost on today's field is
+## worth the same (BoostGhostField's finding), so there is one recipe live at a time rather than a
+## queue of them, and the newest ghost taken is the one that sets it.
+##
+## With tuning.store_boost_charges false, there is nothing to bank: the ghost's grant fires
+## straight through to apply_boost, the pad's own behaviour, and boost_charges stays 0 for the
+## life of the run.
+func add_boost_charge(bump: float, bleed: float) -> void:
+	if not tuning.store_boost_charges:
+		apply_boost(bump, bleed)
+		return
+	if bump <= 0.0:
+		return
+	_boost_charges += 1
+	_charge_bump = bump
+	_charge_bleed = bleed
+
+
+## Spends one banked charge as an ordinary boost, on the driver's own timing rather than the
+## ghost's. False and a no-op with nothing banked, so the caller can fire this on every press of
+## the button without first checking [member boost_charges].
+func consume_boost_charge() -> bool:
+	if _boost_charges <= 0:
+		return false
+	_boost_charges -= 1
+	apply_boost(_charge_bump, _charge_bleed)
+	return true
+
+
 ## Takes the driver's hands away. A driver-input concept, not a lap concept: the model names no lap
 ## phase and holds no director reference. The step still runs while frozen; it suppresses
 ## throttle/brake/steer/slip and pins forward speed at zero, which pins yaw and lateral speed at
@@ -293,6 +333,9 @@ func reset() -> void:
 	_steer_ceiling = deg_to_rad(tuning.max_steer_angle_low_speed_degrees)
 	_boost_credit = 0.0
 	_boost_bleed = DEFAULT_BOOST_BLEED
+	_boost_charges = 0
+	_charge_bump = 0.0
+	_charge_bleed = 0.0
 
 
 ## Fills a caller-owned KartState. The view gets a copy of the numbers and no handle on the model.
@@ -310,6 +353,7 @@ func snapshot_into(state: KartState) -> void:
 	state.brake_strength = _brake_strength
 	state.frozen = _frozen
 	state.overspeed = overspeed
+	state.boost_charges = _boost_charges
 
 
 # --- Readouts ---------------------------------------------------------------------------------
@@ -381,6 +425,10 @@ var overspeed: float:
 ## rather than counted down: there is no timer to drift.
 var boost_remaining: float:
 	get: return _boost_credit / _boost_bleed if _boost_bleed > 0.0 else 0.0
+
+## Boost charges currently banked, waiting on a press of the boost button. Read by the HUD.
+var boost_charges: int:
+	get: return _boost_charges
 
 
 # Speed as a 0..1 fraction of the tuned maximum. Both the ceiling and the rear grip interpolate

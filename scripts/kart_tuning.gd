@@ -84,6 +84,13 @@ extends Resource
 @export var barrier_speed_scrub_strength: float = 0.8
 @export var barrier_drift_cancel_threshold: float = 0.25
 
+# --- Boost ----------------------------------------------------------------------------------
+## True: a boost ghost banks a charge, spent on the driver's own timing by the boost button.
+## False: a boost ghost fires immediately on contact, as a pad would — no charge, no button, no
+## KartState.boost_charges to read. A tuning switch rather than two code paths in the field or the
+## model, so a playtest can compare the two feels without a second circuit.
+@export var store_boost_charges: bool = true
+
 # --- Readouts -------------------------------------------------------------------------------
 ## Rear slip magnitude above which is_drifting reads true, for the camera and the cosmetics. Purely
 ## a reporting threshold: nothing in the physics branches on it.

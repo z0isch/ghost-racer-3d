@@ -75,6 +75,11 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_classify_surface()
 
+	# Gated on frozen like the rest of the driver's hands: spending a charge into a kart pinned at
+	# zero during the countdown would just waste it for no visible effect.
+	if Input.is_action_just_pressed("use_boost") and not frozen:
+		_model.consume_boost_charge()
+
 	var motion: KartMotion = _model.step(
 		_input.poll(_model.tuning, delta, frozen),
 		_surface_multiplier(),
@@ -187,10 +192,11 @@ func _apply_barrier_impacts() -> void:
 
 # --- Public surface ---------------------------------------------------------------------------
 
-## A world event done to the kart, alongside the barrier impact the model already takes: the pad
-## field decides a pad was taken, the model owns what a boost does.
-func apply_boost(bump: float, bleed: float) -> void:
-	_model.apply_boost(bump, bleed)
+## A world event done to the kart, alongside the barrier impact the model already takes: the ghost
+## field decides a ghost was taken, the model owns what a boost does. Banks a charge rather than
+## boosting immediately — see [method use_boost_charge] for the button that spends it.
+func add_boost_charge(bump: float, bleed: float) -> void:
+	_model.add_boost_charge(bump, bleed)
 
 
 ## m/s currently carried above the ceiling on boost credit, 0.0 when not boosting. Read by
@@ -201,6 +207,10 @@ var overspeed: float:
 ## Seconds of boost left at the current bleed rate.
 var boost_remaining: float:
 	get: return _model.boost_remaining
+
+## Boost charges banked and waiting on a press of the boost button. Read by the HUD.
+var boost_charges: int:
+	get: return _model.boost_charges
 
 
 ## Absolute forward speed. Read by DebugHud and ChaseCamera.

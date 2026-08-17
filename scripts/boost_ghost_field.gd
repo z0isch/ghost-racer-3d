@@ -57,9 +57,10 @@ const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 ## judgement [member ghost_count] is set by.
 @export var placement_lateral: float = 1.0
 
-## m/s put straight into forward speed, above the tuned ceiling. Every ghost on the circuit.
+## m/s the banked charge puts straight into forward speed, above the tuned ceiling, once spent.
+## Every ghost on the circuit.
 @export var bump: float = 10.0
-## m/s^2 the overspeed comes back off at. Every ghost on the circuit.
+## m/s^2 the overspeed comes back off at, once the charge is spent. Every ghost on the circuit.
 @export var bleed: float = 5.0
 ## Wider than a coin's: the ghost is a car-sized silhouette, and clipping its wing should count.
 @export var pickup_radius: float = 2.0
@@ -276,7 +277,7 @@ func _sweep_ghosts() -> void:
 			continue
 		ghost.taken = true
 		ghost.node.visible = false
-		_kart.apply_boost(bump, bleed)
+		_kart.add_boost_charge(bump, bleed)
 		ghost_taken.emit(ghost.origin)
 
 

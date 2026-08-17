@@ -13,6 +13,7 @@ var _boost_ghost_field: BoostGhostField
 @onready var _speed_label: Label = $SpeedLabel
 @onready var _road_label: Label = $RoadLabel
 @onready var _ghost_count_label: Label = $GhostCountLabel
+@onready var _boost_charges_label: Label = $BoostChargesLabel
 
 
 func _ready() -> void:
@@ -23,6 +24,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _target != null:
 		_speed_label.text = "Speed: %.1f" % _target.speed
+		_boost_charges_label.text = "Boost charges: %d" % _target.boost_charges
 		match _target.current_surface:
 			Kart.SurfaceType.ROAD:
 				_road_label.text = "On-road"
