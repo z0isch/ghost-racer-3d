@@ -36,7 +36,6 @@ ambient_light_color = Color(1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_npteq"]
 script = ExtResource("3_4c57u")
-max_speed = 12.0
 acceleration = 5.0
 max_steer_angle_low_speed_degrees = 15.0
 max_steer_angle_high_speed_degrees = 4.0
@@ -59,6 +58,31 @@ shader_parameter/color_edge_strength = 2.2
 shader_parameter/ink_fade_begin = 90.0
 shader_parameter/ink_fade_end = 200.0
 
+[sub_resource type="Gradient" id="Gradient_u6hd3"]
+offsets = PackedFloat32Array(0, 0.22833334)
+metadata/_snap_count = 34
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ground"]
+noise_type = 3
+frequency = 0.9161
+domain_warp_enabled = true
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_yaehf"]
+noise = SubResource("FastNoiseLite_ground")
+color_ramp = SubResource("Gradient_u6hd3")
+
+[sub_resource type="StandardMaterial3D" id="Material_grass"]
+albedo_color = Color(0.4392157, 0.23137255, 0, 1)
+albedo_texture = SubResource("NoiseTexture2D_yaehf")
+uv1_scale = Vector3(80, 80, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_074og"]
+material = SubResource("Material_grass")
+size = Vector2(1000, 1000)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cegan"]
+size = Vector3(1000, 0.001, 1000)
+
 [node name="Main" type="Node3D" unique_id=273122702]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=105771252]
@@ -66,9 +90,7 @@ environment = SubResource("Environment_moebius")
 
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=105771251]
 transform = Transform3D(0.6156615, 0.6455006, -0.45198438, 0, 0.57357645, 0.81915206, 0.7880107, -0.5043204, 0.35312894, 0, 61.24295, 0)
-light_energy = 0.5
 shadow_enabled = true
-shadow_bias = 0.03
 directional_shadow_max_distance = 120.0
 
 [node name="Kart" parent="." unique_id=658236697 instance=ExtResource("1_kart")]
@@ -255,5 +277,16 @@ theme_override_colors/font_color = Color(0.21042764, 0.64861786, 0.29949114, 1)
 theme_override_font_sizes/font_size = 44
 text = "$0"
 horizontal_alignment = 1
+
+[node name="Ground2" type="StaticBody3D" parent="." unique_id=648273497]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.35, 0)
+collision_layer = 9
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground2" unique_id=1678672377]
+mesh = SubResource("PlaneMesh_074og")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground2" unique_id=1772413327]
+shape = SubResource("BoxShape3D_cegan")
 
 [node name="Circuit3" parent="." unique_id=1961655717 instance=ExtResource("14_w48qg")]

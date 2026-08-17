@@ -5,33 +5,6 @@
 [ext_resource type="Script" uid="uid://cph7euje06kel" path="res://addons/road-generator/nodes/road_container.gd" id="2_kwvsp"]
 [ext_resource type="Script" uid="uid://difs1qg4mpcpw" path="res://addons/road-generator/nodes/road_point.gd" id="3_f7ioj"]
 
-[sub_resource type="Gradient" id="Gradient_bluvq"]
-offsets = PackedFloat32Array(0, 0.355)
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_ground"]
-noise_type = 3
-frequency = 0.2397
-domain_warp_enabled = true
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ground"]
-noise = SubResource("FastNoiseLite_ground")
-color_ramp = SubResource("Gradient_bluvq")
-seamless = true
-normalize = false
-
-[sub_resource type="StandardMaterial3D" id="Material_grass"]
-albedo_color = Color(0.43809798, 0.23269922, 0, 1)
-albedo_texture = SubResource("NoiseTexture2D_ground")
-roughness = 0.95
-uv1_scale = Vector3(80, 80, 1)
-
-[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
-material = SubResource("Material_grass")
-size = Vector2(1000, 1000)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
-size = Vector3(1000, 0.001, 1000)
-
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_to4vs"]
 albedo_color = Color(0.46229059, 0.46229064, 0.4622904, 1)
 
@@ -164,17 +137,6 @@ radial_segments = 20
 rings = 0
 
 [node name="Circuit2" type="Node3D" unique_id=1961655717]
-
-[node name="Ground" type="StaticBody3D" parent="." unique_id=1525381]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.35, 0)
-collision_layer = 9
-collision_mask = 0
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground" unique_id=1495372740]
-mesh = SubResource("PlaneMesh_ground")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground" unique_id=1341419541]
-shape = SubResource("BoxShape3D_ground")
 
 [node name="RoadManager" type="Node3D" parent="." unique_id=1091442068]
 script = ExtResource("1_qrfs1")
@@ -321,6 +283,25 @@ metadata/_edit_lock_ = true
 [node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=1706612214]
 curve = SubResource("Curve3D_nad8w")
 metadata/_edit_lock_ = true
+
+[node name="Road_001" type="Node3D" parent="RoadManager" unique_id=837708741]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.9807129, 17.110876, 9.037201)
+script = ExtResource("2_kwvsp")
+use_lowpoly_preview = true
+edge_containers = Array[NodePath]([NodePath(""), NodePath("")])
+edge_rp_targets = Array[NodePath]([NodePath(""), NodePath("")])
+edge_rp_target_dirs = Array[int]([-1, -1])
+edge_rp_locals = Array[NodePath]([NodePath("RP_001"), NodePath("RP_001")])
+edge_rp_local_dirs = Array[int]([0, 1])
+
+[node name="RP_001" type="Node3D" parent="RoadManager/Road_001" unique_id=259095372]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+script = ExtResource("3_f7ioj")
+lanes = Array[int]([5])
+lane_width = 8.0
+shoulder_width_l = 0.0
+shoulder_width_r = 0.0
+gutter_profile = Vector2(0, 0)
 
 [node name="StartLine" type="Marker3D" parent="." unique_id=2098442364]
 transform = Transform3D(0.8290376, 0, 0.5591929, 0, 1, 0, -0.5591929, 0, 0.8290376, 2.6249995, 0, -21.829378)
