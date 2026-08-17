@@ -17,6 +17,7 @@
 [ext_resource type="Script" uid="uid://dp8kjh2e26s71" path="res://scripts/boost_ghost_field.gd" id="15_boost_ghost_field"]
 [ext_resource type="Shader" uid="uid://cnkc6102dunqd" path="res://shaders/moebius.gdshader" id="16_moebius_shader"]
 [ext_resource type="Script" uid="uid://c6lyjon7i14mm" path="res://scripts/moebius_effect.gd" id="17_moebius_effect"]
+[ext_resource type="Script" uid="uid://b2m0rjc2vkdi1" path="res://scripts/hazard_ghost_field.gd" id="18_hazard_ghost_field"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_moebius"]
 sky_top_color = Color(0.22114116, 0.5285429, 0.5401196, 1)
@@ -45,7 +46,6 @@ rear_grip_high_speed_degrees_per_second = 360.0
 min_slip_speed = 0.0
 steer_grip_boost = 1.0
 drift_speed_scrub = 0.0
-store_boost_charges = false
 metadata/_custom_type_script = "uid://dxr1cdkqpjufc"
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_moebius"]
@@ -120,6 +120,7 @@ script = ExtResource("17_moebius_effect")
 script = ExtResource("3_debug_hud")
 target_path = NodePath("../Kart")
 boost_ghost_field_path = NodePath("../BoostGhostField")
+hazard_ghost_field_path = NodePath("../HazardGhostField")
 
 [node name="SpeedLabel" type="Label" parent="HUD" unique_id=144426822]
 offset_left = 16.0
@@ -153,6 +154,14 @@ offset_bottom = 112.0
 theme_override_colors/font_color = Color(0, 0, 0, 1)
 text = "Boost charges: 0"
 
+[node name="HazardCountLabel" type="Label" parent="HUD" unique_id=452692011]
+offset_left = 16.0
+offset_top = 112.0
+offset_right = 216.0
+offset_bottom = 136.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+text = "Hazard ghosts: 3"
+
 [node name="CoinField" type="Node" parent="." unique_id=417553902]
 script = ExtResource("10_coin_field")
 kart_path = NodePath("../Kart")
@@ -164,7 +173,22 @@ script = ExtResource("15_boost_ghost_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../LapDirector")
 ghosts_path = NodePath("../Circuit3/BoostGhosts")
+coin_field_path = NodePath("../CoinField")
+ghost_count = 3
+edge_clearance = 0.25
+coin_snap_radius = 4.5
 ghost_color = Color(0, 0.5176471, 0.34509805, 0.5921569)
+
+[node name="HazardGhostField" type="Node" parent="." unique_id=417553908]
+script = ExtResource("18_hazard_ghost_field")
+kart_path = NodePath("../Kart")
+director_path = NodePath("../LapDirector")
+ghosts_path = NodePath("../Circuit3/HazardGhosts")
+min_speed = 2.0
+max_speed = 14.0
+hit_slow_multiplier = 0.75
+pickup_radius_fraction = 2.0
+line_width = 0.05
 
 [node name="Purse" type="Node" parent="." unique_id=417553903]
 script = ExtResource("11_purse")
@@ -182,6 +206,7 @@ chase_camera_path = NodePath("../ChaseCamera")
 start_line_path = NodePath("../Circuit3/StartLine")
 checkpoints_path = NodePath("../Circuit3/Checkpoints")
 coin_field_path = NodePath("../CoinField")
+ghost_line_path = "res://ghost_lines/circuit3.tres"
 restart_countdown_seconds = 1.0
 
 [node name="PaceGhost" type="Node3D" parent="." unique_id=871962825]

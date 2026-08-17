@@ -39,6 +39,12 @@ enum LapPhase {
 ## The CoinField whose pickups feed [member lap_earnings].
 @export var coin_field_path: NodePath
 
+## Where the ghost line is persisted. Loaded on [method _ready] if the file exists, and overwritten
+## every time a lap promotes a new record — so the "drive one lap to get ghosts" tax is paid once,
+## by whoever commits the file, not every session. Empty disables persistence entirely: the line
+## behaves exactly as before, session-scoped and lost on exit.
+@export_file("*.tres") var ghost_line_path: String = ""
+
 ## The checkpoint prism, in each marker's own frame: the road and nothing but the road, from 1 m
 ## below the surface to 5 m above, which is where the gate's posts and crossbar are. Exported so the
 ## pair can be pushed apart in a playtest, but meant to match the gate geometry.
@@ -169,6 +175,7 @@ func _ready() -> void:
 	# opposite, the kart's position after move_and_slide, hence the deferred swept test.
 	process_physics_priority = -100
 
+	_load_ghost_line()
 	_begin_countdown(first_countdown_seconds)
 
 
@@ -224,6 +231,7 @@ func complete_lap() -> void:
 		# materialised: the recording is cleared on the next two lines regardless.
 		_ghost_line_positions = _recording_positions.duplicate()
 		_ghost_line_yaws = _recording_yaws.duplicate()
+		_save_ghost_line()
 	# Unconditional, so a losing lap's samples cannot leak into the next recording and the ghost
 	# line can stand unchanged for many laps.
 	_recording_positions.clear()
@@ -356,6 +364,36 @@ func _append_sample() -> void:
 
 	_recording_positions.append(_kart.global_position)
 	_recording_yaws.append(_kart.global_rotation.y)
+
+
+# Populates the ghost line from disk before the first countdown, so ghosts stand on the circuit
+# from the session's first lap rather than only after one is driven and promoted. Silent on a
+# missing or unreadable file: an unset path or a track that has never been recorded is not an
+# error, just an empty ghost line, exactly as before this existed.
+func _load_ghost_line() -> void:
+	if ghost_line_path.is_empty() or not ResourceLoader.exists(ghost_line_path):
+		return
+	var ghost_line: GhostLine = load(ghost_line_path) as GhostLine
+	if ghost_line == null:
+		push_warning("LapDirector: %s did not load as a GhostLine." % ghost_line_path)
+		return
+	_ghost_line_positions = ghost_line.positions
+	_ghost_line_yaws = ghost_line.yaws
+	_record_earn_rate = ghost_line.earn_rate
+
+
+# Mirrors the promotion in complete_lap to disk, so the next session's _load_ghost_line picks up
+# today's record without a driver having to export or commit anything by hand.
+func _save_ghost_line() -> void:
+	if ghost_line_path.is_empty():
+		return
+	var ghost_line := GhostLine.new()
+	ghost_line.positions = _ghost_line_positions
+	ghost_line.yaws = _ghost_line_yaws
+	ghost_line.earn_rate = _record_earn_rate
+	var error: Error = ResourceSaver.save(ghost_line, ghost_line_path)
+	if error != OK:
+		push_warning("LapDirector: failed to save ghost line to %s (%s)." % [ghost_line_path, error])
 
 
 # The one entry point into Countdown: scene load, lap completion and abort all come through here,

@@ -136,7 +136,7 @@ _Avoid_: Best lap, high score, personal best.
 The time elapsed in the current lap, started at countdown-zero and stopped when the final checkpoint is taken. The thing you feel while driving, and on screen — but not a record in its own right. A lap is not good because it was quick; it is good because it earned well for its length.
 
 **Ghost line**:
-The recorded position-and-heading line of the record lap, owned by the lap director. Both the pace ghost and the boost ghosts stand on it — the pace ghost moving along it, the boost ghosts parked a step to one side of it. Session-scoped: promoted only on a strictly higher earn rate, thrown away on abort.
+The recorded position-and-heading line of the record lap, owned by the lap director. The pace ghost, the boost ghosts and the hazard ghosts all stand on it — the pace ghost moving along it at your own pace, the boost ghosts parked a step to one side of it, the hazard ghosts driving along it backward. Session-scoped: promoted only on a strictly higher earn rate, thrown away on abort.
 _Avoid_: Racing line (that is the abstract ideal, not a recording), replay, path.
 
 **Pace ghost**:
@@ -194,3 +194,15 @@ How far above its ceiling the kart currently is, in m/s. Not a stored "boost amo
 _Avoid_: Boost remaining, boost meter, turbo.
 
 Boost ghosts have no effect on money and no effect on the coin field. They change the denominator of the earn rate and nothing else. That is the whole of their relationship to the economy.
+
+### Hazard
+
+**Hazard ghost**:
+A translucent, red-tinted ghost of the car driving the ghost line **backward** — oncoming traffic on your own best line — **hit** on contact, the same swept test a coin or a boost ghost is taken by, and hit once is hit for the rest of the lap. Placed automatically along the ghost line at countdown, one per equal slot of it, exactly as boost ghosts are — the difference is that a hazard ghost stands *on* the line rather than a step to one side, since there is nowhere else for oncoming traffic to be, and it drives rather than stands still. Every hazard on a circuit costs the same, so the count is a known quantity, tunable live by a dev input exactly as the boost ghost count is.
+_Avoid_: Traffic, obstacle car, enemy, oncoming car.
+
+**Hazard hit**:
+What driving through a hazard ghost costs: forward speed scrubbed by a tunable fraction, the same shape as a barrier impact but delivered by the hazard field's own swept test rather than a physics collision. One-shot, with no duration — the same reasoning as bump/bleed's absence of an envelope, in miniature.
+_Avoid_: Damage, penalty, slow effect (unqualified).
+
+Hazard ghosts have no effect on money and no effect on the coin field. Like boost ghosts, they are read from the ghost line, not authored into the circuit; unlike boost ghosts, they never sit still, so the line you set is also the line you are then driven at.

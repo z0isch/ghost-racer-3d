@@ -419,3 +419,5 @@ mesh = SubResource("CylinderMesh_coin")
 script = ExtResource("1_gen_coin_spin")
 
 [node name="BoostGhosts" type="Node3D" parent="." unique_id=2147155493]
+
+[node name="HazardGhosts" type="Node3D" parent="." unique_id=2147155494]

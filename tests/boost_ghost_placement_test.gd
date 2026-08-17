@@ -7,6 +7,11 @@ extends TestCase
 ## on a duplicate sample, an off-by-one at the margins, a yaw that spins the wrong way at pi, a
 ## jitter that lets one ghost stray into a neighbour's slot.
 ##
+## place_along returns racing-line poses only: moving a ghost off the line, onto the road it probes
+## with a physics ray, or onto a nearby coin, is BoostGhostField._place_off_line's job and needs the
+## scene tree this suite cannot touch. That behaviour is exercised by the field's own runtime
+## behaviour, not here.
+##
 ## The randomised cases assert the bounds the draw must respect rather than the values it produced,
 ## and roll many times: a case that pinned a seed's exact output would fail on any change to the
 ## order the draws are taken in, which is not a behaviour worth freezing.
@@ -41,21 +46,14 @@ func _straight_line(length: int, yaw: float = 0.0) -> Line:
 	return line
 
 
-## The same line, yawed so its heading actually agrees with its direction: Godot's forward is -Z, so
-## a kart driving up +X records a yaw of -pi/2 and its right vector points at +Z. Only the lateral
-## cases need that agreement — the rest never cross-check yaw against direction.
-func _straight_line_driven_along_x(length: int) -> Line:
-	return _straight_line(length, -PI / 2.0)
-
-
-## Defaults to the unjittered, unoffset field: every case that predates the randomisation still
-## asserts exact slot midpoints, so the skeleton the jitter perturbs stays pinned.
+## Defaults to the unjittered field: every case that predates the randomisation still asserts exact
+## slot midpoints, so the skeleton the jitter perturbs stays pinned.
 func _place(positions: PackedVector3Array, yaws: PackedFloat32Array, count: int,
 		start_margin: float = START_MARGIN, end_margin: float = END_MARGIN,
-		jitter: float = 0.0, lateral: float = 0.0,
+		jitter: float = 0.0,
 		rng: RandomNumberGenerator = RandomNumberGenerator.new()) -> Array[Transform3D]:
 	return BoostGhostField.place_along(
-		positions, yaws, count, start_margin, end_margin, rng, jitter, lateral
+		positions, yaws, count, start_margin, end_margin, rng, jitter
 	)
 
 
@@ -147,7 +145,7 @@ func test_full_jitter_never_leaves_a_ghost_s_own_slot() -> void:
 
 	for roll in ROLLS:
 		var poses: Array[Transform3D] = _place(line.positions, line.yaws, 4, START_MARGIN, END_MARGIN,
-			1.0, 0.0, rng)
+			1.0, rng)
 		check(poses.size() == 4, "four ghosts requested, four placed")
 		for i in poses.size():
 			var low: float = 10.0 + 20.0 * i
@@ -162,9 +160,9 @@ func test_jitter_moves_the_field_between_rolls() -> void:
 	var rng := RandomNumberGenerator.new()
 
 	var first: Array[Transform3D] = _place(line.positions, line.yaws, 5, START_MARGIN, END_MARGIN,
-		0.8, 0.0, rng)
+		0.8, rng)
 	var second: Array[Transform3D] = _place(line.positions, line.yaws, 5, START_MARGIN, END_MARGIN,
-		0.8, 0.0, rng)
+		0.8, rng)
 
 	var moved: bool = false
 	for i in first.size():
@@ -173,46 +171,8 @@ func test_jitter_moves_the_field_between_rolls() -> void:
 	check(moved, "a second roll of the same line is not the first one again")
 
 
-func test_lateral_pushes_square_off_the_line_and_never_onto_it() -> void:
-	# A line driven up +X, so the offset must land purely on Z and leave the arc position alone.
-	# Magnitude is half the setting to all of it, either side: a ghost that came back within half is
-	# a ghost sitting on the racing line, which is the thing the offset exists to prevent.
-	var line: Line = _straight_line_driven_along_x(100)
-	var rng := RandomNumberGenerator.new()
-	var lateral: float = 3.0
-
-	for roll in ROLLS:
-		var poses: Array[Transform3D] = _place(line.positions, line.yaws, 4, START_MARGIN, END_MARGIN,
-			0.0, lateral, rng)
-		var expected_x: Array[float] = [20.0, 40.0, 60.0, 80.0]
-		for i in poses.size():
-			check_near(poses[i].origin.x, expected_x[i], 1e-4,
-				"ghost %d keeps its arc position: the offset is square to the line" % i)
-			check_near(poses[i].origin.y, 0.0, 1e-4, "the offset stays in the road plane")
-			var offset: float = absf(poses[i].origin.z)
-			check(offset >= lateral * 0.5 - 1e-4 and offset <= lateral + 1e-4,
-				"ghost %d stands between half the offset and all of it, off the line" % i)
-
-
-func test_lateral_uses_both_sides_of_the_line() -> void:
-	# Both signs, not a field permanently hugging one side of the circuit.
-	var line: Line = _straight_line_driven_along_x(100)
-	var rng := RandomNumberGenerator.new()
-
-	var left: bool = false
-	var right: bool = false
-	for roll in ROLLS:
-		for pose: Transform3D in _place(line.positions, line.yaws, 4, START_MARGIN, END_MARGIN,
-				0.0, 3.0, rng):
-			if pose.origin.z > 0.0:
-				right = true
-			else:
-				left = true
-	check(left and right, "ghosts are placed on both sides of the line")
-
-
-func test_zero_jitter_and_zero_lateral_reproduce_the_fixed_field() -> void:
-	# The knobs turned off are the old behaviour exactly, so a circuit can opt out of the
+func test_zero_jitter_reproduces_the_fixed_field() -> void:
+	# The knob turned off is the old behaviour exactly, so a circuit can opt out of the
 	# randomisation without opting out of the placement.
 	var line: Line = _straight_line(100)
 	var rng := RandomNumberGenerator.new()
@@ -220,7 +180,7 @@ func test_zero_jitter_and_zero_lateral_reproduce_the_fixed_field() -> void:
 	var expected: Array[float] = [20.0, 40.0, 60.0, 80.0]
 	for roll in ROLLS:
 		var poses: Array[Transform3D] = _place(line.positions, line.yaws, 4, START_MARGIN, END_MARGIN,
-			0.0, 0.0, rng)
+			0.0, rng)
 		for i in poses.size():
 			check_near(poses[i].origin.x, expected[i], 1e-4, "ghost %d is pinned to its midpoint" % i)
 			check_near(poses[i].origin.z, 0.0, 1e-4, "ghost %d sits on the line" % i)

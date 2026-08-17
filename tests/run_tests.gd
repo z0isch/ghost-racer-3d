@@ -16,6 +16,8 @@ func _initialize() -> void:
 		KartInputTest.new(),
 		CoinPickupTest.new(),
 		BoostGhostPlacementTest.new(),
+		HazardGhostPlacementTest.new(),
+		GhostLineTest.new(),
 	]
 
 	var failures: PackedStringArray = PackedStringArray()

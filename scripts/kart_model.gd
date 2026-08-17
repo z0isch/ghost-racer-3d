@@ -282,6 +282,17 @@ func apply_boost(bump: float, bleed: float) -> void:
 	_boost_bleed = bleed if bleed > 0.0 else DEFAULT_BOOST_BLEED
 
 
+## A hazard ghost hit: scrubs forward speed by `multiplier`, the same shape as [method apply_impact]
+## but driven by the hazard field's own swept test rather than a barrier collision. Instant and
+## one-shot, for apply_impact's reason: no duration and no envelope, so nothing here can disagree
+## with the speed a repeated hit would scrub next.
+func apply_hazard_slow(multiplier: float) -> void:
+	var scrub: float = clampf(multiplier, 0.0, 1.0)
+	if scrub <= 0.0:
+		return
+	_forward_speed *= 1.0 - scrub
+
+
 ## Banks one boost charge, taken from a ghost but not yet spent. Stores the bump/bleed it was
 ## earned with, overwriting whatever an earlier charge stored: every ghost on today's field is
 ## worth the same (BoostGhostField's finding), so there is one recipe live at a time rather than a

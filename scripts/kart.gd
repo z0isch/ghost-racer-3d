@@ -213,6 +213,12 @@ func add_boost_charge(bump: float, bleed: float) -> void:
 	_model.add_boost_charge(bump, bleed)
 
 
+## A world event done to the kart by the hazard ghost field: it decided a hazard was hit, the model
+## owns what a hit costs. `multiplier` is the fraction of forward speed scrubbed, 0..1.
+func apply_hazard_slow(multiplier: float) -> void:
+	_model.apply_hazard_slow(multiplier)
+
+
 ## m/s currently carried above the ceiling on boost credit, 0.0 when not boosting. Read by
 ## ChaseCamera for the FOV punch.
 var overspeed: float:
