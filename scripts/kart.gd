@@ -17,6 +17,12 @@ extends CharacterBody3D
 ##     track a little more every frame.
 ##   - Surface classification HOLDS the last known surface when the ray misses (airborne, off the
 ##     world edge) rather than flickering or inventing an airborne state.
+##
+## The ground is the ray's job and the sphere's job is barriers — the body's collision mask carries
+## no ground layer at all. Two independent things holding the kart up is what makes edges violent:
+## the ray and the sphere disagree about where the surface is within half a metre of any boundary,
+## and the sphere wins by depenetrating sideways off a zero-thickness road ribbon or straight up out
+## of the grass slab the road dips below. Held apart, running out of road is a plain fall.
 
 enum SurfaceType {
 	ROAD,
@@ -38,6 +44,11 @@ const KERB_LAYER_BIT: int = 1 << 2
 # How a sphere on a raycast sits on a mesh, not how the kart feels; hence here, not in KartTuning.
 @export var gravity: float = 20.0
 @export var ground_snap_strength: float = 40.0
+## Ceiling on the m/s the snap may command, in either direction. The ray's hit height is a
+## discontinuous signal — a road edge, a kerb lip, a seam between two containers — and an unclamped
+## proportional snap turns any step into an instantaneous launch of step * strength m/s. Bounded, a
+## step is climbed over a few frames instead.
+@export var ground_snap_max_speed: float = 6.0
 @export var sphere_radius: float = 0.5
 
 ## A *driver-input* concept, not a lap concept: Kart names no lap phase and holds no reference to
@@ -97,7 +108,10 @@ func _physics_process(delta: float) -> void:
 	if is_grounded:
 		# Without the radius the sphere embeds in the mesh and every bump becomes a wall.
 		var target_y: float = _ground_ray.get_collision_point().y + sphere_radius
-		vertical = (target_y - global_position.y) * ground_snap_strength
+		vertical = clampf(
+			(target_y - global_position.y) * ground_snap_strength,
+			-ground_snap_max_speed,
+			ground_snap_max_speed)
 	else:
 		vertical -= gravity * delta
 
