@@ -54,3 +54,12 @@ var overspeed: float = 0.0
 ## Boost charges banked and waiting on the boost button, 0 when none are held. See
 ## KartModel.boost_charges.
 var boost_charges: int = 0
+
+## 0..1 across the hop's open window, for the cosmetic lift curve. 0 when not hopping. See
+## KartModel.hop_fraction.
+var hop_fraction: float = 0.0
+
+## How far the chassis lifts at hop_fraction == 1.0, in metres. Threaded through from
+## KartTuning.hop_height the way front_axle_offset is, so KartCosmetics never needs a KartTuning
+## reference of its own.
+var hop_height: float = 1.0

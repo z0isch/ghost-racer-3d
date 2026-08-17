@@ -90,6 +90,8 @@ func _physics_process(delta: float) -> void:
 	# zero during the countdown would just waste it for no visible effect.
 	if Input.is_action_just_pressed("use_boost") and not frozen:
 		_model.consume_boost_charge()
+	if Input.is_action_just_pressed("hop") and not frozen:
+		_model.trigger_hop()
 
 	var motion: KartMotion = _model.step(
 		_input.poll(_model.tuning, delta, frozen),
@@ -231,6 +233,12 @@ var boost_remaining: float:
 ## Boost charges banked and waiting on a press of the boost button. Read by the HUD.
 var boost_charges: int:
 	get: return _model.boost_charges
+
+## True for the whole open window a right-trigger press starts. Read by HazardGhostField, which
+## waves a swept hit through rather than applying it while this is true — the hop's entire
+## gameplay effect.
+var is_hopping: bool:
+	get: return _model.is_hopping
 
 
 ## Absolute forward speed. Read by DebugHud and ChaseCamera.

@@ -65,6 +65,12 @@ var _boost_charges: int = 0
 var _charge_bump: float = 0.0
 var _charge_bleed: float = 0.0
 
+# The hop's whole state: whether a window is open, and how far into it. Two fields rather than
+# folding "open" into a sign or sentinel on the elapsed time, for reset()'s reason: both go back to
+# their plain zero values together.
+var _hop_active: bool = false
+var _hop_elapsed: float = 0.0
+
 # Solved outputs, kept for the readouts. Not inputs to anything.
 var _yaw_rate: float = 0.0
 var _lateral_speed: float = 0.0
@@ -94,6 +100,7 @@ func step(input: KartInput, surface_multiplier: float, delta: float) -> KartMoti
 	_steer_ceiling = _current_steer_ceiling()
 	_ease_axle_angles(input, surface_multiplier, delta)
 	_scrub_for_angle(delta)
+	_update_hop(delta)
 
 	return _solve(delta)
 
@@ -242,6 +249,19 @@ func _scrub_for_angle(delta: float) -> void:
 	_forward_speed = maxf(0.0, _forward_speed - tuning.drift_speed_scrub * ceiling_usage * delta)
 
 
+# --- Hop -----------------------------------------------------------------------------------
+# Counts the open window down to hop_duration and closes it there. frozen is not checked here —
+# trigger_hop already refuses to open a window while frozen, and there is no way to freeze mid-hop
+# in practice, so this only ever runs a window that was legitimately opened.
+func _update_hop(delta: float) -> void:
+	if not _hop_active:
+		return
+	_hop_elapsed += delta
+	if _hop_elapsed >= tuning.hop_duration:
+		_hop_active = false
+		_hop_elapsed = 0.0
+
+
 # --- Events the world does to the kart -------------------------------------------------------
 # Explicit methods rather than the body reaching into private state, so the seam holds in both
 # directions.
@@ -323,6 +343,16 @@ func consume_boost_charge() -> bool:
 	return true
 
 
+## Opens the hop's immunity window, on the driver's own timing, off the right trigger. A no-op
+## while frozen (nothing to dodge during the countdown) or mid-hop — the button doesn't re-arm or
+## extend an already-open window, so mashing it cannot chain immunity.
+func trigger_hop() -> void:
+	if _frozen or _hop_active:
+		return
+	_hop_active = true
+	_hop_elapsed = 0.0
+
+
 ## Takes the driver's hands away. A driver-input concept, not a lap concept: the model names no lap
 ## phase and holds no director reference. The step still runs while frozen; it suppresses
 ## throttle/brake/steer/slip and pins forward speed at zero, which pins yaw and lateral speed at
@@ -347,6 +377,8 @@ func reset() -> void:
 	_boost_charges = 0
 	_charge_bump = 0.0
 	_charge_bleed = 0.0
+	_hop_active = false
+	_hop_elapsed = 0.0
 
 
 ## Fills a caller-owned KartState. The view gets a copy of the numbers and no handle on the model.
@@ -365,6 +397,8 @@ func snapshot_into(state: KartState) -> void:
 	state.frozen = _frozen
 	state.overspeed = overspeed
 	state.boost_charges = _boost_charges
+	state.hop_fraction = hop_fraction
+	state.hop_height = tuning.hop_height
 
 
 # --- Readouts ---------------------------------------------------------------------------------
@@ -440,6 +474,21 @@ var boost_remaining: float:
 ## Boost charges currently banked, waiting on a press of the boost button. Read by the HUD.
 var boost_charges: int:
 	get: return _boost_charges
+
+## True for the whole open window a right-trigger press starts. What HazardGhostField reads to
+## wave a swept hit through rather than applying it — the entire gameplay effect of the hop.
+var is_hopping: bool:
+	get: return _hop_active
+
+## 0..1 across the open window, 0 at both ends and 1 at the midpoint — a half-sine pop-and-settle,
+## not a jump's velocity-then-gravity curve, because there is no vertical velocity here to give
+## one: the hop never touches forward/lateral speed or move_and_slide. Purely a cosmetic input;
+## nothing here reads it back.
+var hop_fraction: float:
+	get:
+		if not _hop_active or tuning.hop_duration <= 0.0:
+			return 0.0
+		return sin(clampf(_hop_elapsed / tuning.hop_duration, 0.0, 1.0) * PI)
 
 
 # Speed as a 0..1 fraction of the tuned maximum. Both the ceiling and the rear grip interpolate

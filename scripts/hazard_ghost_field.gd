@@ -360,6 +360,11 @@ func _sweep_ghosts() -> void:
 			continue
 		if not CoinField.segment_takes_coin(previous, position, hazard.origin, _pickup_radius):
 			continue
+		# The swept test itself ignores height (see class doc), so a hop dodges by immunity rather
+		# than clearance: the hazard is not taken and the driver keeps whatever position the hop
+		# was spent avoiding, rather than banking a free hit for landing back on the line.
+		if _kart.is_hopping:
+			continue
 		hazard.taken = true
 		hazard.node.visible = false
 		_kart.apply_hazard_slow(hit_slow_multiplier)

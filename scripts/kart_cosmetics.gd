@@ -96,6 +96,7 @@ func update_view(state: KartState, delta: float) -> void:
 	_update_smoke(state)
 	_update_boost_flames(state)
 	_update_wheelie(state, delta)
+	_update_hop(state)
 	_update_vibration(state)
 
 
@@ -209,6 +210,17 @@ func _update_wheelie(state: KartState, delta: float) -> void:
 func _rear_pivot_correction(rear_axle_offset: float, pitch: float) -> Vector3:
 	var pivot: Vector3 = Vector3(0.0, 0.0, rear_axle_offset)
 	return pivot - Basis(Vector3.RIGHT, pitch) * pivot
+
+
+# Runs after _update_lean and _update_wheelie, both of which set/add to _chassis.position, so this
+# only ever adds a further vertical lift on top of whatever they produced — the same additive
+# pattern _update_wheelie itself follows. Purely a read of state.hop_fraction/hop_height: no timer,
+# no phase machine here, because the model already owns the whole curve and this only ever needs
+# to know how high right now.
+func _update_hop(state: KartState) -> void:
+	if state.hop_fraction <= 0.0:
+		return
+	_chassis.position.y += state.hop_height * state.hop_fraction
 
 
 # Roughly volume-preserving: a negative impulse dips Y and widens XZ, a positive one the opposite.
