@@ -217,8 +217,14 @@ func _rear_pivot_correction(rear_axle_offset: float, pitch: float) -> Vector3:
 # pattern _update_wheelie itself follows. Purely a read of state.hop_fraction/hop_height: no timer,
 # no phase machine here, because the model already owns the whole curve and this only ever needs
 # to know how high right now.
+#
+# Skipped while a real jump (state.is_jumping) is in flight: the body is already carrying the
+# chassis up over move_and_slide, on its own longer arc, and stacking this pop on top of that
+# doubled the motion — a bounce with a different period riding the real one, settling to zero mid-
+# arc and reading as a stutter. Left live for a hop pressed with nothing to launch off of (not
+# grounded), which is the one case with no real lift to double.
 func _update_hop(state: KartState) -> void:
-	if state.hop_fraction <= 0.0:
+	if state.is_jumping or state.hop_fraction <= 0.0:
 		return
 	_chassis.position.y += state.hop_height * state.hop_fraction
 

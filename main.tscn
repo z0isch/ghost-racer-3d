@@ -325,3 +325,4 @@ mesh = SubResource("PlaneMesh_074og")
 shape = SubResource("BoxShape3D_cegan")
 
 [node name="Circuit3" parent="." unique_id=1961655717 instance=ExtResource("14_w48qg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)

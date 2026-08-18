@@ -29,6 +29,12 @@ signal coin_taken(value: int, position: Vector3)
 ## a radius smaller than the coin looks reads as theft.
 @export var pickup_radius: float = 1.2
 
+## Metres of vertical gap, beyond the horizontal sweep test, that still counts as the same road.
+## segment_takes_coin ignores height entirely so a coin up a banked sweeper or on a crest stays
+## collectable, but that same leniency lets a coin be taken from a stretch of road that merely
+## passes underneath or beside it at a different height. This caps how far that leniency reaches.
+@export var max_vertical_gap: float = 5.0
+
 var _kart: Kart
 var _director: LapDirector
 var _coins: Array[Coin] = []
@@ -139,6 +145,8 @@ func _sweep_coins() -> void:
 		if coin.taken:
 			continue
 		if not segment_takes_coin(previous, position, coin.origin, pickup_radius):
+			continue
+		if absf(position.y - coin.origin.y) > max_vertical_gap:
 			continue
 		coin.taken = true
 		coin.node.visible = false

@@ -42,10 +42,11 @@ var drift_side: float = 0.0
 ## starts smoking the tyres is a cosmetic threshold, and lives in KartCosmetics.
 var brake_strength: float = 0.0
 
-## The two facts the body owns rather than the model: whether the ground ray found anything, and
-## whether the driver's hands have been taken away.
+## The facts the body owns rather than the model: whether the ground ray found anything, whether
+## the driver's hands have been taken away, and whether a real vertical launch is in flight.
 var is_grounded: bool = true
 var frozen: bool = false
+var is_jumping: bool = false
 
 ## Speed currently owed to a boost, above the tuned ceiling. 0 when no boost is live; what the
 ## flame effect reads to know it should be burning. See KartModel.overspeed.

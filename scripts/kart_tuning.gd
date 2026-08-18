@@ -92,11 +92,15 @@ extends Resource
 @export var store_boost_charges: bool = true
 
 # --- Hop -----------------------------------------------------------------------------------
-## Right trigger: a timed dodge, not a jump. It buys the driver a window of immunity to hazard
-## ghosts (see HazardGhostField._sweep_ghosts) rather than moving the hitbox — the swept hazard
-## test is a flat XZ check that never looks at height, so an actual vertical hitbox hop couldn't
-## dodge anything the height alone. What height does is sell the dodge: how far the chassis rises
-## is purely KartCosmetics' business, threaded through KartState like front_axle_offset is.
+## Right trigger: a timed dodge, in KartModel's own terms still not a jump. It buys the driver a
+## window of immunity to hazard ghosts (see HazardGhostField._sweep_ghosts) rather than moving the
+## hitbox — the swept hazard test is a flat XZ check that never looks at height, so an actual
+## vertical hitbox hop couldn't dodge anything the height alone. What height does here is sell the
+## dodge: how far the chassis rises is purely KartCosmetics' business, threaded through KartState
+## like front_axle_offset is. The same button also launches the body for real over in Kart
+## (jump_speed, gravity) — a second, independent effect layered on top of this one, not a
+## reinterpretation of it: the immunity window and its timing are unchanged whether or not there is
+## ground underfoot to jump off of.
 @export var hop_height: float = 1.0
 ## Seconds the hop's immunity window is open for, start to finish. Also the cosmetic curve's own
 ## duration, so the chassis is back on the ground exactly as the immunity ends — the visual is

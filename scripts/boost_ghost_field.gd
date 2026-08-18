@@ -94,6 +94,11 @@ const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 ## shows as a visually bigger ghost rather than the two drifting apart.
 @export var pickup_radius_fraction: float = 4.0
 
+## Metres of vertical gap the swept test still counts as a hit, for CoinField.max_vertical_gap's
+## identical reason: the horizontal-only sweep would otherwise let a ghost be taken from a stretch
+## of road that merely passes underneath or beside it at a different height.
+@export var max_vertical_gap: float = 5.0
+
 ## Alpha wobble, so a ghost reads as a ghost standing there rather than a parked car to swerve
 ## around.
 @export var pulse_amplitude: float = 0.12
@@ -402,6 +407,8 @@ func _sweep_ghosts() -> void:
 		if ghost.taken:
 			continue
 		if not CoinField.segment_takes_coin(previous, position, ghost.origin, _pickup_radius):
+			continue
+		if absf(position.y - ghost.origin.y) > max_vertical_gap:
 			continue
 		ghost.taken = true
 		ghost.node.visible = false

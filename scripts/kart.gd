@@ -50,6 +50,11 @@ const KERB_LAYER_BIT: int = 1 << 2
 ## step is climbed over a few frames instead.
 @export var ground_snap_max_speed: float = 6.0
 @export var sphere_radius: float = 0.5
+## Vertical launch speed, m/s, fired on the same "hop" press that opens the model's hazard-immunity
+## window (see KartTuning's Hop section) — one button, two independent effects. Lives here rather
+## than in KartTuning for gravity's reason: this is how the sphere leaves the raycast's surface,
+## not how the kart feels to drive.
+@export var jump_speed: float = 8.0
 
 ## A *driver-input* concept, not a lap concept: Kart names no lap phase and holds no reference to
 ## LapDirector. While set, the physics step still runs surface classification,
@@ -70,6 +75,10 @@ var _model: KartModel
 var _input: KartInput = KartInput.new()
 var _state: KartState = KartState.new()
 var _current_surface: SurfaceType = SurfaceType.ROAD
+# True from the jump press until the kart falls back through the ground surface. While true, the
+# vertical axis is plain gravity instead of the ground snap, which is what lets the sphere clear a
+# barrier instead of being pulled straight back down to the road under it.
+var _is_jumping: bool = false
 
 @onready var _ground_ray: RayCast3D = $GroundRay
 @onready var _cosmetics: KartCosmetics = $Cosmetics
@@ -90,7 +99,12 @@ func _physics_process(delta: float) -> void:
 	# zero during the countdown would just waste it for no visible effect.
 	if Input.is_action_just_pressed("use_boost") and not frozen:
 		_model.consume_boost_charge()
-	if Input.is_action_just_pressed("hop") and not frozen:
+	# One button, two effects that share a trigger but not a guard: the model gates its own
+	# immunity window (trigger_hop is a no-op mid-hop) independently of whether the body is in a
+	# position to launch, so a hop pressed mid-jump still buys the dodge even though it does not
+	# add a second leap.
+	var hop_pressed: bool = Input.is_action_just_pressed("hop") and not frozen
+	if hop_pressed:
 		_model.trigger_hop()
 
 	var motion: KartMotion = _model.step(
@@ -107,7 +121,25 @@ func _physics_process(delta: float) -> void:
 
 	var is_grounded: bool = _ground_ray.is_colliding()
 	var vertical: float = velocity.y
-	if is_grounded:
+
+	if hop_pressed and is_grounded and not _is_jumping:
+		_is_jumping = true
+		vertical = jump_speed
+
+	if _is_jumping:
+		# Free fall, deliberately not the snap below: the snap is a P-controller onto the ray's
+		# surface and would haul the kart straight back down the instant it left the ground,
+		# clamped to ground_snap_max_speed rather than an actual jump arc.
+		vertical -= gravity * delta
+		# Ends the jump the moment it falls back through the surface it launched from, so landing
+		# hands straight back to the snap instead of leaving a residual downward velocity for it
+		# to fight. The ray still sees the road under a barrier the kart is sailing over, so this
+		# is "back at ground height", not "touching something".
+		if is_grounded and vertical <= 0.0:
+			var target_y: float = _ground_ray.get_collision_point().y + sphere_radius
+			if global_position.y <= target_y:
+				_is_jumping = false
+	elif is_grounded:
 		# Without the radius the sphere embeds in the mesh and every bump becomes a wall.
 		var target_y: float = _ground_ray.get_collision_point().y + sphere_radius
 		vertical = clampf(
@@ -122,7 +154,12 @@ func _physics_process(delta: float) -> void:
 	_apply_barrier_impacts()
 
 	_model.snapshot_into(_state)
-	_state.is_grounded = is_grounded
+	# Not the raw ray hit: the ray's 4m reach keeps seeing the road under a barrier the whole time
+	# the kart is jumping over it, and cosmetics reading that as "grounded" would smoke the tyres
+	# and vibrate the pad over a surface nothing is touching. is_jumping is the body's own better
+	# answer to "is a tyre on anything right now" for exactly the span it is set.
+	_state.is_grounded = is_grounded and not _is_jumping
+	_state.is_jumping = _is_jumping
 	_cosmetics.update_view(_state, delta)
 
 
@@ -132,6 +169,7 @@ func _physics_process(delta: float) -> void:
 func reset_to(pose: Transform3D) -> void:
 	global_transform = pose
 	velocity = Vector3.ZERO
+	_is_jumping = false
 	_model.reset()
 	_input.clear()
 	_model.snapshot_into(_state)
@@ -146,8 +184,14 @@ func reset_to(pose: Transform3D) -> void:
 # CollisionObject3D-only test never matches the CSG road and the kart reads grass everywhere. Both
 # kinds are checked; `match` has no type patterns, hence the is/as chain, and ints are not nullable,
 # hence the -1 sentinel.
+#
+# Also held through _is_jumping, for the same reason: the ray's 4m reach means it keeps seeing
+# whatever is below the wall being jumped, so left ungated the surface — and the speed/grip
+# multiplier that rides on it — would flip mid-flight to whatever patch the kart happens to be
+# passing over, even though no tyre is touching it. A jump launched off the road stays on the
+# road's multiplier for the whole arc.
 func _classify_surface() -> void:
-	if not _ground_ray.is_colliding():
+	if _is_jumping or not _ground_ray.is_colliding():
 		return
 
 	var collider: Object = _ground_ray.get_collider()

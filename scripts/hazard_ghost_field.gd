@@ -63,6 +63,11 @@ const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 ## to, for BoostGhostField.pickup_radius_fraction's identical reason and identical default.
 @export var pickup_radius_fraction: float = 4.0
 
+## Metres of vertical gap the swept test still counts as a hit, for CoinField.max_vertical_gap's
+## identical reason: the horizontal-only sweep would otherwise let a hazard be taken from a stretch
+## of road that merely passes underneath or beside it at a different height.
+@export var max_vertical_gap: float = 5.0
+
 ## Alpha wobble, for BoostGhostField's reason: a hazard reads as a ghost rather than traffic to
 ## swerve for a photo of.
 @export var pulse_amplitude: float = 0.12
@@ -359,6 +364,8 @@ func _sweep_ghosts() -> void:
 		if hazard.taken:
 			continue
 		if not CoinField.segment_takes_coin(previous, position, hazard.origin, _pickup_radius):
+			continue
+		if absf(position.y - hazard.origin.y) > max_vertical_gap:
 			continue
 		# The swept test itself ignores height (see class doc), so a hop dodges by immunity rather
 		# than clearance: the hazard is not taken and the driver keeps whatever position the hop
