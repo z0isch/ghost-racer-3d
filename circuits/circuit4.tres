@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Circuit" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/circuit.gd" id="1_circuit"]
+[ext_resource type="PackedScene" uid="uid://btxxge1lwpyql" path="res://scenes/circuit4.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_circuit")
+circuit_scene = ExtResource("2_scene")
+ghost_line_path = ""
+display_name = "Circuit 4"
+world_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 180, -0.2, 0)

@@ -1,6 +1,6 @@
 # Ghostracer
 
-A single-circuit kart game: you drive repeated laps of one track, collecting coins, against a ghost of your highest-earning lap. What you chase is not the fastest lap but the best **earn rate** — dollars per second — so every coin sitting off the racing line is a real choice rather than free money. There is no race, no opponents and no end — the lap cycle repeats indefinitely.
+A kart game of two circuits reached from an open world: drive up to a circuit's start/finish gate and cross it to race, driving repeated laps of that circuit, collecting coins, against a ghost of your highest-earning lap on it. What you chase is not the fastest lap but the best **earn rate** — dollars per second — so every coin sitting off the racing line is a real choice rather than free money. There is no race, no opponents and no end — the lap cycle repeats indefinitely, for as long as you stay on a circuit.
 
 ## Language
 
@@ -28,7 +28,25 @@ The phase after the final checkpoint is taken, during which the completed lap ti
 Ending a lap without completing it, triggered by the player's `reset` action. The lap time and the lap's earnings are discarded, no record earn rate can be set, and the pace ghost recorded so far is thrown away. The money already taken stays in the purse.
 _Avoid_: Restart, cancel, retry.
 
+### The open world
+
+**Open world**:
+The scene holding both circuits as real geometry, standing apart on open ground, that the kart drives freely between. Nothing lap-shaped runs here: no lap director, no checkpoints, no coin field, no ghosts of any kind. Gates stand dimmed, since with no pending checkpoint a lit gate would claim to be the pending one and there is no such thing out here. Coins stand where authored and are uncollectible — not a bug worth fixing, but the visible proof that a circuit pays before you have raced it. `reset` here returns the kart to a world spawn; there is no lap to abort.
+_Avoid_: Hub, lobby, menu (there is no menu — the world is driven, not navigated).
+
+**Race scene**:
+The one scene that runs a lap, exactly as the game always has, pointed at whichever circuit sent the kart here. Not one scene per circuit: a single scene instances the entered circuit's geometry as a child, at identity, so every circuit is driven, checkpointed and ghosted by the same lap director, camera and HUD rather than by N forked copies of them.
+_Avoid_: Level, stage, arena.
+
+**Circuit entry**:
+Crossing a circuit's start line from the open world, in either direction, which fades out, records the kart's pose to return to, and loads the race scene pointed at that circuit. The crossing test is the same swept-prism rule a checkpoint is taken by (**Checkpoint prism**), carried by the same start line marker.
+_Avoid_: Portal, teleport (the geometry crossed is the circuit's own, not a marker standing in for it), loading zone.
+
 ### The track
+
+**Circuit**:
+The definition of one thing you can race: its geometry, where its ghost line persists, what it is called, and where the open world stands it. A single resource type, one instance per circuit, read by both the open world and the race scene so the two cannot disagree about what a circuit is. Its world placement is a property the open world alone applies — the race scene always instances a circuit's geometry at identity, so a ghost line recorded in the circuit's own coordinates stays valid regardless of where the world stands it.
+_Avoid_: Track, level, map.
 
 **Checkpoint**:
 One position in the lap's ordered sequence. Checkpoints must be taken in order for the lap to complete; taking one out of sequence does nothing.
@@ -52,7 +70,8 @@ The single checkpoint that is currently live. Every other checkpoint is inert: c
 _Avoid_: Current checkpoint (ambiguous with the last one taken), next gate.
 
 **Start line**:
-The pose on the track the kart is returned to at the beginning of every lap. It is a property of the track, not of the kart. It sits a short way *past* the start/finish gate in the direction of travel, so a lap opens already clear of the gate that will end it, and the last stretch of a lap is the run from that gate up to the line. Which side of the line the gate sits on is a free choice rather than a constraint: the start/finish is the last checkpoint in the sequence and inert until all the others have been taken, so a gate ahead of the line is crossed harmlessly on the way out. This is the arrangement the circuit is authored with, not a rule the lap system enforces.
+The pose on the circuit the kart is returned to at the beginning of every lap. It is a property of the circuit, not of the kart. It sits a short way *past* the start/finish gate in the direction of travel, so a lap opens already clear of the gate that will end it, and the last stretch of a lap is the run from that gate up to the line. Which side of the line the gate sits on is a free choice rather than a constraint: the start/finish is the last checkpoint in the sequence and inert until all the others have been taken, so a gate ahead of the line is crossed harmlessly on the way out. This is the arrangement the circuit is authored with, not a rule the lap system enforces.
+A second role, distinct from the first but carried by the same marker: it is also the circuit's **circuit entry**, crossed from the open world in either direction to start a race there. The two roles share a marker rather than a coincidence of geometry — the pose a lap restarts you to and the pose a race scene opens you into are the same pose, on the same line.
 _Avoid_: Spawn, start position, grid (there is no grid).
 
 **Start/finish gate**:
@@ -157,7 +176,7 @@ The owner of the coins themselves — their placement, their taken flags, and th
 _Avoid_: Coin manager, pickup system, spawner.
 
 **Purse holder**:
-The owner of the purse, and deliberately not the lap director: the purse outlives every lap and every abort, so housing it with lap state would put a session-scoped total behind a per-lap reset. It listens for pickups and adds them up, and that is the whole of it. (The name is provisional — as the game grows this role is the obvious place for anything else the player accumulates across laps, and it should be renamed when that happens rather than accreting.)
+The owner of the purse, and deliberately not the lap director: the purse outlives every lap and every abort, so housing it with lap state would put a session-scoped total behind a per-lap reset. Now that a lap can also be abandoned by leaving the circuit entirely — a race scene torn down and swapped for the open world — the purse outliving *that* too is the same requirement stated harder, and it is exactly what makes the purse holder an autoload: a scene-owned node dies with the scene, and an autoload is the one thing in Godot that survives the swap. It listens for pickups and adds them up, and that is the whole of it. (The name is provisional — as the game grows this role is the obvious place for anything else the player accumulates across laps, and it should be renamed when that happens rather than accreting.)
 _Avoid_: Economy, inventory, game state, save data.
 
 **Purse readout**:

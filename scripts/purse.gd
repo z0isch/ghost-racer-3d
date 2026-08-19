@@ -1,10 +1,10 @@
-class_name Purse
 extends Node
 
 ## The session's running money total, and nothing else.
 ##
-## Not an autoload: an autoload earns its global by surviving a scene change, and this game has one
-## scene it never reloads.
+## An autoload: it must survive the scene swap between the open world and a race scene, and an
+## autoload is the only thing in Godot that does. A regular node dies with the scene that owned it,
+## which would zero the purse every time the kart crosses a start line.
 ##
 ## Not on LapDirector either, a split recorded in CONTEXT.md under **Purse holder**. The director
 ## owns lap state and clears all of it in _begin_countdown, and a session-scoped total behind a
@@ -21,8 +21,6 @@ extends Node
 ## itself is polled off `total`, matching every other HUD readout in the project.
 signal gained(amount: int, total: int)
 
-@export var coin_field_path: NodePath
-
 var _total: int = 0
 
 ## Polled by the purse HUD layer each _process, as every other readout in the project is.
@@ -30,20 +28,9 @@ var total: int:
 	get: return _total
 
 
-func _ready() -> void:
-	var coin_field: CoinField = get_node_or_null(coin_field_path) as CoinField
-	# A scene without a coin field earns nothing, which keeps this script runnable outside main.tscn.
-	if coin_field == null:
-		push_warning("Purse: no CoinField — nothing can be earned.")
-		return
-
-	# unbind(1) drops coin_taken's position argument, which the purse has no use for. Godot does not
-	# drop surplus arguments by itself: connected bare, every pickup would fail at emit time.
-	coin_field.coin_taken.connect(_on_coin_taken.unbind(1))
-
-
 ## Banks the coin's own value rather than an assumed 1, so retuning what a coin is worth needs no
-## change on either side of the signal.
-func _on_coin_taken(value: int) -> void:
+## change on either side of the signal. Called by [class PurseLink], which a scene places to connect
+## a CoinField's coin_taken signal here — this autoload has no NodePath into any scene's CoinField.
+func add(value: int) -> void:
 	_total += value
 	gained.emit(value, _total)

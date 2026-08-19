@@ -302,10 +302,7 @@ func _resolve_checkpoints() -> void:
 			var active_material: StandardMaterial3D = gate_mesh.get_surface_override_material(0) as StandardMaterial3D
 			if active_material == null:
 				continue
-			var dim_material: StandardMaterial3D = active_material.duplicate() as StandardMaterial3D
-			dim_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			var c: Color = dim_material.albedo_color
-			dim_material.albedo_color = Color(c.r, c.g, c.b, inactive_gate_alpha)
+			var dim_material: StandardMaterial3D = GateDimming.dim_material(gate_mesh, inactive_gate_alpha)
 			checkpoint.gate_meshes.append(gate_mesh)
 			checkpoint.active_materials.append(active_material)
 			checkpoint.dim_materials.append(dim_material)
@@ -352,21 +349,11 @@ func _sweep_pending_checkpoint() -> void:
 	_last_kart_position = position
 
 	var checkpoint: Checkpoint = _checkpoints[_checkpoint_index]
-	var before: float = (previous - checkpoint.origin).dot(checkpoint.forward)
-	var after: float = (position - checkpoint.origin).dot(checkpoint.forward)
-
-	# Either sign counts: monotonic progress already means a backwards crossing gains nothing.
-	var crossed: bool = (before <= 0.0 and after > 0.0) or (before >= 0.0 and after < 0.0)
+	# Monotonic progress already means a backwards crossing gains nothing, which is why
+	# CheckpointPrism's either-direction test is safe to reuse unguarded here.
+	var crossed: bool = CheckpointPrism.crossed(previous, position, checkpoint.origin, checkpoint.forward,
+			checkpoint.right, checkpoint.up, checkpoint_half_width, checkpoint_floor, checkpoint_ceiling)
 	if not crossed:
-		return
-
-	# Where on the plane the segment crossed, in the checkpoint's own camber-tilted frame.
-	var local: Vector3 = previous.lerp(position, before / (before - after)) - checkpoint.origin
-	var lateral: float = local.dot(checkpoint.right)
-	var height: float = local.dot(checkpoint.up)
-	if absf(lateral) > checkpoint_half_width:
-		return
-	if height < checkpoint_floor or height > checkpoint_ceiling:
 		return
 
 	_checkpoint_index += 1
