@@ -176,8 +176,10 @@ director_path = NodePath("../LapDirector")
 ghosts_path = NodePath("../Circuit3/BoostGhosts")
 coin_field_path = NodePath("../CoinField")
 ghost_count = 3
-edge_clearance = 0.25
-coin_snap_radius = 4.5
+edge_clearance = 0.1
+edge_probe_range = 5.0
+edge_probe_step = 0.05
+coin_snap_radius = 3.0
 ghost_color = Color(0, 0.5176471, 0.34509805, 0.5921569)
 
 [node name="HazardGhostField" type="Node" parent="." unique_id=417553908]
@@ -185,7 +187,9 @@ script = ExtResource("18_hazard_ghost_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../LapDirector")
 ghosts_path = NodePath("../Circuit3/HazardGhosts")
-min_speed = 2.0
+end_margin = 0.0
+placement_jitter = 0.503
+min_speed = 0.0
 max_speed = 14.0
 hit_slow_multiplier = 0.75
 pickup_radius_fraction = 2.0

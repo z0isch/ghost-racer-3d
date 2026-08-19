@@ -17,10 +17,12 @@ extends Node
 ## The ghost line only changes when a lap takes the record, so the jitter is the only thing standing
 ## between the driver and the identical field lap after lap.
 ##
-## Each ghost then moves off that racing-line pose to wherever it actually stands: anywhere across
-## the drivable road, found by probing the real road edge rather than a hand-tuned offset, or onto a
-## nearby coin if one is close enough to hand the ghost to it instead of leaving two separate things
-## to line up for. See [method _place_off_line].
+## Each racing-line pose then fans out into a tuneable row of ghosts perpendicular to the road: one
+## pinned to the line itself, the rest alternating either side of it at a fixed spacing, each
+## individually probed against the true road edge rather than a hand-tuned offset and simply skipped
+## if it would land off the road — or snapped onto a nearby coin if one is close enough to hand the
+## ghost to it instead of leaving two separate things to line up for. See [method
+## _lateral_placements].
 
 ## One ghost, the instant it is taken. Position only — there is no per-ghost value to report, since
 ## every ghost grants the same bump.
@@ -65,6 +67,14 @@ const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 ## which is a fixed field for as long as the ghost line stands; 1.0 lets a ghost reach the slot edge
 ## it shares with its neighbour.
 @export_range(0.0, 1.0) var placement_jitter: float = 0.3
+
+## How many ghosts fan out perpendicular to the road at each racing-line slot: one pinned to the
+## line itself, the rest alternating either side of it. No cap and no guarantee this many actually
+## appear — a ghost whose spot in the fan would land off the road is skipped, so a narrow stretch of
+## road simply shows fewer ghosts than a wide one.
+@export var lateral_ghost_count: int = 3
+## Metres between adjacent ghosts in the perpendicular fan.
+@export var lateral_spacing: float = 3.0
 
 ## Metres kept clear of the true road edge when a ghost is placed off the racing line, so its
 ## silhouette never hangs its outside wheels over the kerb or onto the grass.
@@ -178,7 +188,7 @@ func _process(delta: float) -> void:
 ##
 ## Purely a walk along the recorded line: it knows nothing about the road's actual width, so it
 ## returns the racing-line pose only. Moving a ghost off that pose — to anywhere still on the road,
-## or onto a nearby coin — needs the physics world and is [method _place_off_line]'s job, not this
+## or onto a nearby coin — needs the physics world and is [method _lateral_placements]'s job, not this
 ## static function's; a TestCase is a RefCounted that cannot touch the scene tree, and this is the
 ## seam the geometry suite tests.
 ##
@@ -266,41 +276,63 @@ func _place_ghosts() -> void:
 		placement_jitter,
 	)
 	for pose: Transform3D in poses:
-		_ghosts.append(_spawn_ghost(_place_off_line(pose)))
+		# All ghosts fanned out from the same racing-line slot share a group: the player is meant to
+		# read the fan as one boost opportunity, so collecting any one of them takes the whole group
+		# (Ghost.group, _take_ghost).
+		var group: Array[Ghost] = []
+		for lateral: Transform3D in _lateral_placements(pose):
+			var ghost: Ghost = _spawn_ghost(lateral)
+			ghost.group = group
+			group.append(ghost)
+			_ghosts.append(ghost)
 
 
-## Moves a centreline pose to where it actually stands: somewhere across the drivable road rather
-## than pinned to the racing line, unless a coin stands close enough to hand the ghost to it
-## instead.
+## Fans [param pose] out into up to [member lateral_ghost_count] ghosts perpendicular to the road:
+## the first stays pinned to the racing line itself, and the rest alternate right/left of it at
+## increasing multiples of [member lateral_spacing] ([method _lateral_offset]). Each is checked
+## independently against the true road edge, less [member edge_clearance] so its silhouette clears
+## the edge, and simply left out of the fan if it would land off the road — the fan comes up short on
+## a narrow stretch of road rather than clamping ghosts onto the shoulder. A ghost that survives
+## lands on a nearby coin instead if one stands close enough to hand it to.
 ##
 ## The road's true width is not known data anywhere on the circuit (CoinField and the checkpoints
-## are the only other things that care, and both were hand-tuned rather than measured) so it is
-## probed the same way [member Kart._classify_surface] tells road from grass under the kart: a ray
-## straight down, read for the collider's own layer bits. [method _road_half_width_at] walks that
-## probe outward until it leaves the road, which is the road's actual edge on a corner exactly as
-## much as on a straight, camber and kerb included.
-func _place_off_line(pose: Transform3D) -> Transform3D:
-	var half_width: float = _road_half_width_at(pose.origin, pose.basis.x)
-	var offset: float = _rng.randf_range(-half_width, half_width)
-	# basis.x is the pose's own right vector, so the offset leans with the line through a corner
-	# instead of being re-derived from the yaw here. translated, not translated_local: the vector is
-	# already in the line's space.
-	var off_line: Transform3D = pose.translated(pose.basis.x * offset)
+## are the only other things that care, and both were hand-tuned rather than measured) so each side
+## is probed the same way [member Kart._classify_surface] tells road from grass under the kart: a ray
+## straight down, read for the collider's own layer bits, walked outward by [method _probe_edge]
+## until it leaves the road — the road's actual edge on a corner exactly as much as on a straight,
+## camber and kerb included.
+func _lateral_placements(pose: Transform3D) -> Array[Transform3D]:
+	var result: Array[Transform3D] = []
+	var right: Vector3 = pose.basis.x
+	var left_extent: float = maxf(0.0, _probe_edge(pose.origin, -right) - edge_clearance)
+	var right_extent: float = maxf(0.0, _probe_edge(pose.origin, right) - edge_clearance)
 
-	var snap: Vector3 = _nearest_coin_within(off_line.origin, coin_snap_radius)
-	if snap != off_line.origin:
-		off_line.origin = snap
-	return off_line
+	for i in lateral_ghost_count:
+		var offset: float = _lateral_offset(i)
+		var extent: float = right_extent if offset >= 0.0 else left_extent
+		if absf(offset) > extent:
+			continue
+		# basis.x is the pose's own right vector, so the offset leans with the line through a
+		# corner instead of being re-derived from the yaw here. translated, not translated_local:
+		# the vector is already in the line's space.
+		var placed: Transform3D = pose.translated(right * offset)
+		placed.origin = _nearest_coin_within(placed.origin, coin_snap_radius)
+		result.append(placed)
+	return result
 
 
-## Metres a ghost may stand either side of [param position] along [param right] before it leaves the
-## road, less [member edge_clearance] so its silhouette clears the true edge. Symmetric bound: the
-## smaller of the two sides, so a ghost drawn anywhere in [-half_width, half_width] is on the road
-## whichever side of the line it lands on.
-func _road_half_width_at(position: Vector3, right: Vector3) -> float:
-	var left_extent: float = _probe_edge(position, -right)
-	var right_extent: float = _probe_edge(position, right)
-	return maxf(0.0, minf(left_extent, right_extent) - edge_clearance)
+## The signed lateral offset, in [member lateral_spacing] units, of the [param index]-th ghost in a
+## perpendicular fan: 0.0 for the first (the ghost that stays on the racing line), then alternating
+## right (positive) and left (negative) at increasing multiples — index 1 one spacing right, index 2
+## one spacing left, index 3 two spacings right, and so on — so the fan grows evenly outward from the
+## centre ghost regardless of how many of [member lateral_ghost_count] end up placed.
+func _lateral_offset(index: int) -> float:
+	if index == 0:
+		return 0.0
+	@warning_ignore("integer_division")
+	var rung: int = (index + 1) / 2
+	var side: float = 1.0 if index % 2 == 1 else -1.0
+	return side * rung * lateral_spacing
 
 
 ## Walks outward from [param origin] in [param direction] in [member edge_probe_step] increments,
@@ -410,10 +442,25 @@ func _sweep_ghosts() -> void:
 			continue
 		if absf(position.y - ghost.origin.y) > max_vertical_gap:
 			continue
-		ghost.taken = true
-		ghost.node.visible = false
-		_kart.add_boost_charge(bump, bleed)
-		ghost_taken.emit(ghost.origin)
+		_take_ghost(ghost)
+
+
+## Takes [param ghost] and, with it, every other ghost in its fan (Ghost.group): the fan is one
+## boost opportunity, not several, so collecting one despawns the rest rather than leaving them
+## standing for a second pass. Only the collected ghost grants the boost and reports itself through
+## [signal ghost_taken] — its siblings are simply hidden and marked taken, exactly as an already-taken
+## ghost is, so a later sweep frame skips them like any other spent ghost.
+func _take_ghost(ghost: Ghost) -> void:
+	ghost.taken = true
+	ghost.node.visible = false
+	_kart.add_boost_charge(bump, bleed)
+	ghost_taken.emit(ghost.origin)
+
+	for sibling: Ghost in ghost.group:
+		if sibling.taken:
+			continue
+		sibling.taken = true
+		sibling.node.visible = false
 
 
 ## Re-places the whole field so it is exactly whole at the moment the driver looks at the track
@@ -452,3 +499,6 @@ class Ghost extends RefCounted:
 	var origin: Vector3 = Vector3.ZERO
 	var material: StandardMaterial3D = null
 	var taken: bool = false
+	# Every ghost fanned out from the same racing-line slot, this one included: shared by reference
+	# across the group (_place_ghosts), so _take_ghost can despawn the rest when one is collected.
+	var group: Array[Ghost] = []
