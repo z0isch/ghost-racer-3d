@@ -65,6 +65,15 @@ enum LapPhase {
 ## than the lap ending and restarting on the same frame.
 @export var finished_hold_seconds: float = 1.5
 
+## How many times the start/finish gate must be taken before it actually ends the lap. Below this
+## count, taking it advances the kart back onto checkpoint 1 instead — same clock, same earnings,
+## same recording — so a multi-circuit lap is scored and ghosted as one continuous line rather than
+## as several short ones. Adjustable live, via dev_laps_more/dev_laps_fewer, exactly as the boost
+## and hazard ghost counts are; clamped to at least 1 so the gate always ends something.
+@export var laps_required: int = 1:
+	set(value):
+		laps_required = maxi(value, 1)
+
 var _kart: Kart
 var _camera: ChaseCamera
 var _start_line: Node3D
@@ -76,6 +85,9 @@ var _record_earn_rate: float = -1.0 # <0 until a lap has actually been completed
 var _phase_remaining: float = 0.0
 var _checkpoint_index: int = 0
 var _checkpoint_count: int = 0
+## Which trip around the circuit this is, within the current lap; resets to 1 at every countdown.
+## Only ever meaningful against [member laps_required]: at the default 1 it never leaves 1.
+var _lap_count: int = 1
 var _checkpoints: Array[Checkpoint] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
 var _has_last_kart_position: bool = false
@@ -134,6 +146,12 @@ var checkpoint_index: int:
 var checkpoint_count: int:
 	get: return _checkpoint_count
 
+## Which trip around the circuit is live, 1-indexed against [member laps_required]. Polled by
+## LapHud alongside checkpoint_index/checkpoint_count for the same reason: it is the only way the
+## player can tell how much of the lap is left.
+var lap_count: int:
+	get: return _lap_count
+
 ## The record lap's line. Copy-on-write, so reading is ~free and callers must not mutate. Two
 ## read-only getters rather than a sample_at(t) accessor: the boost ghost field walks the whole
 ## polyline summing segment lengths, which a per-sample accessor cannot serve without a second
@@ -190,6 +208,14 @@ func _physics_process(delta: float) -> void:
 		lap_aborted.emit()
 		_begin_countdown(restart_countdown_seconds)
 		return
+
+	# Not gated on phase, for the dev inputs' own reason on the boost and hazard fields: the count
+	# is director state regardless of what's currently live, and raising it mid-lap must still be in
+	# effect when the gate that checks it is next reached.
+	if Input.is_action_just_pressed("dev_laps_more"):
+		laps_required += 1
+	if Input.is_action_just_pressed("dev_laps_fewer"):
+		laps_required -= 1
 
 	match _phase:
 		LapPhase.COUNTDOWN:
@@ -344,9 +370,16 @@ func _sweep_pending_checkpoint() -> void:
 		return
 
 	_checkpoint_index += 1
-	_update_gate_visibility()
 	if _checkpoint_index >= _checkpoints.size():
-		complete_lap()
+		if _lap_count >= laps_required:
+			complete_lap()
+		else:
+			# One circuit down, more to go: back to checkpoint 1 with the clock, the earnings and
+			# the recording all left running, so the multiple circuits score and ghost as the one
+			# continuous lap they are, not as several short laps back to back.
+			_lap_count += 1
+			_checkpoint_index = 0
+	_update_gate_visibility()
 
 
 # Appended once per physics frame, uncapped: ~1000 samples for a 16 s lap, ~16 KB. Any coarser rate
@@ -404,6 +437,7 @@ func _begin_countdown(seconds: float) -> void:
 	_current_lap_time = 0.0
 	_lap_earnings = 0
 	_checkpoint_index = 0
+	_lap_count = 1
 	_update_gate_visibility()
 	_has_last_kart_position = false # the teleport below invalidates the swept segment
 

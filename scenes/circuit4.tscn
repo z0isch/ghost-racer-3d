@@ -1,0 +1,223 @@
+[gd_scene format=3 uid="uid://btxxge1lwpyql"]
+
+[ext_resource type="Script" uid="uid://bxp3i4cnonh8y" path="res://addons/road-generator/nodes/road_manager.gd" id="1_vohcs"]
+[ext_resource type="Script" uid="uid://cph7euje06kel" path="res://addons/road-generator/nodes/road_container.gd" id="2_ovxl3"]
+[ext_resource type="Material" uid="uid://dpashsuk5lr4x" path="res://addons/road-generator/resources/road_texture.material" id="3_nwwaj"]
+[ext_resource type="Script" uid="uid://difs1qg4mpcpw" path="res://addons/road-generator/nodes/road_point.gd" id="4_brddy"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_to4vs"]
+albedo_color = Color(0.46229059, 0.46229064, 0.4622904, 1)
+
+[sub_resource type="Curve3D" id="Curve3D_4cce7"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 26.000002, -3.9999995, 0, 0, 2.2729926e-06, 0, 26.000004, 0, 0, -40.000004, -35.999996, 0, 1.5576576e-06),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_vohcs"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 34, 3.9999995, 0, 0, 2.972375e-06, 0, 34.000004, 0, 0, -40.000004, -43.999996, 0, 2.2570398e-06),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_ovxl3"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 30.000002, 0, 0, 0, 2.6226835e-06, 0, 30.000004, 0, 0, -40.000004, -39.999996, 0, 1.9073486e-06),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_nwwaj"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 26, -4, 0, 0, -2.272992e-06, 0, 26, 0, 0, 40, -36, 0, -1.3987644e-06),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_brddy"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 34, 4, 0, 0, -2.9723744e-06, 0, 34, 0, 0, 40, -44, 0, -2.0981468e-06),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_8287o"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 30, 0, 0, 0, -2.6226833e-06, 0, 30, 0, 0, 40, -40, 0, -1.7484556e-06),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_jqmtt"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, -30, 0, -1.3113416e-06, -4, 0, 0, 9.999998, 0, 1.3113415e-06, -20, 0, 0, -3.9999988, 0, 20),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_fgeec"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, -30, 0, -1.3113416e-06, 4, 0, 0, 9.999998, 0, 1.3113415e-06, -20, 0, 0, 4.0000005, 0, 20),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_7mvba"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, -30, 0, -1.3113416e-06, 0, 0, 0, 9.999998, 0, 1.3113415e-06, -20, 0, 0, 8.742278e-07, 0, 20),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_ee2d3"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 30, 0, 0, -4, 0, 0, 0, 0, 0, 20, 0, 0, -4, 0, 20),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_jyana"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 30, 0, 0, 4, 0, 0, 0, 0, 0, 20, 0, 0, 4, 0, 20),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="Curve3D_sehcn"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 20),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[node name="Circuit2" type="Node3D" unique_id=1961655717]
+
+[node name="RoadManager" type="Node3D" parent="." unique_id=1091442068]
+script = ExtResource("1_vohcs")
+material_underside = SubResource("StandardMaterial3D_to4vs")
+density = 1.0
+underside_thickness = 0.1
+collision_mask = 0
+metadata/_custom_type_script = "uid://bxp3i4cnonh8y"
+
+[node name="RoadContainer" type="Node3D" parent="RoadManager" unique_id=1366708228]
+script = ExtResource("2_ovxl3")
+material_resource = ExtResource("3_nwwaj")
+use_lowpoly_preview = true
+create_edge_curves = true
+metadata/_custom_type_script = "uid://cph7euje06kel"
+
+[node name="RP_004" type="Node3D" parent="RoadManager/RoadContainer" unique_id=559448363]
+transform = Transform3D(-4.3711385e-08, 0, -0.99999994, 0, 1, 0, 0.99999994, 0, -4.3711385e-08, -20, 0, 0)
+script = ExtResource("4_brddy")
+traffic_dir = Array[int]([0])
+lanes = Array[int]([0])
+prior_mag = 30.0
+next_mag = 30.0
+lane_width = 8.0
+shoulder_width_l = 0.0
+shoulder_width_r = 0.0
+gutter_profile = Vector2(0, 0)
+prior_pt_init = NodePath("../RP_006")
+next_pt_init = NodePath("../RP_007")
+
+[node name="edge_R" type="Path3D" parent="RoadManager/RoadContainer/RP_004" unique_id=56185424]
+curve = SubResource("Curve3D_4cce7")
+metadata/_edit_lock_ = true
+
+[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_004" unique_id=1121021838]
+curve = SubResource("Curve3D_vohcs")
+metadata/_edit_lock_ = true
+
+[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_004" unique_id=399430624]
+curve = SubResource("Curve3D_ovxl3")
+metadata/_edit_lock_ = true
+
+[node name="RP_005" type="Node3D" parent="RoadManager/RoadContainer" unique_id=1417201259]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 0, -40)
+script = ExtResource("4_brddy")
+traffic_dir = Array[int]([0])
+lanes = Array[int]([0])
+prior_mag = 0.0
+next_mag = 30.0
+lane_width = 8.0
+shoulder_width_l = 0.0
+shoulder_width_r = 0.0
+gutter_profile = Vector2(0, 0)
+prior_pt_init = NodePath("../RP_007")
+next_pt_init = NodePath("../RP_006")
+
+[node name="edge_R" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=114003783]
+curve = SubResource("Curve3D_nwwaj")
+metadata/_edit_lock_ = true
+
+[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=1221212677]
+curve = SubResource("Curve3D_brddy")
+metadata/_edit_lock_ = true
+
+[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=407781466]
+curve = SubResource("Curve3D_8287o")
+metadata/_edit_lock_ = true
+
+[node name="RP_006" type="Node3D" parent="RoadManager/RoadContainer" unique_id=1789110106]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0, 0, 0)
+script = ExtResource("4_brddy")
+traffic_dir = Array[int]([0])
+lanes = Array[int]([0])
+prior_mag = 30.0
+next_mag = 30.0
+lane_width = 8.0
+shoulder_width_l = 0.0
+shoulder_width_r = 0.0
+gutter_profile = Vector2(0, 0)
+prior_pt_init = NodePath("../RP_005")
+next_pt_init = NodePath("../RP_004")
+
+[node name="edge_R" type="Path3D" parent="RoadManager/RoadContainer/RP_006" unique_id=780551692]
+curve = SubResource("Curve3D_jqmtt")
+metadata/_edit_lock_ = true
+
+[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_006" unique_id=1265802657]
+curve = SubResource("Curve3D_fgeec")
+metadata/_edit_lock_ = true
+
+[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_006" unique_id=579510730]
+curve = SubResource("Curve3D_7mvba")
+metadata/_edit_lock_ = true
+
+[node name="RP_007" type="Node3D" parent="RoadManager/RoadContainer" unique_id=1434970701]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -20, 0, -40)
+script = ExtResource("4_brddy")
+traffic_dir = Array[int]([0])
+lanes = Array[int]([0])
+prior_mag = 30.0
+next_mag = 30.0
+lane_width = 8.0
+shoulder_width_l = 0.0
+shoulder_width_r = 0.0
+gutter_profile = Vector2(0, 0)
+prior_pt_init = NodePath("../RP_004")
+next_pt_init = NodePath("../RP_005")
+
+[node name="edge_R" type="Path3D" parent="RoadManager/RoadContainer/RP_007" unique_id=867657939]
+curve = SubResource("Curve3D_ee2d3")
+metadata/_edit_lock_ = true
+
+[node name="edge_F" type="Path3D" parent="RoadManager/RoadContainer/RP_007" unique_id=813883528]
+curve = SubResource("Curve3D_jyana")
+metadata/_edit_lock_ = true
+
+[node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_007" unique_id=2145521545]
+curve = SubResource("Curve3D_sehcn")
+metadata/_edit_lock_ = true
+
+[node name="StartLine" type="Marker3D" parent="." unique_id=2098442364]
+transform = Transform3D(0.8290376, 0, 0.5591929, 0, 1, 0, -0.5591929, 0, 0.8290376, -5, 0, 0)
+
+[node name="Checkpoints" type="Node3D" parent="." unique_id=2037854430]
+
+[node name="BoostGhosts" type="Node3D" parent="." unique_id=2147155493]
+
+[node name="HazardGhosts" type="Node3D" parent="." unique_id=2147155494]

@@ -13,10 +13,10 @@
 [ext_resource type="Script" uid="uid://cmixgfvsp4uvv" path="res://scripts/purse.gd" id="11_purse"]
 [ext_resource type="Script" uid="uid://cu83wenc2s5sg" path="res://scripts/pickup_popups.gd" id="12_pickup_popups"]
 [ext_resource type="Script" uid="uid://bvqf8ytsnbmk3" path="res://scripts/purse_hud.gd" id="13_purse_hud"]
-[ext_resource type="PackedScene" uid="uid://55byqb2mm870" path="res://scenes/circuit3.tscn" id="14_w48qg"]
 [ext_resource type="Script" uid="uid://dp8kjh2e26s71" path="res://scripts/boost_ghost_field.gd" id="15_boost_ghost_field"]
 [ext_resource type="Shader" uid="uid://cnkc6102dunqd" path="res://shaders/moebius.gdshader" id="16_moebius_shader"]
 [ext_resource type="Script" uid="uid://c6lyjon7i14mm" path="res://scripts/moebius_effect.gd" id="17_moebius_effect"]
+[ext_resource type="PackedScene" uid="uid://btxxge1lwpyql" path="res://scenes/circuit4.tscn" id="18_074og"]
 [ext_resource type="Script" uid="uid://b2m0rjc2vkdi1" path="res://scripts/hazard_ghost_field.gd" id="18_hazard_ghost_field"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_moebius"]
@@ -167,26 +167,22 @@ text = "Hazard ghosts: 3"
 script = ExtResource("10_coin_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../LapDirector")
-coins_path = NodePath("../Circuit3/Coins")
 
 [node name="BoostGhostField" type="Node" parent="." unique_id=417553907]
 script = ExtResource("15_boost_ghost_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../LapDirector")
-ghosts_path = NodePath("../Circuit3/BoostGhosts")
 coin_field_path = NodePath("../CoinField")
 ghost_count = 3
-edge_clearance = 0.1
-edge_probe_range = 5.0
-edge_probe_step = 0.05
-coin_snap_radius = 3.0
+placement_jitter = 0.504
+coin_snap_radius = 0.0
+pickup_radius_fraction = 2.0
 ghost_color = Color(0, 0.5176471, 0.34509805, 0.5921569)
 
 [node name="HazardGhostField" type="Node" parent="." unique_id=417553908]
 script = ExtResource("18_hazard_ghost_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../LapDirector")
-ghosts_path = NodePath("../Circuit3/HazardGhosts")
 end_margin = 0.0
 placement_jitter = 0.503
 min_speed = 0.0
@@ -208,8 +204,6 @@ kart_path = NodePath("../Kart")
 script = ExtResource("5_lap_director")
 kart_path = NodePath("../Kart")
 chase_camera_path = NodePath("../ChaseCamera")
-start_line_path = NodePath("../Circuit3/StartLine")
-checkpoints_path = NodePath("../Circuit3/Checkpoints")
 coin_field_path = NodePath("../CoinField")
 ghost_line_path = "res://ghost_lines/circuit3.tres"
 restart_countdown_seconds = 1.0
@@ -328,5 +322,4 @@ mesh = SubResource("PlaneMesh_074og")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Ground2" unique_id=1772413327]
 shape = SubResource("BoxShape3D_cegan")
 
-[node name="Circuit3" parent="." unique_id=1961655717 instance=ExtResource("14_w48qg")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+[node name="Circuit2" parent="." unique_id=1961655717 instance=ExtResource("18_074og")]

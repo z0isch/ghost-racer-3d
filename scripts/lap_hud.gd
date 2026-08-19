@@ -72,6 +72,13 @@ func _process(delta: float) -> void:
 	# The record needs no blanking window: it is either set or not, and its sentinel says which. A
 	# session's first lap runs against RECORD --.--/s and promotes whatever it manages.
 	_record_label.text = "RECORD  %s" % _format_rate(_director.record_earn_rate, INF)
+	# No "LAP i/N" suffix at the default laps_required of 1: a single-circuit lap has nothing for it
+	# to disambiguate, and the readout should look exactly as it always has until the dev input is
+	# actually used.
+	var lap_suffix: String = ""
+	if _director.laps_required > 1:
+		lap_suffix = "   LAP %d/%d" % [_director.lap_count, _director.laps_required]
+	_checkpoint_label.text = "CP %d/%d%s" % [_director.checkpoint_index, _director.checkpoint_count, lap_suffix]
 
 	_record_flash = maxf(0.0, _record_flash - delta)
 	_record_label.modulate = record_flash_color if _record_flash > 0.0 else _record_base_color

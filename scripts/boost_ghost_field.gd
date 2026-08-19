@@ -12,17 +12,21 @@ extends Node
 ## not the camera's FOV punch, not the kart's speed.
 ##
 ## Unlike CoinField's coins, the ghosts are not authored into the circuit: they are placed at
-## runtime along the lap director's ghost line, one per equal slot of it and jittered inside that
-## slot, so a re-place first frees whatever stood there before rather than restoring a fixed set.
-## The ghost line only changes when a lap takes the record, so the jitter is the only thing standing
-## between the driver and the identical field lap after lap.
+## runtime along the road's own centreline (walked from the RoadContainer's RoadPoints, [method
+## _build_centreline]), one per equal slot of it and jittered inside that slot, so a re-place first
+## frees whatever stood there before rather than restoring a fixed set. The centreline is deliberately
+## not the driver's fastest lap: a racing line hugs the apex through a corner rather than sitting in
+## the middle of the road, and a circuit with no recorded lap yet still has a road. It only changes if
+## the road geometry itself changes, so the jitter is the only thing standing between the driver and
+## the identical field lap after lap.
 ##
 ## Each racing-line pose then fans out into a tuneable row of ghosts perpendicular to the road: one
-## pinned to the line itself, the rest alternating either side of it at a fixed spacing, each
-## individually probed against the true road edge rather than a hand-tuned offset and simply skipped
-## if it would land off the road — or snapped onto a nearby coin if one is close enough to hand the
-## ghost to it instead of leaving two separate things to line up for. See [method
-## _lateral_placements].
+## pinned to the line itself, the rest alternating either side of it at a fixed spacing — no check
+## against the true road edge, so a wide fan on a narrow stretch of road can hang ghosts over the
+## kerb or the grass; that's a tuning call (lateral_ghost_count/lateral_spacing against the
+## circuit's narrowest point), not something the field polices — or snapped onto a nearby coin if
+## one is close enough to hand the ghost to it instead of leaving two separate things to line up
+## for. See [method _lateral_placements].
 
 ## One ghost, the instant it is taken. Position only — there is no per-ghost value to report, since
 ## every ghost grants the same bump.
@@ -37,8 +41,21 @@ const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 ## a 0.5 m kart, divided by that 4.0 fraction.
 const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 
+## Not registered as a class_name by the addon itself (road_segment.gd's own reason), so accessed
+## the same way road_point.gd accesses it: preloaded as a const, purely to type the segments
+## [method _walk_road_loop] walks.
+const RoadSegment = preload("res://addons/road-generator/nodes/road_segment.gd")
+
 @export var kart_path: NodePath
 @export var director_path: NodePath
+## The circuit's RoadContainer, whose generated RoadSegments' curves are walked into the
+## centreline the field spawns ghosts along ([method _build_centreline]).
+@export var road_container_path: NodePath
+## The same start-line Marker3D the [LapDirector] teleports the kart onto. The centreline is a
+## closed loop with no inherent start; this is where it is cut and which direction it is walked, so
+## [member start_margin]/[member end_margin] clear the same stretch of road the driver actually
+## starts and finishes on rather than an arbitrary RoadPoint.
+@export var start_line_path: NodePath
 ## The circuit's BoostGhosts node: an empty runtime spawn parent. The field owns what stands under
 ## it; nothing is authored there.
 @export var ghosts_path: NodePath
@@ -56,37 +73,25 @@ const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 		ghost_count = maxi(value, 0)
 		_place_ghosts()
 
-## Metres of ghost line left clear at the start, so a ghost is never handed before the driver has
+## Metres of centreline left clear at the start, so a ghost is never handed before the driver has
 ## picked up speed off the line.
 @export var start_margin: float = 10.0
-## Metres of ghost line left clear at the end, so a ghost is never handed right before the final
+## Metres of centreline left clear at the end, so a ghost is never handed right before the final
 ## gate.
 @export var end_margin: float = 10.0
 
 ## Fraction of its own slot a ghost may wander across. 0.0 pins every ghost to its slot's midpoint,
-## which is a fixed field for as long as the ghost line stands; 1.0 lets a ghost reach the slot edge
-## it shares with its neighbour.
+## which is a fixed field for as long as the road stands; 1.0 lets a ghost reach the slot edge it
+## shares with its neighbour.
 @export_range(0.0, 1.0) var placement_jitter: float = 0.3
 
-## How many ghosts fan out perpendicular to the road at each racing-line slot: one pinned to the
-## line itself, the rest alternating either side of it. No cap and no guarantee this many actually
-## appear — a ghost whose spot in the fan would land off the road is skipped, so a narrow stretch of
-## road simply shows fewer ghosts than a wide one.
+## How many ghosts fan out perpendicular to the road at each centreline slot: one pinned to the
+## line itself, the rest alternating either side of it. Every one of them is placed regardless of
+## the road's actual width at that point — no off-road check — so a high count or wide spacing on a
+## narrow stretch of road hangs ghosts over the kerb or the grass.
 @export var lateral_ghost_count: int = 3
 ## Metres between adjacent ghosts in the perpendicular fan.
 @export var lateral_spacing: float = 3.0
-
-## Metres kept clear of the true road edge when a ghost is placed off the racing line, so its
-## silhouette never hangs its outside wheels over the kerb or onto the grass.
-@export var edge_clearance: float = 1.0
-## How far out, in metres, the road-edge probe searches from the racing line before giving up.
-## Bounds the cost of a placement's probe rather than describing any real track width; it only needs
-## to clear the widest shoulder on the circuit.
-@export var edge_probe_range: float = 15.0
-## Step size, in metres, the road-edge probe walks outward while it is still finding road. Smaller
-## is a more exact edge and a slower probe; this only runs once per ghost at every countdown, so it
-## is kept small rather than tuned for speed.
-@export var edge_probe_step: float = 0.25
 
 ## Metres within which a placed ghost snaps onto a coin instead of standing near one. 0 turns
 ## snapping off entirely.
@@ -125,6 +130,14 @@ var _ghosts: Array[Ghost] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
 var _has_last_kart_position: bool = false
 var _elapsed: float = 0.0
+## The road's own centreline, walked once at the first re-place ([method _build_centreline]) and
+## reused at every one after: the road doesn't change shape mid-session, so re-walking it at every
+## countdown would be pure waste. Empty until the walk succeeds, in which case [method
+## _place_ghosts] places nothing rather than falling back to some other line.
+var _centreline_positions: PackedVector3Array = PackedVector3Array()
+var _centreline_yaws: PackedFloat32Array = PackedFloat32Array()
+var _road_container: RoadContainer
+var _start_line: Node3D
 ## pickup_radius_fraction resolved against the kart's sphere_radius. Resolved once in _ready
 ## rather than read every sweep: sphere_radius is a body constant, not something that changes
 ## mid-race.
@@ -148,11 +161,23 @@ func _ready() -> void:
 	if _ghosts_root == null:
 		push_warning("BoostGhostField: no BoostGhosts node — nothing to boost off.")
 
+	_road_container = get_node_or_null(road_container_path) as RoadContainer
+	_start_line = get_node_or_null(start_line_path) as Node3D
+	if _road_container == null:
+		push_warning("BoostGhostField: no RoadContainer — nothing to spawn ghosts along.")
+
+	# Deferred, and not left to the first countdown: the RoadSegments the centreline is walked from
+	# are built by the RoadManager's own _ready, and the circuit is the last child of main.tscn — so
+	# the first countdown_started has already been emitted by the time any road exists. A deferred
+	# call flushes after every _ready in the tree, which is the earliest point the road is there to
+	# walk.
+	_place_ghosts.call_deferred()
+
 
 ## Deferred for CoinField's reason: the director runs at the head of the physics frame and the kart
 ## moves after it, so the position the kart finishes the frame at only exists after the flush.
 ##
-## The dev inputs live here, not gated on phase or on whether a ghost line exists: the field owns
+## The dev inputs live here, not gated on phase or on whether a centreline exists: the field owns
 ## the count, so the field owns the input that changes it, and pressing `]` on lap 1 must still
 ## raise the count that lap 2 opens with.
 func _physics_process(_delta: float) -> void:
@@ -177,17 +202,17 @@ func _process(delta: float) -> void:
 			ghost.material.albedo_color = color
 
 
-## Centreline poses for [param count] boost ghosts along the ghost line, one per equal slot of the
-## span left by [param margin_start] / [param margin_end]. Empty for a count of zero or a line too
-## short to hold the margins.
+## Poses for [param count] boost ghosts along [param positions]/[param yaws], one per equal slot of
+## the span left by [param margin_start] / [param margin_end]. Empty for a count of zero or a line
+## too short to hold the margins.
 ##
 ## Stratified rather than uniformly random: a ghost is drawn inside its own slot, never across the
 ## whole line, so a field re-rolled at every countdown can neither clump three ghosts into one
 ## corner nor leave a quarter of the lap bare. [param jitter] is the fraction of its slot a ghost
 ## may cross; at 0.0 every ghost sits exactly on its slot's midpoint.
 ##
-## Purely a walk along the recorded line: it knows nothing about the road's actual width, so it
-## returns the racing-line pose only. Moving a ghost off that pose — to anywhere still on the road,
+## Purely a walk along the given line: it knows nothing about the road's actual width, so it
+## returns the line pose only. Moving a ghost off that pose — to anywhere still on the road,
 ## or onto a nearby coin — needs the physics world and is [method _lateral_placements]'s job, not this
 ## static function's; a TestCase is a RefCounted that cannot touch the scene tree, and this is the
 ## seam the geometry suite tests.
@@ -256,8 +281,9 @@ static func _pose_at(
 	return Transform3D(Basis(Vector3.UP, yaw), position)
 
 
-## Frees the standing field and places a fresh one on the director's current ghost line. An empty
-## ghost line yields no ghosts and is not a warning — it is lap 1, and it is the designed state.
+## Frees the standing field and places a fresh one on the road's centreline. An empty centreline —
+## no RoadContainer wired up, or the walk in [method _build_centreline] failed — yields no ghosts
+## rather than a warning here; that warning already fired once, in [method _ready].
 func _place_ghosts() -> void:
 	for ghost: Ghost in _ghosts:
 		ghost.node.queue_free()
@@ -266,9 +292,11 @@ func _place_ghosts() -> void:
 	if _ghosts_root == null or _director == null:
 		return
 
+	_build_centreline()
+
 	var poses: Array[Transform3D] = place_along(
-		_director.ghost_line_positions,
-		_director.ghost_line_yaws,
+		_centreline_positions,
+		_centreline_yaws,
 		ghost_count,
 		start_margin,
 		end_margin,
@@ -276,42 +304,152 @@ func _place_ghosts() -> void:
 		placement_jitter,
 	)
 	for pose: Transform3D in poses:
-		# All ghosts fanned out from the same racing-line slot share a group: the player is meant to
-		# read the fan as one boost opportunity, so collecting any one of them takes the whole group
-		# (Ghost.group, _take_ghost).
-		var group: Array[Ghost] = []
 		for lateral: Transform3D in _lateral_placements(pose):
-			var ghost: Ghost = _spawn_ghost(lateral)
-			ghost.group = group
-			group.append(ghost)
-			_ghosts.append(ghost)
+			_ghosts.append(_spawn_ghost(lateral))
 
 
-## Fans [param pose] out into up to [member lateral_ghost_count] ghosts perpendicular to the road:
-## the first stays pinned to the racing line itself, and the rest alternate right/left of it at
-## increasing multiples of [member lateral_spacing] ([method _lateral_offset]). Each is checked
-## independently against the true road edge, less [member edge_clearance] so its silhouette clears
-## the edge, and simply left out of the fan if it would land off the road — the fan comes up short on
-## a narrow stretch of road rather than clamping ghosts onto the shoulder. A ghost that survives
-## lands on a nearby coin instead if one stands close enough to hand it to.
+## Walks [member _road_container]'s RoadPoints into one lap's worth of centreline positions/yaws
+## and caches them into [member _centreline_positions]/[member _centreline_yaws]. A no-op once the
+## walk has succeeded once: the road doesn't change shape mid-session.
 ##
-## The road's true width is not known data anywhere on the circuit (CoinField and the checkpoints
-## are the only other things that care, and both were hand-tuned rather than measured) so each side
-## is probed the same way [member Kart._classify_surface] tells road from grass under the kart: a ray
-## straight down, read for the collider's own layer bits, walked outward by [method _probe_edge]
-## until it leaves the road — the road's actual edge on a corner exactly as much as on a straight,
-## camber and kerb included.
+## Called from [method _place_ghosts] rather than [method _ready] because the RoadSegments it walks
+## are built by the RoadManager's own _ready, which has no ordering guarantee against this node's.
+## An unsuccessful walk caches nothing, so the next re-place simply tries again rather than pinning
+## the field to whatever the road looked like before it existed.
+##
+## [member _start_line], when set, is where the loop is cut into an open line and which direction it
+## is walked: without it the loop is cut at an arbitrary RoadPoint and walked in that RoadPoint's
+## own "next" direction, which still yields a driveable centreline but no longer lines up
+## [member start_margin]/[member end_margin] with where the driver actually starts and finishes.
+func _build_centreline() -> void:
+	if not _centreline_positions.is_empty() or _road_container == null:
+		return
+
+	var loop: PackedVector3Array = _walk_road_loop(_road_container)
+	if loop.size() < 2:
+		return
+
+	if _start_line != null:
+		loop = _cut_and_orient_loop(loop, _start_line)
+
+	_centreline_positions = loop
+	_centreline_yaws = _yaws_from_positions(loop)
+
+
+## One full circuit of [param road_container]'s RoadPoints, concatenating each RoadPoint's next
+## RoadSegment's own curve in "next" order ([method RoadPoint.get_next_road_node]) starting from an
+## arbitrary RoadPoint and stopping once the walk returns to it. A RoadPoint with no next segment
+## ends the walk short rather than looping forever chasing a null.
+##
+## The segment's curve, deliberately, and not the RoadPoint's generated edge_C path. edge_C is
+## nominally the same line, but the addon re-derives it through RoadSegment.offset_curve rather than
+## reusing the curve it just built, and that derivation has a near-90-degree fallback branch that
+## hands back a handle in the segment's local space to a curve being built in the RoadPoint's — so
+## on any corner sharp enough to trip it, edge_C bows clean off the tarmac (circuit3's RP_004
+## corner, by ~20 m). The segment's curve is what the road mesh's own loops are placed along, so it
+## is the road's true middle by construction.
+func _walk_road_loop(road_container: RoadContainer) -> PackedVector3Array:
+	var positions: PackedVector3Array = PackedVector3Array()
+	var roadpoints: Array[RoadPoint] = road_container.get_roadpoints()
+	if roadpoints.is_empty():
+		return positions
+
+	var start_point: RoadPoint = roadpoints[0]
+	var point: RoadPoint = start_point
+	# +1: every RoadPoint visited once, plus the one extra step back onto start_point that closes
+	# the loop and ends the walk.
+	var guard: int = roadpoints.size() + 1
+	while guard > 0:
+		guard -= 1
+		var segment: RoadSegment = point.next_seg
+		if segment == null or not is_instance_valid(segment) or segment.curve == null:
+			break
+		var local_points: PackedVector3Array = segment.curve.get_baked_points()
+		# next_seg is the segment on the point's "next" side, but the point is not always that
+		# segment's start_point — reached from its far end, its samples run backwards.
+		var forward: bool = segment.start_point == point
+		# Segment boundaries duplicate a point (this segment's last sample is the next RoadPoint,
+		# which is also that next segment's first sample), so every walk after the first skips its
+		# own first sample.
+		var skip: int = 1 if not positions.is_empty() else 0
+		for i in range(skip, local_points.size()):
+			var index: int = i if forward else local_points.size() - 1 - i
+			positions.append(segment.to_global(local_points[index]))
+
+		var next_point: RoadPoint = point.get_next_road_node() as RoadPoint
+		if next_point == null or next_point == start_point:
+			break
+		point = next_point
+
+	return positions
+
+
+## Cuts the closed [param loop] into an open line starting at whichever of its samples sits nearest
+## [param start_line], and walks it in whichever direction — [param loop]'s own order, or reversed —
+## matches [param start_line]'s own forward facing (`-basis.z`, [member Kart]'s own forward
+## convention). Without this the loop's cut point and direction are whatever [method
+## _walk_road_loop] happened to start and walk from, which has no reason to land anywhere near where
+## the driver actually starts a lap.
+func _cut_and_orient_loop(loop: PackedVector3Array, start_line: Node3D) -> PackedVector3Array:
+	var count: int = loop.size()
+	var cut: int = _nearest_index(loop, start_line.global_position)
+
+	var facing: Vector3 = -start_line.global_transform.basis.z
+	var travel: Vector3 = loop[(cut + 1) % count] - loop[cut]
+	if travel.dot(facing) < 0.0:
+		loop.reverse()
+		cut = count - 1 - cut
+
+	var oriented: PackedVector3Array = PackedVector3Array()
+	oriented.resize(count)
+	for i in count:
+		oriented[i] = loop[(cut + i) % count]
+	return oriented
+
+
+## The index into [param positions] closest to [param point], by squared distance (monotonic with
+## distance, cheaper to compare) — the seam [method _cut_and_orient_loop] cuts the loop at.
+func _nearest_index(positions: PackedVector3Array, point: Vector3) -> int:
+	var best_index: int = 0
+	var best_distance: float = INF
+	for i in positions.size():
+		var distance: float = positions[i].distance_squared_to(point)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = i
+	return best_index
+
+
+## One yaw per position in [param positions], each the heading of the step into the next position
+## (`-atan2(dir.x, dir.z)`'s convention inverted to match [member Kart]'s own `forward =
+## -basis.z`— see [member LapDirector._recording_yaws], which records `global_rotation.y` off that
+## same basis). The last position has no "next" step of its own, so it repeats the step before it
+## rather than wrapping onto the first — the walk is an open line by the time this runs, not the
+## closed loop it started as.
+func _yaws_from_positions(positions: PackedVector3Array) -> PackedFloat32Array:
+	var yaws: PackedFloat32Array = PackedFloat32Array()
+	yaws.resize(positions.size())
+	for i in positions.size() - 1:
+		var dir: Vector3 = (positions[i + 1] - positions[i]).normalized()
+		yaws[i] = atan2(-dir.x, -dir.z)
+	if positions.size() > 1:
+		yaws[positions.size() - 1] = yaws[positions.size() - 2]
+	return yaws
+
+
+## Fans [param pose] out into [member lateral_ghost_count] ghosts perpendicular to the road: the
+## first stays pinned to the centreline itself, and the rest alternate right/left of it at
+## increasing multiples of [member lateral_spacing] ([method _lateral_offset]). No check against
+## the true road edge — every one of the fan is placed, so a wide fan on a narrow stretch of road
+## can hang ghosts over the kerb or the grass; that's on whoever tunes lateral_ghost_count and
+## lateral_spacing, not something placement polices. A placed ghost lands on a nearby coin instead
+## if one stands close enough to hand it to.
 func _lateral_placements(pose: Transform3D) -> Array[Transform3D]:
 	var result: Array[Transform3D] = []
 	var right: Vector3 = pose.basis.x
-	var left_extent: float = maxf(0.0, _probe_edge(pose.origin, -right) - edge_clearance)
-	var right_extent: float = maxf(0.0, _probe_edge(pose.origin, right) - edge_clearance)
 
 	for i in lateral_ghost_count:
 		var offset: float = _lateral_offset(i)
-		var extent: float = right_extent if offset >= 0.0 else left_extent
-		if absf(offset) > extent:
-			continue
 		# basis.x is the pose's own right vector, so the offset leans with the line through a
 		# corner instead of being re-derived from the yaw here. translated, not translated_local:
 		# the vector is already in the line's space.
@@ -322,7 +460,7 @@ func _lateral_placements(pose: Transform3D) -> Array[Transform3D]:
 
 
 ## The signed lateral offset, in [member lateral_spacing] units, of the [param index]-th ghost in a
-## perpendicular fan: 0.0 for the first (the ghost that stays on the racing line), then alternating
+## perpendicular fan: 0.0 for the first (the ghost that stays on the centreline), then alternating
 ## right (positive) and left (negative) at increasing multiples — index 1 one spacing right, index 2
 ## one spacing left, index 3 two spacings right, and so on — so the fan grows evenly outward from the
 ## centre ghost regardless of how many of [member lateral_ghost_count] end up placed.
@@ -333,48 +471,6 @@ func _lateral_offset(index: int) -> float:
 	var rung: int = (index + 1) / 2
 	var side: float = 1.0 if index % 2 == 1 else -1.0
 	return side * rung * lateral_spacing
-
-
-## Walks outward from [param origin] in [param direction] in [member edge_probe_step] increments,
-## stopping at the first step that is no longer road (grass, or nothing under it at all) or at
-## [member edge_probe_range], whichever comes first.
-func _probe_edge(origin: Vector3, direction: Vector3) -> float:
-	var distance: float = 0.0
-	while distance < edge_probe_range:
-		var next_distance: float = distance + edge_probe_step
-		if not _is_on_road(origin + direction * next_distance):
-			break
-		distance = next_distance
-	return distance
-
-
-## The same test [member Kart._classify_surface] runs on the kart's own ground ray, aimed instead at
-## an arbitrary point: a downward ray read for the collider's layer bits, grass excluded and
-## everything else (road, kerb) counted as road. Kerb counts as road here because it does for the
-## kart: the ghost may stand on it exactly as the driver may drive over it.
-func _is_on_road(position: Vector3) -> bool:
-	# get_world_3d() is a Node3D method; the field is a plain Node, so the world comes from the
-	# viewport instead.
-	var space_state: PhysicsDirectSpaceState3D = get_viewport().get_world_3d().direct_space_state
-	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-		position + Vector3.UP * 2.0, position + Vector3.DOWN * 4.0)
-	# Matches GroundRay's own mask (kart.tscn): the general ground layer plus grass, which is enough
-	# to tell "off the road" from "on it" without also needing the barrier layer.
-	query.collision_mask = 9
-	var hit: Dictionary = space_state.intersect_ray(query)
-	if hit.is_empty():
-		return false
-
-	var collider: Object = hit["collider"]
-	var layer: int = -1
-	if collider is CSGShape3D:
-		layer = (collider as CSGShape3D).collision_layer
-	elif collider is CollisionObject3D:
-		layer = (collider as CollisionObject3D).collision_layer
-	if layer < 0:
-		return false
-
-	return (layer & Kart.GRASS_LAYER_BIT) == 0
 
 
 ## The nearest coin to [param position] within [param radius], or [param position] itself if none
@@ -445,22 +541,13 @@ func _sweep_ghosts() -> void:
 		_take_ghost(ghost)
 
 
-## Takes [param ghost] and, with it, every other ghost in its fan (Ghost.group): the fan is one
-## boost opportunity, not several, so collecting one despawns the rest rather than leaving them
-## standing for a second pass. Only the collected ghost grants the boost and reports itself through
-## [signal ghost_taken] — its siblings are simply hidden and marked taken, exactly as an already-taken
-## ghost is, so a later sweep frame skips them like any other spent ghost.
+## Takes [param ghost] alone: each ghost in a fan is its own boost opportunity now, so collecting
+## one leaves its neighbours standing for a separate pass.
 func _take_ghost(ghost: Ghost) -> void:
 	ghost.taken = true
 	ghost.node.visible = false
 	_kart.add_boost_charge(bump, bleed)
 	ghost_taken.emit(ghost.origin)
-
-	for sibling: Ghost in ghost.group:
-		if sibling.taken:
-			continue
-		sibling.taken = true
-		sibling.node.visible = false
 
 
 ## Re-places the whole field so it is exactly whole at the moment the driver looks at the track
@@ -499,6 +586,3 @@ class Ghost extends RefCounted:
 	var origin: Vector3 = Vector3.ZERO
 	var material: StandardMaterial3D = null
 	var taken: bool = false
-	# Every ghost fanned out from the same racing-line slot, this one included: shared by reference
-	# across the group (_place_ghosts), so _take_ghost can despawn the rest when one is collected.
-	var group: Array[Ghost] = []
