@@ -28,6 +28,13 @@ extends Resource
 ## A degrees-per-second easing rate, not a force: how fast the steer angle moves toward what the
 ## left stick asks. 360 °/s is a tenth of a second to full lock.
 @export var front_grip_degrees_per_second: float = 360.0
+## Steer lock while the brake is held and the rear isn't drifting (see [member KartModel.is_drifting]) —
+## a handbrake-turn knob, distinct from the speed taper above and from
+## [member slip_ceiling_high_speed_braking_degrees]. Replaces the tapered ceiling outright rather
+## than raising one end of it, so it is felt at any speed, not just fast; gated on "not drifting" so
+## it never fights the rear-slip solve once the tail is out, and eased in/out at
+## [member brake_slip_release_rate] so releasing the brake doesn't snap the front straight.
+@export var max_steer_angle_braking_degrees: float = 55.0
 
 # --- Geometry -------------------------------------------------------------------------------
 ## The most expressive tuning pair here. Their sum is the wheelbase (smaller = faster rotation for a

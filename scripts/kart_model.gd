@@ -528,7 +528,13 @@ func _current_slip_ceiling() -> float:
 # This puts no curve in the physics: the solve reads _steer_angle and applies u*tan(steer)/L, the
 # same arithmetic at 2 m/s as at 14. The taper limits the driver's authority, upstream of the model.
 func _current_steer_ceiling() -> float:
-	return deg_to_rad(lerpf(
+	var tapered_degrees: float = lerpf(
 		tuning.max_steer_angle_low_speed_degrees,
 		tuning.max_steer_angle_high_speed_degrees,
-		_speed_fraction()))
+		_speed_fraction())
+	# Gated on is_drifting rather than eased like _brake_slip_influence is: once the tail is out the
+	# bonus must not fight the rear-slip solve, and the drift threshold is already an instant flip
+	# everywhere else it's read (see drift_side). Only the blend toward the bonus is eased.
+	var braking_target_degrees: float = (
+		tuning.max_steer_angle_braking_degrees if not is_drifting else tapered_degrees)
+	return deg_to_rad(lerpf(tapered_degrees, braking_target_degrees, _brake_slip_influence))

@@ -74,42 +74,42 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_an3qf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, -3.9999998, 0, 0, -14.118844, 0, -8.584391, -18.299, 0, -28.165, 21.258854, 0, 27.573753),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 26.18009, -3.9999993, 0, 0, -0.7186167, 0, -0.43692583, -18.299002, 0, -28.165005, 21.258854, 0, 27.573753),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_mxsjf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, 3.9999998, 0, 0, -23.268856, 0, -14.147684, -18.299, 0, -28.165, 25.415005, 0, 20.738083),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 18.485903, 3.9999993, 0, 0, -2.4907281, 0, -1.5143865, -18.299002, 0, -28.165005, 25.415005, 0, 20.738083),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_e1fha"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 5.78781, 0, -29.775696, 0, 0, 0, -18.69385, 0, -11.366037, -18.299, 0, -28.165, 23.33693, 0, 24.155918),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 22.332996, 0, 0, 0, -1.6046724, 0, -0.9756561, -18.299002, 0, -28.165005, 23.33693, 0, 24.155918),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_sllld"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 16.48009, -4, 0, 0, 2.3465915, 0, -12.072171, -34, 0, -28, 30.073496, 0, 27.236761),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 16.48009, -4, 0, 0, 2.3465912, 0, -12.07217, -34, 0, -28, 30.073496, 0, 27.236761),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_nad8w"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 8.18591, 4, 0, 0, 4.26799, 0, -21.956913, -34, 0, -28, 37.926514, 0, 28.763231),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 8.18591, 4, 0, 0, 4.2679896, 0, -21.956911, -34, 0, -28, 37.926514, 0, 28.763231),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_bluvq"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 12.333, 0, 0, 0, 3.3072908, 0, -17.014542, -34, 0, -28, 34.000004, 0, 27.999996),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 12.333, 0, 0, 0, 3.3072906, 0, -17.014542, -34, 0, -28, 34.000004, 0, 27.999996),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
@@ -221,7 +221,7 @@ transform = Transform3D(-0.6730125, 0, -0.7396311, 0, 1, 0, 0.7396311, 0, -0.673
 script = ExtResource("3_f7ioj")
 traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
-prior_mag = 21.878
+prior_mag = 1.8780000000000001
 next_mag = 11.878
 lane_width = 8.0
 shoulder_width_l = 0.0
@@ -243,12 +243,12 @@ curve = SubResource("Curve3D_xjdrx")
 metadata/_edit_lock_ = true
 
 [node name="RP_004" type="Node3D" parent="RoadManager/RoadContainer" unique_id=559448363]
-transform = Transform3D(-0.98162717, 0, 0.19080901, 0, 1, 0, -0.19080901, 0, -0.98162717, -4, 0, -35)
+transform = Transform3D(-0.9816271, 0, 0.190809, 0, 1, 0, -0.190809, 0, -0.9816271, -4, 0, -35)
 script = ExtResource("3_f7ioj")
 traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
 prior_mag = 17.333
-next_mag = 30.333
+next_mag = 22.333
 lane_width = 8.0
 shoulder_width_l = 0.0
 shoulder_width_r = 0.0
@@ -293,27 +293,6 @@ metadata/_edit_lock_ = true
 [node name="edge_C" type="Path3D" parent="RoadManager/RoadContainer/RP_005" unique_id=1706612214]
 curve = SubResource("Curve3D_bluvq")
 metadata/_edit_lock_ = true
-
-[node name="Road_001" type="Node3D" parent="RoadManager" unique_id=837708741]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.9807129, 17.110876, 9.037201)
-script = ExtResource("2_kwvsp")
-material_resource = ExtResource("3_kwvsp")
-use_lowpoly_preview = true
-edge_containers = Array[NodePath]([NodePath(""), NodePath("")])
-edge_rp_targets = Array[NodePath]([NodePath(""), NodePath("")])
-edge_rp_target_dirs = Array[int]([-1, -1])
-edge_rp_locals = Array[NodePath]([NodePath("RP_001"), NodePath("RP_001")])
-edge_rp_local_dirs = Array[int]([0, 1])
-
-[node name="RP_001" type="Node3D" parent="RoadManager/Road_001" unique_id=259095372]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
-script = ExtResource("3_f7ioj")
-traffic_dir = Array[int]([2, 2, 1, 1])
-lanes = Array[int]([2, 4, 4, 2])
-lane_width = 8.0
-shoulder_width_l = 0.0
-shoulder_width_r = 0.0
-gutter_profile = Vector2(0, 0)
 
 [node name="StartLine" type="Marker3D" parent="." unique_id=2098442364]
 transform = Transform3D(0.8290376, 0, 0.5591929, 0, 1, 0, -0.5591929, 0, 0.8290376, 2.6249995, 0, -21.829378)
