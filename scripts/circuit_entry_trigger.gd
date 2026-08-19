@@ -9,13 +9,15 @@ extends Node
 ## cannot be tunnelled at any speed, carried in the start line marker's own frame so it rolls with
 ## the road exactly as a checkpoint prism does.
 ##
-## Starts disarmed and stays that way until the kart has stood [member rearm_clear_distance] clear
-## of the start line's plane, on either side, continuously for [member rearm_seconds]. The prism
-## itself has no depth along the road — CONTEXT.md, **Checkpoint prism**, "it is crossed, not
-## entered" — so a kart returned to the exact entry pose sits with before/after both ~0 and would
-## re-cross on the very first metre driven forward. Clearance is therefore measured along the same
-## forward axis the crossing test itself uses, not laterally: driving straight through the line is
-## exactly the case this must survive, and lateral position does not move as that happens.
+## Starts disarmed and stays that way until the kart has stood clear of the start line continuously
+## for [member rearm_seconds] — clear meaning either [member rearm_clear_distance] along the plane's
+## forward axis, or outside the crossable lateral/vertical bounds. The prism itself has no depth
+## along the road — CONTEXT.md, **Checkpoint prism**, "it is crossed, not entered" — so a kart
+## returned to the exact entry pose sits with before/after both ~0 and would re-cross on the very
+## first metre driven forward; the forward-axis leg of the clearance test is what survives that.
+## The lateral/vertical leg is what survives the opposite case: a kart parked or crawling beside
+## the gate, near-zero forward offset the whole time, which the forward-axis test alone would never
+## call clear.
 
 const RACE_SCENE_PATH: String = "res://scenes/race.tscn"
 
@@ -74,13 +76,30 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_rearm(delta: float) -> void:
-	var signed_forward: float = (_kart.global_position - _origin).dot(_forward)
-	var clear: bool = absf(signed_forward) > rearm_clear_distance
+	var local: Vector3 = _kart.global_position - _origin
+	var signed_forward: float = local.dot(_forward)
+	var lateral: float = local.dot(_right)
+	var height: float = local.dot(_up)
+	var clear: bool = (absf(signed_forward) > rearm_clear_distance
+			or absf(lateral) > checkpoint_half_width
+			or height < checkpoint_floor or height > checkpoint_ceiling)
 
 	_clear_seconds = _clear_seconds + delta if clear else 0.0
 	if _clear_seconds >= rearm_seconds:
 		_armed = true
 		_has_last_kart_position = false
+
+
+## Called by [World] when it teleports the kart directly (the `reset` action, not a countdown or a
+## circuit entry): the swept segment this trigger is tracking would otherwise span the teleport and
+## could spuriously cross this plane, exactly the failure [method LapDirector._begin_countdown] and
+## [method BoostGhostField._on_countdown_started] already guard their own teleports against.
+## Disarming rather than just dropping the sample: a kart reset onto or near a start line should be
+## re-measured for clearance before this trigger can fire again, the same as a return from a race.
+func invalidate() -> void:
+	_armed = false
+	_clear_seconds = 0.0
+	_has_last_kart_position = false
 
 
 func _sweep(_delta: float) -> void:
@@ -108,4 +127,10 @@ func _enter() -> void:
 	CircuitSession.return_pose = _kart.global_transform
 	CircuitSession.has_return_pose = true
 	_kart.frozen = true
-	SceneFade.to_scene(get_tree(), RACE_SCENE_PATH)
+
+	# A failed swap fades back into the world that is still standing here: undo the one-shot latch
+	# so this entrance is not left permanently dead and the kart is not left permanently frozen.
+	var err: Error = await SceneFade.to_scene(get_tree(), RACE_SCENE_PATH)
+	if err != OK:
+		_entering = false
+		_kart.frozen = false

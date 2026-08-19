@@ -38,9 +38,14 @@ var _exiting: bool = false
 
 
 func _enter_tree() -> void:
+	# Falls back to circuit3 as one atomic unit, geometry and ghost line together: a Circuit with
+	# geometry but no matching line, or vice versa, is exactly the "circuit4's geometry running
+	# circuit3's recorded line" bug issue 08 found in the code this replaced, and treating the two
+	# fallback fields independently below would have been able to reintroduce it.
 	var pending: Circuit = CircuitSession.pending_circuit
-	var circuit_scene: PackedScene = pending.circuit_scene if pending != null and pending.circuit_scene != null else FALLBACK_CIRCUIT_SCENE
-	var ghost_line_path: String = pending.ghost_line_path if pending != null else FALLBACK_GHOST_LINE_PATH
+	var have_pending: bool = pending != null and pending.circuit_scene != null
+	var circuit_scene: PackedScene = pending.circuit_scene if have_pending else FALLBACK_CIRCUIT_SCENE
+	var ghost_line_path: String = pending.ghost_line_path if have_pending else FALLBACK_GHOST_LINE_PATH
 
 	var circuit: Node3D = circuit_scene.instantiate() as Node3D
 	circuit.name = "Circuit"
@@ -62,4 +67,11 @@ func _physics_process(_delta: float) -> void:
 	_exiting = true
 	if _kart != null:
 		_kart.frozen = true
-	SceneFade.to_scene(get_tree(), WORLD_SCENE_PATH)
+
+	# A failed swap fades back into this same race, still running: undo the one-shot latch so
+	# exit_circuit is not left permanently dead and the kart is not left permanently frozen.
+	var err: Error = await SceneFade.to_scene(get_tree(), WORLD_SCENE_PATH)
+	if err != OK:
+		_exiting = false
+		if _kart != null:
+			_kart.frozen = false

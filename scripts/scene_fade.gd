@@ -14,10 +14,12 @@ const FADE_SECONDS: float = 0.3
 var _rect: ColorRect
 
 
-## Fades out, swaps to [param scene_path], then fades back in. Callers do not need to await this —
-## it is meant to run as a detached coroutine alongside whatever else the caller does after firing
-## the swap (typically nothing, since the calling node is about to be replaced).
-static func to_scene(tree: SceneTree, scene_path: String) -> void:
+## Fades out, swaps to [param scene_path], then fades back in, and returns whether the swap
+## succeeded. Callers do not need to await this to let the swap happen — it runs as a detached
+## coroutine regardless — but a caller that latched one-shot state before firing it (frozen the
+## kart, set a "the swap is in flight" flag) should await the result and undo that state on
+## failure, since a failed swap fades back into the scene that is still standing.
+static func to_scene(tree: SceneTree, scene_path: String) -> Error:
 	var fade: SceneFade = SceneFade.new()
 	fade.layer = 4096 # above every other CanvasLayer in either scene
 	tree.root.add_child(fade)
@@ -29,6 +31,7 @@ static func to_scene(tree: SceneTree, scene_path: String) -> void:
 	await tree.process_frame
 	await fade._fade(0.0)
 	fade.queue_free()
+	return err
 
 
 func _init() -> void:

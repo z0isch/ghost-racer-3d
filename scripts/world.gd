@@ -23,6 +23,7 @@ extends Node3D
 
 var _kart: Kart
 var _spawn_pose: Transform3D = Transform3D.IDENTITY
+var _entry_triggers: Array[Node] = []
 
 
 func _ready() -> void:
@@ -40,8 +41,16 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if _kart != null and Input.is_action_just_pressed("reset"):
-		_kart.reset_to(_spawn_pose)
+	if _kart == null or not Input.is_action_just_pressed("reset"):
+		return
+
+	_kart.reset_to(_spawn_pose)
+	# Every armed trigger is mid-way through its own swept-segment test; left alone, the segment
+	# from the kart's pre-teleport position to _spawn_pose could span half the world and spuriously
+	# cross a start line it never actually drove through — the same hazard LapDirector and
+	# BoostGhostField already guard their own teleports against.
+	for trigger: Node in _entry_triggers:
+		(trigger as CircuitEntryTrigger).invalidate()
 
 
 ## Scripts and exported properties must be set before a node enters the tree: [method Node._ready]
@@ -86,6 +95,7 @@ func _spawn_circuit(circuit_resource: Circuit) -> void:
 	trigger.set("circuit", circuit_resource)
 	trigger.set("rearm_seconds", entry_rearm_seconds)
 	add_child(trigger)
+	_entry_triggers.append(trigger)
 
 	_spawn_name_label(circuit_resource, start_line as Node3D)
 
