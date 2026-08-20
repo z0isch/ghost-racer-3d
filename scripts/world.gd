@@ -33,9 +33,3 @@ func _physics_process(_delta: float) -> void:
 		return
 
 	_kart.reset_to(_spawn_pose)
-	# Every armed trigger is mid-way through its own swept-segment test; left alone, the segment
-	# from the kart's pre-teleport position to _spawn_pose could span half the world and spuriously
-	# cross a start line it never actually drove through — the same hazard LapDirector and
-	# BoostGhostField already guard their own teleports against.
-	for trigger: Node in get_tree().get_nodes_in_group(CircuitEntryTrigger.GROUP_NAME):
-		(trigger as CircuitEntryTrigger).invalidate()

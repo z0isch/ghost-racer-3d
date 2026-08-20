@@ -3,11 +3,7 @@ extends RefCounted
 
 ## The swept-plane crossing test shared by every checkpoint prism in the game — CONTEXT.md,
 ## **Checkpoint prism**: bounded laterally and vertically, no thickness, crossed rather than
-## entered. [class LapDirector] tests a lap's checkpoints against it; [class CircuitEntryTrigger]
-## tests the same rule against a circuit's start line, since a circuit entry is a plane crossing of
-## exactly this shape. One implementation, so a correctness fix to the sweep — a tunnelling edge
-## case, a camber-frame correction — reaches both at once rather than only whichever copy someone
-## remembered to fix.
+## entered. [class LapDirector] tests a lap's checkpoints against it.
 
 
 ## True if the segment [param previous] -> [param position] crosses the plane through [param

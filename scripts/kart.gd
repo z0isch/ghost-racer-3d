@@ -75,6 +75,11 @@ var _model: KartModel
 var _input: KartInput = KartInput.new()
 var _state: KartState = KartState.new()
 var _current_surface: SurfaceType = SurfaceType.ROAD
+# The ground ray's own hit node, held through the same jump/no-hit gate as _current_surface. A
+# circuit's own road geometry is what CircuitEntryTrigger uses to infer "the kart is standing on
+# this circuit's track" without any authored track-area volume: the collider is a descendant of
+# the circuit's scene subtree if and only if it is that circuit's own road.
+var _current_ground_collider: Node = null
 # True from the jump press until the kart falls back through the ground surface. While true, the
 # vertical axis is plain gravity instead of the ground snap, which is what lets the sphere clear a
 # barrier instead of being pulled straight back down to the road under it.
@@ -203,6 +208,8 @@ func _classify_surface() -> void:
 	if layer < 0:
 		return
 
+	_current_ground_collider = collider as Node
+
 	if (layer & GRASS_LAYER_BIT) != 0:
 		_current_surface = SurfaceType.GRASS
 	elif (layer & KERB_LAYER_BIT) != 0:
@@ -306,6 +313,12 @@ var drift_side: float:
 
 var current_surface: SurfaceType:
 	get: return _current_surface
+
+## The node the ground ray is currently resting on, or the last one it rested on while airborne —
+## null only before the first ground contact. Read by [class CircuitEntryTrigger] to tell whether
+## the kart is standing on a given circuit's own road.
+var current_ground_collider: Node:
+	get: return _current_ground_collider
 
 ## How far the rear is out, in degrees. Tuning and debug.
 var rear_slip_degrees: float:

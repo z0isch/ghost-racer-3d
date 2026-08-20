@@ -1,6 +1,6 @@
 # Ghostracer
 
-A kart game of two circuits reached from an open world: drive up to a circuit's start/finish gate and cross it to race, driving repeated laps of that circuit, collecting coins, against a ghost of your highest-earning lap on it. What you chase is not the fastest lap but the best **earn rate** — dollars per second — so every coin sitting off the racing line is a real choice rather than free money. There is no race, no opponents and no end — the lap cycle repeats indefinitely, for as long as you stay on a circuit.
+A kart game of two circuits reached from an open world: drive onto a circuit's own track and press a button to race it, driving repeated laps of that circuit, collecting coins, against a ghost of your highest-earning lap on it. What you chase is not the fastest lap but the best **earn rate** — dollars per second — so every coin sitting off the racing line is a real choice rather than free money. There is no race, no opponents and no end — the lap cycle repeats indefinitely, for as long as you stay on a circuit.
 
 ## Language
 
@@ -39,8 +39,8 @@ The one scene that runs a lap, exactly as the game always has, pointed at whiche
 _Avoid_: Level, stage, arena.
 
 **Circuit entry**:
-Crossing a circuit's start line from the open world, in either direction, which fades out, records the kart's pose to return to, and loads the race scene pointed at that circuit. The crossing test is the same swept-prism rule a checkpoint is taken by (**Checkpoint prism**), carried by the same start line marker.
-_Avoid_: Portal, teleport (the geometry crossed is the circuit's own, not a marker standing in for it), loading zone.
+Pressing the enter action while standing on a circuit's own track in the open world, which fades out, records the kart's pose to return to, and loads the race scene pointed at that circuit. Eligibility — whether the kart is on *this* circuit's track right now — is inferred from what the kart's ground ray is resting on, not from any authored trigger volume: that node belongs to the circuit's own scene subtree if and only if the kart is driving its road. A HUD prompt is shown at the bottom of the screen exactly while eligible.
+_Avoid_: Portal, teleport, loading zone, gate (the start/finish gate no longer has anything to do with triggering entry — see **Start/finish**).
 
 ### The track
 
@@ -71,7 +71,7 @@ _Avoid_: Current checkpoint (ambiguous with the last one taken), next gate.
 
 **Start line**:
 The pose on the circuit the kart is returned to at the beginning of every lap. It is a property of the circuit, not of the kart. It sits a short way *past* the start/finish gate in the direction of travel, so a lap opens already clear of the gate that will end it, and the last stretch of a lap is the run from that gate up to the line. Which side of the line the gate sits on is a free choice rather than a constraint: the start/finish is the last checkpoint in the sequence and inert until all the others have been taken, so a gate ahead of the line is crossed harmlessly on the way out. This is the arrangement the circuit is authored with, not a rule the lap system enforces.
-A second role, distinct from the first but carried by the same marker: it is also the circuit's **circuit entry**, crossed from the open world in either direction to start a race there. The two roles share a marker rather than a coincidence of geometry — the pose a lap restarts you to and the pose a race scene opens you into are the same pose, on the same line.
+Entry no longer has anything to do with this marker's position — see **Circuit entry** — but the marker still stands for the circuit as a whole in the open world: it is what an entry trigger is wired to in order to find the circuit's scene root.
 _Avoid_: Spawn, start position, grid (there is no grid).
 
 **Start/finish gate**:
