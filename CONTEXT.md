@@ -31,7 +31,7 @@ _Avoid_: Restart, cancel, retry.
 ### The open world
 
 **Open world**:
-The scene holding both circuits as real geometry, standing apart on open ground, that the kart drives freely between. Nothing lap-shaped runs here: no lap director, no checkpoints, no coin field, no ghosts of any kind. Gates stand dimmed, since with no pending checkpoint a lit gate would claim to be the pending one and there is no such thing out here. Coins stand where authored and are uncollectible — not a bug worth fixing, but the visible proof that a circuit pays before you have raced it. `reset` here returns the kart to a world spawn; there is no lap to abort.
+The scene holding both circuits as real geometry, standing apart on open ground, that the kart drives freely between. Nothing lap-shaped runs here: no lap director, no checkpoints, no coin field, no ghosts of any kind. Gates stand dimmed, since with no pending checkpoint a lit gate would claim to be the pending one and there is no such thing out here. A circuit's bought coins stand translucent and uncollectible — a window onto what has been paid for rather than money on the ground — and its unbought coins are not shown at all, exactly as they are not shown on the circuit itself. A circuit with a bare loadout therefore stands empty out here, and that a circuit pays anything at all before it is invested in is the checkpoints' doing rather than the coins'. `reset` here returns the kart to a world spawn; there is no lap to abort.
 _Avoid_: Hub, lobby, menu (there is no menu — the world is driven, not navigated).
 
 **Race scene**:
@@ -45,8 +45,14 @@ _Avoid_: Portal, teleport, loading zone, gate (the start/finish gate no longer h
 ### The track
 
 **Circuit**:
-The definition of one thing you can race: its geometry, where its ghost line persists, what it is called, and where the open world stands it. A single resource type, one instance per circuit, read by both the open world and the race scene so the two cannot disagree about what a circuit is. Its world placement is a property the open world alone applies — the race scene always instances a circuit's geometry at identity, so a ghost line recorded in the circuit's own coordinates stays valid regardless of where the world stands it.
+The definition of one thing you can race: its geometry, where its ghost line persists, where its loadout persists, what it is called, and where the open world stands it. A single resource type, one instance per circuit, read by both the open world and the race scene so the two cannot disagree about what a circuit is. Its world placement is a property the open world alone applies — the race scene always instances a circuit's geometry at identity, so a ghost line recorded in the circuit's own coordinates stays valid regardless of where the world stands it.
 _Avoid_: Track, level, map.
+
+**Circuit loadout**:
+What the player has bought for one circuit: how many coins are live on it, how many boost ghosts, how many hazard ghosts. Three raw counts rather than levels — a level is a second representation of a count, and a second representation is a thing that can disagree with the first — and every one of them starts at 0, so a circuit is bare until it is invested in.
+Deliberately not part of the **Circuit**. A circuit's definition is authored content, identical on every machine and versioned with the game; a loadout is one player's purchases, and belongs beside their ghost lines rather than in the repo. It persists exactly as a ghost line does — one per circuit, found by a path the circuit itself carries — so a new circuit is still one authored resource, with no central registry to also remember to edit.
+Bought into and never refunded, and buying clears nothing: the circuit's record earn rate and its ghost line both stand across a purchase. See **Record earn rate** for what that costs and why it is paid.
+_Avoid_: Circuit state ("state" is a word this glossary keeps out — see **Lap phase**), upgrades (names the transaction, not the thing), config, settings, progression.
 
 **Checkpoint**:
 One position in the lap's ordered sequence. Checkpoints must be taken in order for the lap to complete; taking one out of sequence does nothing.
@@ -130,11 +136,14 @@ A single pickup standing above the road, taken by driving through it. Worth a fi
 _Avoid_: Pickup, item, token, ring, collectible.
 
 **Coin field**:
-Every coin on the circuit, considered as one thing. A purely spatial concern — where the coins are and which are currently taken — and the whole of it is restored at the start of every countdown, so each lap is offered an identical maximum. This is what makes two laps' earn rates comparable at all.
+Every *live* coin on the circuit, considered as one thing. A purely spatial concern — where the coins are and which are currently taken — and the whole of it is restored at the start of every countdown, so each lap is offered an identical maximum. This is what makes two laps' earn rates comparable at all.
+Which coins are live is the **circuit loadout**'s to say: the circuit authors a full field, the loadout buys the first *k* of it, and the rest are not merely hidden but absent from the swept test entirely — an unbought coin cannot be taken by driving through where it would have stood. Authored order is therefore a purchase order, and hand-reordering a circuit's coins is how it decides which of them are worth buying first.
+The subset is fixed for as long as the loadout is, and pointedly *not* re-rolled at every countdown the way the boost ghosts are. Re-rolling is safe for a field that moves only the denominator of the earn rate; the coins are its numerator, and two laps drawn different coins would not be two laps of the same circuit.
 _Avoid_: Coin manager, spawner, pickups.
 
 **Purse**:
-The lifetime running total of money taken this session. It only ever goes up: it survives lap completion, it survives an abort, and nothing in the game subtracts from it. It is a reward, not a score — it is deliberately *not* what the pace ghost is promoted on, and nothing is ever won or lost by having more of it.
+The money the player is holding. It rises when a coin is taken — and, once checkpoints pay, when a checkpoint is taken — and it falls when something is bought for a circuit. It survives lap completion, it survives an abort, and it survives the swap between the open world and a race scene: it is the one total in the game belonging to the player rather than to a lap or to a circuit.
+Money, not a score. The pace ghost is promoted on the earn rate and never on this, and nothing is won by hoarding it — what it is *for* is the circuit loadouts it buys. It was a monotone lifetime total for exactly as long as nothing consumed it; the shop is that consumer.
 _Avoid_: Bank, wallet, score, cash, balance, money (unqualified).
 
 **Lap earnings**:
@@ -147,6 +156,7 @@ _Avoid_: Pace (that word is spoken for by the pace ghost), score, rate unqualifi
 
 **Record earn rate**:
 The highest earn rate any completed lap has achieved this session, and the bar a lap must strictly beat to promote its recording to the pace ghost. The record and the ghost are one concept with two faces — by construction the ghost always *is* the lap that set the record, so there is never a moment where the number on screen and the car beside you disagree. An aborted lap can never set one.
+A purchase does not clear it. Buying coins raises the rate a lap can reach, so the record falls to a lap driven no better than the one that set it — and that is the point rather than a leak: the number going up is what the money bought. The cost is that the record stops measuring driving alone and comes to measure driving and investment together. Within a loadout it is exact; across a purchase it is a history rather than a ranking.
 _Avoid_: Best lap, high score, personal best.
 
 ### Timing and the ghost
@@ -155,7 +165,7 @@ _Avoid_: Best lap, high score, personal best.
 The time elapsed in the current lap, started at countdown-zero and stopped when the final checkpoint is taken. The thing you feel while driving, and on screen — but not a record in its own right. A lap is not good because it was quick; it is good because it earned well for its length.
 
 **Ghost line**:
-The recorded position-and-heading line of the record lap, owned by the lap director. The pace ghost, the boost ghosts and the hazard ghosts all stand on it — the pace ghost moving along it at your own pace, the boost ghosts parked a step to one side of it, the hazard ghosts driving along it backward. Session-scoped: promoted only on a strictly higher earn rate, thrown away on abort.
+The recorded position-and-heading line of the record lap, owned by the lap director. The pace ghost, the boost ghosts and the hazard ghosts all stand on it — the pace ghost moving along it at your own pace, the boost ghosts parked a step to one side of it, the hazard ghosts driving along it backward. Promoted only on a strictly higher earn rate, and thrown away on abort. Not session-scoped: a promoted line is written to disk and reloaded next launch. Per *installation* rather than per session — it is a recording of this player's driving, not repo content, and a circuit never driven on this machine simply has no line, which plays exactly as lap 1 always does.
 _Avoid_: Racing line (that is the abstract ideal, not a recording), replay, path.
 
 **Pace ghost**:
@@ -176,8 +186,14 @@ The owner of the coins themselves — their placement, their taken flags, and th
 _Avoid_: Coin manager, pickup system, spawner.
 
 **Purse holder**:
-The owner of the purse, and deliberately not the lap director: the purse outlives every lap and every abort, so housing it with lap state would put a session-scoped total behind a per-lap reset. Now that a lap can also be abandoned by leaving the circuit entirely — a race scene torn down and swapped for the open world — the purse outliving *that* too is the same requirement stated harder, and it is exactly what makes the purse holder an autoload: a scene-owned node dies with the scene, and an autoload is the one thing in Godot that survives the swap. It listens for pickups and adds them up, and that is the whole of it. (The name is provisional — as the game grows this role is the obvious place for anything else the player accumulates across laps, and it should be renamed when that happens rather than accreting.)
+The owner of the purse, and deliberately not the lap director: the purse outlives every lap and every abort, so housing it with lap state would put a session-scoped total behind a per-lap reset. Now that a lap can also be abandoned by leaving the circuit entirely — a race scene torn down and swapped for the open world — the purse outliving *that* too is the same requirement stated harder, and it is exactly what makes the purse holder an autoload: a scene-owned node dies with the scene, and an autoload is the one thing in Godot that survives the swap. It listens for pickups and adds them up, and now also takes money back out when something is bought, and that is the whole of it.
+What it deliberately does *not* own is the circuit loadouts that money is spent on. The obvious move when the second player-owned thing appeared was to let this role grow into a general holder of everything the player accumulates; the answer was a sibling autoload instead. The purse is one integer with no persistence and no key, where the loadouts are a keyed, persisted collection — merging them buys nothing and hands the purse a save format it does not need.
 _Avoid_: Economy, inventory, game state, save data.
+
+**Loadout holder**:
+The owner of every circuit's loadout, and the only thing that reads or writes them to disk. An autoload for the same reason the purse is one — the state outlives both the scene swap and the process — and separate from the purse for the reason given just above. Separate from CircuitSession too, which is scoped to a single entry-and-exit round trip and cleared by it, where a loadout is meant to outlive everything.
+Nothing inside a race scene talks to it. The race scene reads the loadout once, in the same breath as the circuit's ghost line, and pushes the three counts into the coin field and the two ghost fields — so those fields go on taking their counts from whoever owns them, rather than each one growing its own dependency on an autoload.
+_Avoid_: Shop, inventory, save manager, upgrade manager.
 
 **Purse readout**:
 The purse on screen: top-centre, green, in its own layer rather than a row in the racing block top-right, because the purse is the reward and not a racing stat. It flashes brighter for a moment on every pickup, and that flash is what ties driving through a coin to the number going up — the single most important piece of feedback in the money system. Written with thousands separated (`$1,234`), so a four-figure purse still reads at a glance out of the corner of the eye. It has no reset of any kind, matching the purse it reads.
@@ -190,7 +206,7 @@ _Avoid_: Toast, floater, damage number, notification, particle.
 ### Boost
 
 **Boost ghost**:
-A translucent, stationary ghost of the car standing a short step off the ghost line facing the direction of travel, **taken** by driving through it — the same verb as a coin and the same swept test, and taken once is taken for the rest of the lap. Placed automatically along the ghost line — not authored into the circuit. Because the line is the record lap's own, improving your line moves the boost with you: the boost is only there if you repeat what earned it. Every ghost on a circuit is worth exactly the same, so the count is a known quantity you route around; what varies is where they sit, not what each is worth. The count is a single number for the whole circuit, expected to be driven by a later system.
+A translucent, stationary ghost of the car standing a short step off the ghost line facing the direction of travel, **taken** by driving through it — the same verb as a coin and the same swept test, and taken once is taken for the rest of the lap. Placed automatically along the ghost line — not authored into the circuit. Because the line is the record lap's own, improving your line moves the boost with you: the boost is only there if you repeat what earned it. Every ghost on a circuit is worth exactly the same, so the count is a known quantity you route around; what varies is where they sit, not what each is worth. The count is a single number for the whole circuit, and the **circuit loadout** is what says what it is. It starts at 0: boost ghosts are bought, not given.
 A boost ghost is a coin that pays in a **boost charge** instead of money. That is the whole of the difference and it is worth stating positively: both are taken by the path rather than touched, both are consumed for the lap, both are restored whole at every countdown. Anything true of the coin field's lifecycle is true here.
 Where the coins differ: the boost ghosts are **re-rolled** at every countdown rather than restored to where they stood, so two laps of a circuit are not the same track. Each ghost is drawn inside its own slot of the lap and pushed to one side of the line or the other, which is what keeps a ghost a decision — drive the line exactly and it will not be handed to you — and what keeps the field from settling into the same shape for the fifty laps a stale ghost line can stand.
 No boost ghosts on lap 1, for the same reason there is no pace ghost: there is no line yet.
@@ -217,7 +233,7 @@ Boost ghosts have no effect on money and no effect on the coin field. They chang
 ### Hazard
 
 **Hazard ghost**:
-A translucent, red-tinted ghost of the car driving the ghost line **backward** — oncoming traffic on your own best line — **hit** on contact, the same swept test a coin or a boost ghost is taken by, and hit once is hit for the rest of the lap. Placed automatically along the ghost line at countdown, one per equal slot of it, exactly as boost ghosts are — the difference is that a hazard ghost stands *on* the line rather than a step to one side, since there is nowhere else for oncoming traffic to be, and it drives rather than stands still. Every hazard on a circuit costs the same, so the count is a known quantity, tunable live by a dev input exactly as the boost ghost count is.
+A translucent, red-tinted ghost of the car driving the ghost line **backward** — oncoming traffic on your own best line — **hit** on contact, the same swept test a coin or a boost ghost is taken by, and hit once is hit for the rest of the lap. Placed automatically along the ghost line at countdown, one per equal slot of it, exactly as boost ghosts are — the difference is that a hazard ghost stands *on* the line rather than a step to one side, since there is nowhere else for oncoming traffic to be, and it drives rather than stands still. Every hazard on a circuit costs the same, so the count is a known quantity. It comes from the **circuit loadout** exactly as the boost ghost count does, and starts at 0 for the same reason.
 _Avoid_: Traffic, obstacle car, enemy, oncoming car.
 
 **Hazard hit**:

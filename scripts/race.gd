@@ -26,34 +26,59 @@ extends Node3D
 ## the unpromoted recording with it. [autoload CircuitSession]'s return pose was set once, at
 ## entry, and is left untouched — it is the pose this race is exited back to.
 
-const FALLBACK_CIRCUIT_SCENE: PackedScene = preload("res://scenes/circuit3.tscn")
-const FALLBACK_GHOST_LINE_PATH: String = "res://ghost_lines/circuit3.tres"
+## The whole fallback Circuit, not just its scene: geometry, ghost line and loadout fall back as
+## one atomic unit. A Circuit with circuit4's geometry but circuit3's ghost line (or loadout) is
+## exactly the "circuit4's geometry running circuit3's recorded line" bug issue 08 found in the
+## code this replaced — resolving the three fallback fields independently below could reintroduce
+## it.
+const FALLBACK_CIRCUIT: Circuit = preload("res://circuits/circuit3.tres")
 const WORLD_SCENE_PATH: String = "res://main.tscn"
 
 @export var kart_path: NodePath = NodePath("Kart")
 @export var lap_director_path: NodePath = NodePath("LapDirector")
+@export var coin_field_path: NodePath = NodePath("CoinField")
+@export var boost_ghost_field_path: NodePath = NodePath("BoostGhostField")
+@export var hazard_ghost_field_path: NodePath = NodePath("HazardGhostField")
 
 var _kart: Kart
 var _exiting: bool = false
 
 
 func _enter_tree() -> void:
-	# Falls back to circuit3 as one atomic unit, geometry and ghost line together: a Circuit with
-	# geometry but no matching line, or vice versa, is exactly the "circuit4's geometry running
-	# circuit3's recorded line" bug issue 08 found in the code this replaced, and treating the two
-	# fallback fields independently below would have been able to reintroduce it.
 	var pending: Circuit = CircuitSession.pending_circuit
 	var have_pending: bool = pending != null and pending.circuit_scene != null
-	var circuit_scene: PackedScene = pending.circuit_scene if have_pending else FALLBACK_CIRCUIT_SCENE
-	var ghost_line_path: String = pending.ghost_line_path if have_pending else FALLBACK_GHOST_LINE_PATH
+	var circuit: Circuit = pending if have_pending else FALLBACK_CIRCUIT
 
-	var circuit: Node3D = circuit_scene.instantiate() as Node3D
-	circuit.name = "Circuit"
-	add_child(circuit)
+	var circuit_node: Node3D = circuit.circuit_scene.instantiate() as Node3D
+	circuit_node.name = "Circuit"
+	add_child(circuit_node)
 
 	var lap_director: LapDirector = get_node_or_null(lap_director_path) as LapDirector
 	if lap_director != null:
-		lap_director.ghost_line_path = ghost_line_path
+		lap_director.ghost_line_path = circuit.ghost_line_path
+
+	# Resolved once, in the same breath as the ghost line, and pushed into the coin field and the
+	# two ghost fields — so those fields go on taking their counts from whoever owns them rather
+	# than each growing its own dependency on [autoload LoadoutHolder] (CONTEXT.md's **Loadout
+	# holder**).
+	var loadout: CircuitLoadout = LoadoutHolder.for_circuit(circuit)
+	var save_loadout: Callable = LoadoutHolder.save.bind(circuit)
+
+	var coin_field: CoinField = get_node_or_null(coin_field_path) as CoinField
+	if coin_field != null:
+		coin_field.live_coin_count = loadout.coin_count
+
+	var boost_field: BoostGhostField = get_node_or_null(boost_ghost_field_path) as BoostGhostField
+	if boost_field != null:
+		boost_field.loadout = loadout
+		boost_field.save_loadout = save_loadout
+		boost_field.ghost_count = loadout.boost_ghost_count
+
+	var hazard_field: HazardGhostField = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
+	if hazard_field != null:
+		hazard_field.loadout = loadout
+		hazard_field.save_loadout = save_loadout
+		hazard_field.ghost_count = loadout.hazard_ghost_count
 
 
 func _ready() -> void:

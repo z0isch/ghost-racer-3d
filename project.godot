@@ -18,6 +18,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 
 Purse="*res://scripts/purse.gd"
 CircuitSession="*res://scripts/circuit_session.gd"
+LoadoutHolder="*res://scripts/loadout_holder.gd"
 
 [debug]
 

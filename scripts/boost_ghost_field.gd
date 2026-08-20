@@ -73,6 +73,18 @@ const RoadSegment = preload("res://addons/road-generator/nodes/road_segment.gd")
 		ghost_count = maxi(value, 0)
 		_place_ghosts()
 
+## The circuit's own loadout, so the dev keys ([method _physics_process]) can raise or lower its
+## boost_ghost_count directly rather than only this field's own copy of it. Set by race.gd
+## alongside [member ghost_count] itself. Left null, the dev keys fall back to editing
+## [member ghost_count] alone — the field's old behaviour, for a scene with no loadout wired up.
+var loadout: CircuitLoadout = null
+## Persists [member loadout] after a dev-key change. A Callable rather than a reference to
+## [autoload LoadoutHolder] itself, so the field can save without growing a dependency on the
+## autoload — the field owns the input that changes its own count (see [member ghost_count]'s dev
+## keys), and that includes what happens after the count changes. Set by race.gd, bound to the
+## resolved Circuit.
+var save_loadout: Callable = Callable()
+
 ## Metres of centreline left clear at the start, so a ghost is never handed before the driver has
 ## picked up speed off the line.
 @export var start_margin: float = 10.0
@@ -185,9 +197,26 @@ func _physics_process(_delta: float) -> void:
 		_sweep_ghosts.call_deferred()
 
 	if Input.is_action_just_pressed("dev_boost_more"):
-		ghost_count += 1
+		_adjust_ghost_count(1)
 	if Input.is_action_just_pressed("dev_boost_fewer"):
-		ghost_count -= 1
+		_adjust_ghost_count(-1)
+
+
+## Raises or lowers [member ghost_count] by [param delta]. With a loadout wired up ([member
+## loadout]), the loadout's own boost_ghost_count is the thing raised — [member ghost_count] is
+## then set to match, so the re-place still happens exactly as it did before there was a loadout —
+## and the change is saved via [member save_loadout] so it survives the scene swap. Without a
+## loadout, [member ghost_count] alone is edited, matching the field's behaviour before this
+## existed.
+func _adjust_ghost_count(delta: int) -> void:
+	if loadout == null:
+		ghost_count += delta
+		return
+
+	loadout.boost_ghost_count += delta
+	ghost_count = loadout.boost_ghost_count
+	if save_loadout.is_valid():
+		save_loadout.call()
 
 
 ## The pulse runs at display rate: it is not load-bearing and is never read back by the take test.

@@ -24,6 +24,13 @@ signal coin_taken(value: int, position: Vector3)
 ## The generated Coins node: one inert Marker3D per coin, in arclength order.
 @export var coins_path: NodePath
 
+## How many of the circuit's authored coins are live, per the circuit's [CircuitLoadout] — the
+## first `k` in authored node order, which is therefore a purchase order rather than an
+## arbitrary one. Set by race.gd before [method _ready] runs (CONTEXT.md's **Coin field**).
+## Defaults to 0 rather than a large number: an unwired coin field showing every coin would hide
+## exactly the bug this feature exists to prevent.
+@export var live_coin_count: int = 0
+
 ## Generously larger than the 0.6 m disc. The pickup is a horizontal test on banked and cresting
 ## road, where a coin's apparent position and its marker origin differ by up to a third of a metre;
 ## a radius smaller than the coin looks reads as theft.
@@ -102,16 +109,31 @@ static func segment_takes_coin(
 ## Resolved once, as LapDirector._resolve_checkpoints does, so the physics step performs no node
 ## lookups. A scene without a generated Coins node has no coins, which keeps this script runnable
 ## outside main.tscn.
+##
+## Only the first [member live_coin_count] markers, in authored node order, become coins — the
+## rest are hidden here and never appended to [member _coins] at all, so an unbought coin cannot be
+## swept by [method _sweep_coins], resurrected by [method _on_countdown_started], or handed to a
+## boost ghost by [method coin_origins]. [member live_coin_count] is clamped to the number of
+## markers actually authored: buying past a circuit's total is impossible by construction rather
+## than by silent overflow.
 func _resolve_coins() -> void:
 	var root: Node3D = get_node_or_null(coins_path) as Node3D
 	if root == null:
 		push_warning("CoinField: no Coins node — nothing can be collected.")
 		return
 
-	var found: Array[Coin] = []
+	var markers: Array[Node3D] = []
 	for child: Node in root.get_children():
 		var marker: Node3D = child as Node3D
-		if marker == null:
+		if marker != null:
+			markers.append(marker)
+
+	var live_count: int = clampi(live_coin_count, 0, markers.size())
+	var found: Array[Coin] = []
+	for i in markers.size():
+		var marker: Node3D = markers[i]
+		if i >= live_count:
+			marker.visible = false
 			continue
 		var coin := Coin.new()
 		coin.node = marker

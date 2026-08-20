@@ -39,6 +39,15 @@ const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 		ghost_count = maxi(value, 0)
 		_place_ghosts()
 
+## The circuit's own loadout, for BoostGhostField.loadout's identical reason: the dev keys ([method
+## _physics_process]) raise or lower its hazard_ghost_count directly. Set by race.gd alongside
+## [member ghost_count] itself. Left null, the dev keys fall back to editing [member ghost_count]
+## alone.
+var loadout: CircuitLoadout = null
+## Persists [member loadout] after a dev-key change, for BoostGhostField.save_loadout's identical
+## reason. Set by race.gd, bound to the resolved Circuit.
+var save_loadout: Callable = Callable()
+
 ## Metres of ghost line left clear at the start and end, for BoostGhostField's reason: a hazard is
 ## never handed before the driver has picked up speed off the line, nor right before the final
 ## gate.
@@ -141,9 +150,24 @@ func _physics_process(delta: float) -> void:
 			_sweep_ghosts.call_deferred()
 
 	if Input.is_action_just_pressed("dev_hazard_more"):
-		ghost_count += 1
+		_adjust_ghost_count(1)
 	if Input.is_action_just_pressed("dev_hazard_fewer"):
-		ghost_count -= 1
+		_adjust_ghost_count(-1)
+
+
+## Raises or lowers [member ghost_count] by [param delta], for BoostGhostField._adjust_ghost_count's
+## identical reason and identical shape — the loadout's hazard_ghost_count is the thing raised when
+## a loadout is wired up, saved via [member save_loadout], with [member ghost_count] alone edited
+## otherwise.
+func _adjust_ghost_count(delta: int) -> void:
+	if loadout == null:
+		ghost_count += delta
+		return
+
+	loadout.hazard_ghost_count += delta
+	ghost_count = loadout.hazard_ghost_count
+	if save_loadout.is_valid():
+		save_loadout.call()
 
 
 ## The pulse runs at display rate, for BoostGhostField's identical reason.

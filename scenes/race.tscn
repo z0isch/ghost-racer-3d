@@ -138,7 +138,6 @@ road_container_path = NodePath("../Circuit/RoadManager/RoadContainer")
 start_line_path = NodePath("../Circuit/StartLine")
 ghosts_path = NodePath("../Circuit/BoostGhosts")
 coin_field_path = NodePath("../CoinField")
-ghost_count = 3
 placement_jitter = 0.504
 coin_snap_radius = 0.0
 pickup_radius_fraction = 2.0
