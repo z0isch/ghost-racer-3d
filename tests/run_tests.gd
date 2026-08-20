@@ -18,6 +18,8 @@ func _initialize() -> void:
 		BoostGhostPlacementTest.new(),
 		HazardGhostPlacementTest.new(),
 		GhostLineTest.new(),
+		CoinOriginsTest.new(),
+		IncomeGhostSweepTest.new(),
 	]
 
 	var failures: PackedStringArray = PackedStringArray()

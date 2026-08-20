@@ -1,7 +1,9 @@
 extends Node3D
 
 ## The open world: drivable ground with every circuit standing on it, each an entrance rather than
-## a place you race. Holds nothing lap-shaped — no lap director, no checkpoints, no ghosts.
+## a place you race. Holds nothing lap-shaped — no lap director, no checkpoints. The one thing that
+## does move out here is the income ghosts, run by [autoload IncomeRunner] and drawn by each
+## circuit's own [IncomeGhostView] (CONTEXT.md's **Open world**).
 ##
 ## Circuits are authored directly into main.tscn — a circuit scene instance carrying an
 ## [InertCircuit] script to dim its gates, plus a sibling [CircuitEntryTrigger] node wired to its
@@ -29,7 +31,34 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if _kart == null or not Input.is_action_just_pressed("reset"):
+	if _kart != null and Input.is_action_just_pressed("reset"):
+		_kart.reset_to(_spawn_pose)
+
+	if Input.is_action_just_pressed("dev_income_more"):
+		_adjust_income_ghost_count(1)
+	if Input.is_action_just_pressed("dev_income_fewer"):
+		_adjust_income_ghost_count(-1)
+
+
+## Income ghosts have no presence in a race scene, so unlike the other dev keys ([member
+## BoostGhostField.ghost_count]'s dev inputs, [member HazardGhostField.ghost_count]'s) this one lives
+## here in the open world rather than on a race-scene field. Targets whichever circuit the kart is
+## currently standing on — [member CircuitEntryTrigger.eligible]'s own ground-collider test, reused
+## rather than re-derived — and does nothing on no circuit.
+func _adjust_income_ghost_count(delta: int) -> void:
+	var circuit: Circuit = _standing_on_circuit()
+	if circuit == null:
 		return
 
-	_kart.reset_to(_spawn_pose)
+	var loadout: CircuitLoadout = LoadoutHolder.for_circuit(circuit)
+	loadout.income_ghost_count += delta
+	LoadoutHolder.save(circuit)
+	IncomeRunner.reseat(circuit)
+
+
+func _standing_on_circuit() -> Circuit:
+	for trigger: Node in get_tree().get_nodes_in_group(CircuitEntryTrigger.GROUP_NAME):
+		var entry: CircuitEntryTrigger = trigger as CircuitEntryTrigger
+		if entry != null and entry.eligible:
+			return entry.circuit
+	return null

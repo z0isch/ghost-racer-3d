@@ -182,9 +182,10 @@ func _ready() -> void:
 	# lap; both keep this script runnable outside main.tscn.
 	var coin_field: CoinField = get_node_or_null(coin_field_path) as CoinField
 	if coin_field != null:
-		# unbind(1) drops coin_taken's position argument. Godot does not drop surplus arguments by
-		# itself: connected bare, every pickup would fail at emit time and no lap would earn.
-		coin_field.coin_taken.connect(_on_coin_taken.unbind(1))
+		# unbind(2) drops coin_taken's position and direction arguments. Godot does not drop surplus
+		# arguments by itself: connected bare, every pickup would fail at emit time and no lap would
+		# earn.
+		coin_field.coin_taken.connect(_on_coin_taken.unbind(2))
 	else:
 		push_warning("LapDirector: no CoinField — every lap earns nothing.")
 

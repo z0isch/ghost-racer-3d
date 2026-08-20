@@ -42,12 +42,14 @@ const WORLD_SCENE_PATH: String = "res://main.tscn"
 
 var _kart: Kart
 var _exiting: bool = false
+var _circuit: Circuit
 
 
 func _enter_tree() -> void:
 	var pending: Circuit = CircuitSession.pending_circuit
 	var have_pending: bool = pending != null and pending.circuit_scene != null
 	var circuit: Circuit = pending if have_pending else FALLBACK_CIRCUIT
+	_circuit = circuit
 
 	var circuit_node: Node3D = circuit.circuit_scene.instantiate() as Node3D
 	circuit_node.name = "Circuit"
@@ -56,6 +58,12 @@ func _enter_tree() -> void:
 	var lap_director: LapDirector = get_node_or_null(lap_director_path) as LapDirector
 	if lap_director != null:
 		lap_director.ghost_line_path = circuit.ghost_line_path
+		# The reverse edge of the wiring this scene already does: it hands the circuit's ghost line
+		# to the director, so it is also the natural place to forward a promoted one back out to
+		# [autoload IncomeRunner], which sits inside no scene and has no connection of its own to the
+		# director. LapDirector must not learn about the runner — it owns lap state and knows nothing
+		# about autoloads.
+		lap_director.lap_completed.connect(_on_lap_completed)
 
 	# Resolved once, in the same breath as the ghost line, and pushed into the coin field and the
 	# two ghost fields — so those fields go on taking their counts from whoever owns them rather
@@ -100,3 +108,12 @@ func _physics_process(_delta: float) -> void:
 		_exiting = false
 		if _kart != null:
 			_kart.frozen = false
+
+
+## A completed lap that set no record changed nothing this circuit's income ghosts run on; only a
+## promotion needs forwarding. The re-seat is invisible when it happens — income ghosts are hidden
+## inside a race — so there is no visual cost to snapping it immediately rather than waiting for the
+## player to leave.
+func _on_lap_completed(_lap_time: float, is_record: bool) -> void:
+	if is_record:
+		IncomeRunner.reseat(_circuit)

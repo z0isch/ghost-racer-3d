@@ -11,13 +11,16 @@ extends Node
 
 ## One pickup, the instant it is taken. The value is the coin's own, read from the marker's
 ## metadata rather than assumed to be 1. The position is the coin marker's origin: this node is the
-## only one that knows where a coin was, and the pickup popup spawns from it.
+## only one that knows where a coin was, and the pickup popup spawns from it. The direction is the
+## swept segment's own travel direction — "which way is ahead" arrives with the pickup rather than
+## being looked up afterwards from a kart, which is what lets the same signal serve a pickup with no
+## kart involved at all (an income ghost's, in the open world).
 ##
-## A listener that does not want the position must connect with [code].unbind(1)[/code]. Godot does
-## not drop surplus signal arguments: a one-argument handler connected bare fails at emit time with
-## "Method expected 1 argument(s), but called with 2", and since nothing checks a signal's emit
+## A listener that wants only the value must connect with [code].unbind(2)[/code]. Godot does not
+## drop surplus signal arguments: a one-argument handler connected bare fails at emit time with
+## "Method expected 1 argument(s), but called with 3", and since nothing checks a signal's emit
 ## result the symptom is a purse that silently stops earning.
-signal coin_taken(value: int, position: Vector3)
+signal coin_taken(value: int, position: Vector3, direction: Vector3)
 
 @export var kart_path: NodePath
 @export var director_path: NodePath
@@ -41,6 +44,11 @@ signal coin_taken(value: int, position: Vector3)
 ## collectable, but that same leniency lets a coin be taken from a stretch of road that merely
 ## passes underneath or beside it at a different height. This caps how far that leniency reaches.
 @export var max_vertical_gap: float = 5.0
+
+## Below this planar speed the swept segment's own direction is noise (a near-stationary kart, e.g.
+## parked on a coin during the countdown) and the kart's heading is used instead — the same fallback
+## [class PickupPopups] used to compute for itself before this moved here.
+const MIN_MEANINGFUL_SPEED: float = 1.0
 
 var _kart: Kart
 var _director: LapDirector
@@ -162,6 +170,7 @@ func _sweep_coins() -> void:
 
 	var previous: Vector3 = _last_kart_position
 	_last_kart_position = position
+	var direction: Vector3 = _sweep_direction(previous, position)
 
 	for coin: Coin in _coins:
 		if coin.taken:
@@ -172,7 +181,22 @@ func _sweep_coins() -> void:
 			continue
 		coin.taken = true
 		coin.node.visible = false
-		coin_taken.emit(coin.value, coin.origin)
+		coin_taken.emit(coin.value, coin.origin, direction)
+
+
+## Which way "ahead" is for a pickup swept between [param previous] and [param position]: the
+## segment's own travel direction, flattened to the horizontal so a popup on the crest or the banked
+## sweeper rises out of the road rather than along the climb. Falls back to the kart's own heading
+## below [constant MIN_MEANINGFUL_SPEED], for the near-stationary case the segment's direction
+## cannot answer.
+func _sweep_direction(previous: Vector3, position: Vector3) -> Vector3:
+	var travel := Vector3(position.x - previous.x, 0.0, position.z - previous.z)
+	var min_segment_length: float = MIN_MEANINGFUL_SPEED / Engine.physics_ticks_per_second
+	if travel.length() >= min_segment_length:
+		return travel.normalized()
+
+	var heading: Vector3 = -_kart.global_transform.basis.z
+	return Vector3(heading.x, 0.0, heading.z).normalized()
 
 
 ## Restores the field whole at every countdown — scene load, lap completion and abort alike — so

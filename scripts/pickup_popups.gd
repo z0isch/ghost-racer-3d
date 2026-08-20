@@ -13,18 +13,20 @@ extends Node3D
 ##
 ## Each popup is a Label3D spawned as a child of this node and freed by its own tween. No pool and
 ## no cap: at 0.8 s a live one is a rare handful of nodes.
+##
+## No reference to Kart of any kind: which way "ahead" is arrives with the pickup report itself
+## ([signal CoinField.coin_taken]'s direction argument), because out in the open world a pickup can
+## come from an income ghost with no kart involved at all. That is what lets this one node serve
+## both a race's pickups and the open world's.
 
 ## The coin field whose pickups become popups. The position on `coin_taken` is the coin marker's
 ## own — the popup traces where the coins were, not where the kart happened to be.
 @export var coin_field_path: NodePath
 
-## Read for its velocity at the instant of pickup, and only then. The popup is world-static once
-## spawned and never follows the kart afterwards.
-@export var kart_path: NodePath
-
-## How far in front of the coin the text appears, along the kart's travel: far enough that you drive
-## through it, close enough that it still belongs to the coin you took. At racing speed a metre is
-## most of a chassis length ahead, and much more reads as belonging to the next coin.
+## How far in front of the coin the text appears, along the pickup's own travel direction: far
+## enough that you drive through it, close enough that it still belongs to the coin you took. At
+## racing speed a metre is most of a chassis length ahead, and much more reads as belonging to the
+## next coin.
 @export var lead_distance: float = 1.0
 
 ## How far the text drifts upward over its life, in metres.
@@ -43,16 +45,8 @@ extends Node3D
 @export var font_size: int = 64
 @export var pixel_size: float = 0.005
 
-## Below this planar speed the velocity vector points nowhere meaningful and the kart's heading is
-## used instead. A kart parked on a coin during the countdown is the case this exists for.
-const MIN_MEANINGFUL_SPEED: float = 1.0
-
-var _kart: Kart
-
 
 func _ready() -> void:
-	_kart = get_node_or_null(kart_path) as Kart
-
 	var coin_field: CoinField = get_node_or_null(coin_field_path) as CoinField
 	# A scene without a coin field pops nothing up, which keeps this script runnable outside main.tscn.
 	if coin_field == null:
@@ -64,7 +58,7 @@ func _ready() -> void:
 
 ## One popup per pickup, with no stacking logic. Sweeping three coins in half a second leaves three
 ## separate labels standing in space, reading as a trail of income along the line you took.
-func _on_coin_taken(value: int, coin_position: Vector3) -> void:
+func _on_coin_taken(value: int, coin_position: Vector3, direction: Vector3) -> void:
 	var label := Label3D.new()
 	label.text = "$%d" % value
 	label.modulate = money_color
@@ -75,7 +69,7 @@ func _on_coin_taken(value: int, coin_position: Vector3) -> void:
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	add_child(label)
 
-	var spawn: Vector3 = coin_position + _lead_direction() * lead_distance
+	var spawn: Vector3 = coin_position + direction * lead_distance
 	label.global_position = spawn
 
 	# One tween owning the whole life, parented to the label so a popup freed for any other reason
@@ -90,19 +84,3 @@ func _on_coin_taken(value: int, coin_position: Vector3) -> void:
 	tween.tween_property(label, "outline_modulate:a", 0.0, lifetime)
 	tween.chain().tween_callback(label.queue_free)
 	@warning_ignore_restore("return_value_discarded")
-
-
-## Where "ahead" is, at the instant of pickup. Along velocity rather than heading: the two disagree
-## most in a drift, where a heading-aligned popup appears somewhere the kart will never reach.
-## Flattened to the horizontal, so a popup on the crest or the banked sweeper rises out of the road.
-func _lead_direction() -> Vector3:
-	if _kart == null:
-		return Vector3.FORWARD
-
-	var travel: Vector3 = Vector3(_kart.velocity.x, 0.0, _kart.velocity.z)
-	if travel.length() >= MIN_MEANINGFUL_SPEED:
-		return travel.normalized()
-
-	# Near-stationary: the velocity vector is noise, so fall back to heading. Forward is -Z.
-	var heading: Vector3 = - _kart.global_transform.basis.z
-	return Vector3(heading.x, 0.0, heading.z).normalized()

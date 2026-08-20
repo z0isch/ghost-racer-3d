@@ -16,9 +16,10 @@ func _ready() -> void:
 		push_warning("PurseLink: no CoinField — nothing can be earned.")
 		return
 
-	# unbind(1) drops coin_taken's position argument, which the purse has no use for. Godot does
-	# not drop surplus arguments by itself: connected bare, every pickup would fail at emit time.
-	coin_field.coin_taken.connect(_on_coin_taken.unbind(1))
+	# unbind(2) drops coin_taken's position and direction arguments, which the purse has no use
+	# for. Godot does not drop surplus arguments by itself: connected bare, every pickup would fail
+	# at emit time.
+	coin_field.coin_taken.connect(_on_coin_taken.unbind(2))
 
 
 func _on_coin_taken(value: int) -> void:

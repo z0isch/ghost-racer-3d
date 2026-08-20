@@ -15,6 +15,7 @@
 [ext_resource type="Script" uid="uid://3d48v4y8mlqh" path="res://scripts/inert_circuit.gd" id="22_inert_circuit"]
 [ext_resource type="Script" uid="uid://btrwnbiusw3ax" path="res://scripts/circuit_entry_trigger.gd" id="23_entry_trigger"]
 [ext_resource type="Script" uid="uid://b05f2riqh2hgw" path="res://scripts/circuit_entry_hud.gd" id="24_entry_hud"]
+[ext_resource type="Script" uid="uid://b631jitvcpxfi" path="res://scripts/income_ghost_view.gd" id="25_income_ghost_view"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_moebius"]
 sky_top_color = Color(0.22114116, 0.5285429, 0.5401196, 1)
@@ -81,7 +82,7 @@ shadow_enabled = true
 directional_shadow_max_distance = 120.0
 
 [node name="Kart" parent="." unique_id=658236697 instance=ExtResource("1_kart")]
-transform = Transform3D(-4.371139e-08, 0.25881898, -0.96592563, 0, 0.9659256, 0.25881898, 1, 1.1313337e-08, -4.2221952e-08, -12.640593, 5.2275114, -22.458918)
+transform = Transform3D(-4.371139e-08, 0.25881898, -0.96592563, 0, 0.9659256, 0.25881898, 1, 1.1313337e-08, -4.2221952e-08, -12.641, 1, -22.459)
 tuning = ExtResource("3_4c57u")
 
 [node name="ChaseCamera" type="Camera3D" parent="." unique_id=1992052791]
@@ -165,6 +166,10 @@ checkpoints_path = NodePath("Checkpoints")
 coins_path = NodePath("Coins")
 circuit = ExtResource("18_circuit3")
 
+[node name="IncomeGhostView" type="Node3D" parent="Circuit3" unique_id=1922004481]
+script = ExtResource("25_income_ghost_view")
+circuit = ExtResource("18_circuit3")
+
 [node name="Circuit3EntryTrigger" type="Node" parent="." unique_id=1158199339]
 script = ExtResource("23_entry_trigger")
 kart_path = NodePath("../Kart")
@@ -176,6 +181,10 @@ transform = Transform3D(-0.64278764, 0, -0.76604444, 0, 1, 0, 0.76604444, 0, -0.
 script = ExtResource("22_inert_circuit")
 checkpoints_path = NodePath("Checkpoints")
 coins_path = NodePath("Coins")
+circuit = ExtResource("19_circuit4")
+
+[node name="IncomeGhostView" type="Node3D" parent="Circuit4" unique_id=1922004482]
+script = ExtResource("25_income_ghost_view")
 circuit = ExtResource("19_circuit4")
 
 [node name="Circuit4EntryTrigger" type="Node" parent="." unique_id=1749140141]
