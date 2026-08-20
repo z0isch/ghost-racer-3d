@@ -13,8 +13,8 @@ extends Node3D
 ## resolves, because the whole scene's node structure exists before any of it enters the tree.
 ##
 ## At identity: [member GhostLine.positions] are recorded in the circuit's own coordinates, and any
-## transform applied here would invalidate every recorded ghost line. world_transform is the
-## world's concern alone (spec: open-world.md).
+## transform applied here would invalidate every recorded ghost line. Where a circuit stands in the
+## world is main.tscn's own concern, authored into that circuit instance's transform there.
 ##
 ## Falls back to circuit3 when nothing is pending — running race.tscn directly, outside the
 ## world's entry flow, still plays a circuit rather than nothing.

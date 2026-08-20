@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bqjxvhq6xqxqx"]
 
-[ext_resource type="Script" path="res://scripts/world.gd" id="0_world"]
+[ext_resource type="Script" uid="uid://dmn1vrhl4auqw" path="res://scripts/world.gd" id="0_world"]
 [ext_resource type="PackedScene" uid="uid://c6h6rk0kk2m2q" path="res://scenes/kart.tscn" id="1_kart"]
 [ext_resource type="Script" uid="uid://bfwqdtfsatc44" path="res://scripts/chase_camera.gd" id="2_chase_camera"]
 [ext_resource type="Resource" path="res://tuning/default.tres" id="3_4c57u"]
@@ -10,6 +10,10 @@
 [ext_resource type="Script" uid="uid://c6lyjon7i14mm" path="res://scripts/moebius_effect.gd" id="17_moebius_effect"]
 [ext_resource type="Resource" path="res://circuits/circuit3.tres" id="18_circuit3"]
 [ext_resource type="Resource" path="res://circuits/circuit4.tres" id="19_circuit4"]
+[ext_resource type="PackedScene" uid="uid://55byqb2mm870" path="res://scenes/circuit3.tscn" id="20_circuit3_scene"]
+[ext_resource type="PackedScene" uid="uid://btxxge1lwpyql" path="res://scenes/circuit4.tscn" id="21_circuit4_scene"]
+[ext_resource type="Script" uid="uid://3d48v4y8mlqh" path="res://scripts/inert_circuit.gd" id="22_inert_circuit"]
+[ext_resource type="Script" uid="uid://btrwnbiusw3ax" path="res://scripts/circuit_entry_trigger.gd" id="23_entry_trigger"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_moebius"]
 sky_top_color = Color(0.22114116, 0.5285429, 0.5401196, 1)
@@ -66,7 +70,6 @@ size = Vector3(1000, 0.001, 1000)
 [node name="Main" type="Node3D" unique_id=273122702]
 script = ExtResource("0_world")
 kart_path = NodePath("Kart")
-circuits = Array[Circuit]([ExtResource("18_circuit3"), ExtResource("19_circuit4")])
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=105771252]
 environment = SubResource("Environment_moebius")
@@ -77,7 +80,7 @@ shadow_enabled = true
 directional_shadow_max_distance = 120.0
 
 [node name="Kart" parent="." unique_id=658236697 instance=ExtResource("1_kart")]
-transform = Transform3D(0.8480481, -0.13715316, 0.51186264, 0, 0.96592563, 0.258819, -0.52991927, -0.21949095, 0.8191514, -14.479635, 5.2275114, -22.458918)
+transform = Transform3D(-4.371139e-08, 0.25881898, -0.96592563, 0, 0.9659256, 0.25881898, 1, 1.1313337e-08, -4.2221952e-08, -12.640593, 5.2275114, -22.458918)
 tuning = ExtResource("3_4c57u")
 
 [node name="ChaseCamera" type="Camera3D" parent="." unique_id=1992052791]
@@ -135,6 +138,27 @@ theme_override_font_sizes/font_size = 44
 text = "$0"
 horizontal_alignment = 1
 
+[node name="Circuit3" parent="." unique_id=566470077 instance=ExtResource("20_circuit3_scene")]
+script = ExtResource("22_inert_circuit")
+checkpoints_path = NodePath("Checkpoints")
+
+[node name="Circuit3EntryTrigger" type="Node" parent="." unique_id=1158199339]
+script = ExtResource("23_entry_trigger")
+kart_path = NodePath("../Kart")
+start_line_path = NodePath("../Circuit3/StartLine")
+circuit = ExtResource("18_circuit3")
+
+[node name="Circuit4" parent="." unique_id=712134506 instance=ExtResource("21_circuit4_scene")]
+transform = Transform3D(-0.64278764, 0, -0.76604444, 0, 1, 0, 0.76604444, 0, -0.64278764, 46.128582, 0, -23.117035)
+script = ExtResource("22_inert_circuit")
+checkpoints_path = NodePath("Checkpoints")
+
+[node name="Circuit4EntryTrigger" type="Node" parent="." unique_id=1749140141]
+script = ExtResource("23_entry_trigger")
+kart_path = NodePath("../Kart")
+start_line_path = NodePath("../Circuit4/StartLine")
+circuit = ExtResource("19_circuit4")
+
 [node name="Ground2" type="StaticBody3D" parent="." unique_id=648273497]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.35, 0)
 collision_layer = 8
@@ -145,4 +169,3 @@ mesh = SubResource("PlaneMesh_074og")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Ground2" unique_id=1772413327]
 shape = SubResource("BoxShape3D_cegan")
-

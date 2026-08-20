@@ -10,3 +10,5 @@ build/
 # System / editor cruft
 .DS_Store
 Thumbs.db
+
+ghost_lines/*

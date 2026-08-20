@@ -6,6 +6,6 @@
 [resource]
 script = ExtResource("1_circuit")
 circuit_scene = ExtResource("2_scene")
-ghost_line_path = ""
+ghost_line_path = "res://ghost_lines/circuit4.tres"
 display_name = "Circuit 4"
 world_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 180, -0.2, 0)

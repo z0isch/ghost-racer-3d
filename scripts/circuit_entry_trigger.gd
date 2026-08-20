@@ -21,6 +21,10 @@ extends Node
 
 const RACE_SCENE_PATH: String = "res://scenes/race.tscn"
 
+## [World] resets every armed trigger through this group rather than a hand-kept list, so a
+## trigger placed straight into main.tscn is found without World needing to know it exists.
+const GROUP_NAME: String = "circuit_entry_triggers"
+
 @export var kart_path: NodePath
 @export var start_line_path: NodePath
 ## The circuit this entrance guards. Carried into [autoload CircuitSession] on crossing, so
@@ -51,6 +55,8 @@ var _has_last_kart_position: bool = false
 
 
 func _ready() -> void:
+	add_to_group(GROUP_NAME)
+
 	_kart = get_node_or_null(kart_path) as Kart
 	var start_line: Node3D = get_node_or_null(start_line_path) as Node3D
 	if _kart == null or start_line == null:
