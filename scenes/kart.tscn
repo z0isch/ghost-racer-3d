@@ -106,7 +106,7 @@ shape = SubResource("SphereShape3D_body")
 [node name="GroundRay" type="RayCast3D" parent="." unique_id=427231096]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 target_position = Vector3(0, -4, 0)
-collision_mask = 9
+collision_mask = 13
 
 [node name="Cosmetics" type="Node3D" parent="." unique_id=712334901]
 script = ExtResource("3_cosmetics")

@@ -26,14 +26,14 @@ extends CharacterBody3D
 
 enum SurfaceType {
 	ROAD,
-	KERB,
+	MUD,
 	GRASS,
 }
 
-# Road carries no tag of its own: it is whatever GroundRay hits that is neither Kerb nor Grass.
+# Road carries no tag of its own: it is whatever GroundRay hits that is neither Mud nor Grass.
 # Bit 2 (layer 2) belongs to the barriers.
 const GRASS_LAYER_BIT: int = 1 << 3
-const KERB_LAYER_BIT: int = 1 << 2
+const MUD_LAYER_BIT: int = 1 << 2
 
 ## Every number the feel model runs on. Left null in the scene, so the defaults in KartTuning are
 ## the tuning of record and there is exactly one place to read them from; assign a KartTuning
@@ -120,8 +120,8 @@ func _physics_process(delta: float) -> void:
 	rotate_y(motion.yaw_delta)
 
 	# Lateral speed is positive to the LEFT, agreeing with yaw_delta's sign, which puts it along -X.
-	var forward: Vector3 = -global_transform.basis.z
-	var left: Vector3 = -global_transform.basis.x
+	var forward: Vector3 = - global_transform.basis.z
+	var left: Vector3 = - global_transform.basis.x
 	var planar: Vector3 = forward * motion.forward_speed + left * motion.lateral_speed
 
 	var is_grounded: bool = _ground_ray.is_colliding()
@@ -149,7 +149,7 @@ func _physics_process(delta: float) -> void:
 		var target_y: float = _ground_ray.get_collision_point().y + sphere_radius
 		vertical = clampf(
 			(target_y - global_position.y) * ground_snap_strength,
-			-ground_snap_max_speed,
+			- ground_snap_max_speed,
 			ground_snap_max_speed)
 	else:
 		vertical -= gravity * delta
@@ -212,8 +212,8 @@ func _classify_surface() -> void:
 
 	if (layer & GRASS_LAYER_BIT) != 0:
 		_current_surface = SurfaceType.GRASS
-	elif (layer & KERB_LAYER_BIT) != 0:
-		_current_surface = SurfaceType.KERB
+	elif (layer & MUD_LAYER_BIT) != 0:
+		_current_surface = SurfaceType.MUD
 	else:
 		_current_surface = SurfaceType.ROAD
 
@@ -223,8 +223,8 @@ func _classify_surface() -> void:
 func _surface_multiplier() -> float:
 	var t: KartTuning = _model.tuning
 	match _current_surface:
-		SurfaceType.KERB:
-			return t.kerb_multiplier
+		SurfaceType.MUD:
+			return t.mud_multiplier
 		SurfaceType.GRASS:
 			return t.grass_multiplier
 		_:

@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://dmn1vrhl4auqw" path="res://scripts/world.gd" id="0_world"]
 [ext_resource type="PackedScene" uid="uid://c6h6rk0kk2m2q" path="res://scenes/kart.tscn" id="1_kart"]
 [ext_resource type="Script" uid="uid://bfwqdtfsatc44" path="res://scripts/chase_camera.gd" id="2_chase_camera"]
-[ext_resource type="Resource" path="res://tuning/default.tres" id="3_4c57u"]
+[ext_resource type="Resource" uid="uid://dfaeho636uia" path="res://tuning/default.tres" id="3_4c57u"]
 [ext_resource type="Script" uid="uid://dbysge02jo6wo" path="res://scripts/debug_hud.gd" id="3_debug_hud"]
 [ext_resource type="Script" uid="uid://bvqf8ytsnbmk3" path="res://scripts/purse_hud.gd" id="13_purse_hud"]
 [ext_resource type="Shader" uid="uid://cnkc6102dunqd" path="res://shaders/moebius.gdshader" id="16_moebius_shader"]
@@ -44,23 +44,23 @@ shader_parameter/color_edge_strength = 2.2
 shader_parameter/ink_fade_begin = 90.0
 shader_parameter/ink_fade_end = 200.0
 
-[sub_resource type="Gradient" id="Gradient_u6hd3"]
-offsets = PackedFloat32Array(0, 0.22833334)
-metadata/_snap_count = 34
-
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_ground"]
-noise_type = 3
-frequency = 0.9161
-domain_warp_enabled = true
+frequency = 0.0047
+fractal_type = 2
 
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_yaehf"]
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ground_normal"]
 noise = SubResource("FastNoiseLite_ground")
-color_ramp = SubResource("Gradient_u6hd3")
+seamless = true
+as_normal_map = true
+seamless_blend_skirt = 0.325
+bump_strength = 4.6
 
 [sub_resource type="StandardMaterial3D" id="Material_grass"]
 albedo_color = Color(0.4392157, 0.23137255, 0, 1)
-albedo_texture = SubResource("NoiseTexture2D_yaehf")
-uv1_scale = Vector3(80, 80, 1)
+normal_enabled = true
+normal_scale = 1.5
+normal_texture = SubResource("NoiseTexture2D_ground_normal")
+uv1_scale = Vector3(80, 80, 1.04)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_074og"]
 material = SubResource("Material_grass")
@@ -82,7 +82,7 @@ shadow_enabled = true
 directional_shadow_max_distance = 120.0
 
 [node name="Kart" parent="." unique_id=658236697 instance=ExtResource("1_kart")]
-transform = Transform3D(-4.371139e-08, 0.25881898, -0.96592563, 0, 0.9659256, 0.25881898, 1, 1.1313337e-08, -4.2221952e-08, -12.641, 1, -22.459)
+transform = Transform3D(-4.371139e-08, 0.25881898, -0.96592563, 0, 0.9659256, 0.25881898, 1, 1.1313337e-08, -4.2221952e-08, 44.217, 0, -22.459)
 tuning = ExtResource("3_4c57u")
 
 [node name="ChaseCamera" type="Camera3D" parent="." unique_id=1992052791]

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="KartTuning" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="KartTuning" format=3 uid="uid://dfaeho636uia"]
 
 [ext_resource type="Script" uid="uid://dxr1cdkqpjufc" path="res://scripts/kart_tuning.gd" id="1_tuning"]
 
@@ -14,4 +14,5 @@ rear_grip_high_speed_degrees_per_second = 360.0
 min_slip_speed = 0.0
 steer_grip_boost = 1.0
 drift_speed_scrub = 0.0
+mud_multiplier = 0.3
 grass_multiplier = 0.8

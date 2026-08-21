@@ -116,6 +116,35 @@ height = 0.04
 radial_segments = 20
 rings = 0
 
+[sub_resource type="BoxMesh" id="BoxMesh_htxe4"]
+size = Vector3(10, 3, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_awscb"]
+albedo_color = Color(0.6, 0.15, 0.15, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_8vwk7"]
+size = Vector3(9.822113, 3, 1)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_w1boj"]
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_0vby0"]
+noise = SubResource("FastNoiseLite_w1boj")
+as_normal_map = true
+bump_strength = 27.3
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2cqfq"]
+albedo_color = Color(0, 0, 0, 1)
+normal_enabled = true
+normal_texture = SubResource("NoiseTexture2D_0vby0")
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_awscb"]
+material = SubResource("StandardMaterial3D_2cqfq")
+size = Vector2(5, 4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_g4lpy"]
+margin = 0.0
+size = Vector3(5, 0, 4)
+
 [node name="Circuit2" type="Node3D" unique_id=1961655717]
 
 [node name="RoadManager" type="Node3D" parent="." unique_id=1091442068]
@@ -308,11 +337,11 @@ surface_material_override/0 = SubResource("Material_gate_start")
 [node name="Coins" type="Node3D" parent="." unique_id=1748908209]
 
 [node name="Coin00" type="Marker3D" parent="Coins" unique_id=1371235723]
-transform = Transform3D(0.20734303, 0, 0.9782683, 0, 1, 0, -0.9782683, 0, 0.20734303, -26.10599, 0.4, -0.61165994)
+transform = Transform3D(0.20734303, 0, 0.9782683, 0, 1, 0, -0.9782683, 0, 0.20734303, -25.433414, 0.4, 1.4363921)
 metadata/value = 1
 
 [node name="Mesh" type="MeshInstance3D" parent="Coins/Coin00" unique_id=360847292]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.48084593, 0, 0.10191345)
 mesh = SubResource("CylinderMesh_coin")
 script = ExtResource("1_gen_coin_spin")
 
@@ -326,10 +355,44 @@ mesh = SubResource("CylinderMesh_coin")
 script = ExtResource("1_gen_coin_spin")
 
 [node name="Coin02" type="Marker3D" parent="Coins" unique_id=616530981]
-transform = Transform3D(-0.9969016, 0, 0.07865954, 0, 1, 0, -0.07865954, 0, -0.9969016, 25.658426, 0.4, -18.427837)
+transform = Transform3D(-0.9969016, 0, 0.07865954, 0, 1, 0, -0.07865954, 0, -0.9969016, 23.935112, 0.47461674, -21.939516)
 metadata/value = 1
 
 [node name="Mesh" type="MeshInstance3D" parent="Coins/Coin02" unique_id=834087432]
-transform = Transform3D(0.27563736, 0.9612617, 0, 0, 0, -1, -0.9612617, 0.27563736, 0, 0, 0, 0)
+transform = Transform3D(0.27563712, 0.9612617, 0, 0, 0, -1, -0.9612617, 0.27563712, 0, 0, 0, 0)
 mesh = SubResource("CylinderMesh_coin")
 script = ExtResource("1_gen_coin_spin")
+
+[node name="Wall" type="StaticBody3D" parent="." unique_id=1603194263]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.327269, 0, -15.5378895)
+collision_layer = 2
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Wall" unique_id=232256684]
+mesh = SubResource("BoxMesh_htxe4")
+surface_material_override/0 = SubResource("StandardMaterial3D_awscb")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Wall" unique_id=852270414]
+shape = SubResource("BoxShape3D_8vwk7")
+
+[node name="Wall2" type="StaticBody3D" parent="." unique_id=326670769]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.332026, 0, -6.2747774)
+collision_layer = 2
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Wall2" unique_id=921087778]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2940731, 0, 0)
+mesh = SubResource("BoxMesh_htxe4")
+surface_material_override/0 = SubResource("StandardMaterial3D_awscb")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Wall2" unique_id=1195413731]
+shape = SubResource("BoxShape3D_8vwk7")
+
+[node name="Mud" type="StaticBody3D" parent="." unique_id=843691439]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0.01, 2)
+collision_layer = 4
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Mud" unique_id=1830303831]
+mesh = SubResource("PlaneMesh_awscb")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Mud" unique_id=251084773]
+shape = SubResource("BoxShape3D_g4lpy")

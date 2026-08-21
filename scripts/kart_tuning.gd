@@ -83,7 +83,7 @@ extends Resource
 ## One multiplier per surface, applied to max speed, acceleration and rear grip. Grass is greasy,
 ## not merely slow: you get the slide you asked for, later and wider than you wanted.
 @export var road_multiplier: float = 1.0
-@export var kerb_multiplier: float = 0.8
+@export var mud_multiplier: float = 0.8
 @export var grass_multiplier: float = 0.5
 
 # --- Barriers -------------------------------------------------------------------------------

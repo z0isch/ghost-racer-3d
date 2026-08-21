@@ -27,8 +27,8 @@ func _process(_delta: float) -> void:
 	match _target.current_surface:
 		Kart.SurfaceType.ROAD:
 			_road_label.text = "On-road"
-		Kart.SurfaceType.KERB:
-			_road_label.text = "Kerb"
+		Kart.SurfaceType.MUD:
+			_road_label.text = "Mud"
 		Kart.SurfaceType.GRASS:
 			_road_label.text = "Off-road"
 		_:
