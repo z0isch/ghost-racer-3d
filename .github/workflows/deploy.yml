@@ -109,27 +109,14 @@ jobs:
         run: ~/godot/godot --headless --path . --editor --quit
 
       - name: Type-check every GDScript file
-        # Mirrors tools/track/check.sh: --check-only can't resolve class_name until the
-        # import pass above has populated .godot/global_script_class_cache.cfg, and a
-        # release web export is not gated by the debug-only warnings block in
-        # project.godot, so this is the only thing standing between
-        # a typing error and a silently dead node in the browser.
-        run: |
-          set -e
-          FAILED=""
-          for f in $(find scripts tests -name '*.gd' | sort); do
-            if ! OUT="$(~/godot/godot --headless --path . --check-only --script "res://$f" 2>&1)"; then
-              FAILED="$FAILED $f"
-              echo ""
-              echo "check: FAILED $f" >&2
-              echo "$OUT" | grep -i error | sed 's/^/  /' >&2
-            fi
-          done
-          if [ -n "$FAILED" ]; then
-            echo "" >&2
-            echo "check: script(s) failed the type check:$FAILED" >&2
-            exit 1
-          fi
+        # Runs the same checker as tools/track/check.sh - see the header there for why
+        # this is the only real gate on a typing error reaching the browser. Do not
+        # inline a `--check-only --script` loop here again: --check-only never starts
+        # the SceneTree, so this project's autoloads (Purse, CircuitSession,
+        # LoadoutHolder, IncomeRunner) are not registered and every script that
+        # references one fails with a bogus "Identifier not found". check.gd runs as a
+        # live SceneTree instead. The import pass above populates the class cache it needs.
+        run: ~/godot/godot --headless --path . --script res://tools/track/check.gd
 
       - name: Run the headless test suite
         # Mirrors tools/track/test.sh. The kart's feel model is a RefCounted with no nodes, no
