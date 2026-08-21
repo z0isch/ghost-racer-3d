@@ -121,6 +121,12 @@ var earn_rate: float:
 var record_earn_rate: float:
 	get: return _record_earn_rate
 
+## Seconds left of the Run, clamped at 0. The Run clock counted the other way, so that the HUD and
+## the Timeout rule read off one number rather than each subtracting the duration for themselves.
+## Full duration during Countdown, since a Run that has not started has spent nothing.
+var run_remaining: float:
+	get: return maxf(0.0, run_duration_seconds - _run_clock)
+
 ## Seconds left of Countdown; 0 while Racing or Results.
 var phase_remaining: float:
 	get: return _phase_remaining
@@ -282,7 +288,7 @@ func _resolve_checkpoints() -> void:
 		checkpoint.origin = frame.origin
 		# Basis Z points backwards, so the road's forward is -Z. The crossing test is
 		# direction-agnostic, so only the sign convention matters.
-		checkpoint.forward = -frame.basis.z.normalized()
+		checkpoint.forward = - frame.basis.z.normalized()
 		checkpoint.right = frame.basis.x.normalized()
 		checkpoint.up = frame.basis.y.normalized()
 		found.append(checkpoint)

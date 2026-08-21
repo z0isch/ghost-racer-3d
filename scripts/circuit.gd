@@ -21,4 +21,4 @@ extends Resource
 @export var display_name: String = ""
 ## How long a Run on this circuit lasts, in seconds. Configured per circuit rather than a global
 ## constant, since the two existing circuits may want different budgets.
-@export var run_duration_seconds: float = 90.0
+@export var run_duration_seconds: float = 10.0

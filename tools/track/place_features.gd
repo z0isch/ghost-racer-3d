@@ -26,7 +26,6 @@ extends SceneTree
 const GATE_HEIGHT := 5.0
 const GATE_POST_THICKNESS := 0.4
 const GATE_BAR_THICKNESS := 0.4
-const GATE_START_SECOND_BAR := 0.9
 
 const COIN_MESH_RADIUS := 0.35
 const COIN_THICKNESS := 0.04
@@ -174,7 +173,7 @@ func _run(opts: Dictionary) -> int:
 		for i: int in checkpoint_count:
 			var frame: Transform3D = _sample_road(spans, loop_length, gate_s[i])
 			var is_finish: bool = i == checkpoint_count - 1
-			checkpoint_text += _checkpoint_block(i, frame, is_finish, half_width)
+			checkpoint_text += _checkpoint_block(i, frame, half_width)
 			report.append(
 				"  Checkpoint%02d  s=%7.2f  %s%s"
 				% [i, gate_s[i], _vec_str(frame.origin), "  (start/finish)" if is_finish else ""]
@@ -434,8 +433,8 @@ func _clear_of_gates(s: float, gate_s: Array[float], loop_length: float, clearan
 # ------------------------------------------------------------------------------ node text
 
 
-func _checkpoint_block(index: int, frame: Transform3D, is_finish: bool, half_width: float) -> String:
-	var material: String = "Material_gate_start" if is_finish else "Material_gate"
+func _checkpoint_block(index: int, frame: Transform3D, half_width: float) -> String:
+	var material: String = "Material_gate"
 	# Post centres, so the inner faces land on ±half_width — the prism's own edge.
 	var gate_half: float = half_width + GATE_POST_THICKNESS * 0.5
 	var marker: String = "%s/Checkpoint%02d" % [CHECKPOINTS_NODE, index]
@@ -447,10 +446,6 @@ func _checkpoint_block(index: int, frame: Transform3D, is_finish: bool, half_wid
 	text += _mesh_child("GatePostLeft", marker, Vector3(-gate_half, GATE_HEIGHT * 0.5, 0.0), "BoxMesh_gate_post", material)
 	text += _mesh_child("GatePostRight", marker, Vector3(gate_half, GATE_HEIGHT * 0.5, 0.0), "BoxMesh_gate_post", material)
 	text += _mesh_child("GateBar", marker, Vector3(0.0, GATE_HEIGHT + GATE_BAR_THICKNESS * 0.5, 0.0), "BoxMesh_gate_bar", material)
-	if is_finish:
-		# The start/finish is told apart by geometry and colour rather than a texture: a second
-		# crossbar above the first.
-		text += _mesh_child("GateBarUpper", marker, Vector3(0.0, GATE_HEIGHT + GATE_START_SECOND_BAR, 0.0), "BoxMesh_gate_bar", material)
 	return text
 
 
@@ -555,7 +550,7 @@ func _rewrite_scene(
 		taken[sub.attrs.get("id", "")] = true
 	var ids: Dictionary = {}
 	for wanted: String in [
-		"BoxMesh_gate_post", "BoxMesh_gate_bar", "Material_gate", "Material_gate_start",
+		"BoxMesh_gate_post", "BoxMesh_gate_bar", "Material_gate",
 		"Material_coin", "CylinderMesh_coin",
 	]:
 		var id: String = wanted
@@ -576,8 +571,6 @@ func _rewrite_scene(
 			% [ids["BoxMesh_gate_bar"], bar_length, GATE_BAR_THICKNESS, GATE_BAR_THICKNESS]
 			+ "[sub_resource type=\"StandardMaterial3D\" id=\"%s\"]\nalbedo_color = Color(0.15, 0.45, 0.9, 1)\n\n"
 			% ids["Material_gate"]
-			+ "[sub_resource type=\"StandardMaterial3D\" id=\"%s\"]\nalbedo_color = Color(0.95, 0.95, 0.95, 1)\n\n"
-			% ids["Material_gate_start"]
 		)
 		checkpoint_text = checkpoint_text.replace(
 			"SubResource(\"BoxMesh_gate_post\")", "SubResource(\"%s\")" % ids["BoxMesh_gate_post"]
@@ -585,8 +578,6 @@ func _rewrite_scene(
 			"SubResource(\"BoxMesh_gate_bar\")", "SubResource(\"%s\")" % ids["BoxMesh_gate_bar"]
 		).replace(
 			"SubResource(\"Material_gate\")", "SubResource(\"%s\")" % ids["Material_gate"]
-		).replace(
-			"SubResource(\"Material_gate_start\")", "SubResource(\"%s\")" % ids["Material_gate_start"]
 		)
 	if not coin_text.is_empty():
 		generated_subs += (

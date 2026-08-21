@@ -1,14 +1,19 @@
 class_name RunHud
 extends CanvasLayer
 
-## The racing block, top-right. A separate CanvasLayer from DebugHud, which reads Kart rather than
+## The racing readout. A separate CanvasLayer from DebugHud, which reads Kart rather than
 ## RunDirector and is disposable, so it can be switched off or deleted without touching this.
 ##
-## Three lines and a checkpoint counter:
+## A clock, two rate lines and a checkpoint counter:
 ##
-##   the run clock   — at the top, being the denominator you are feeling. Nothing on screen ranks it.
-##   RATE            — the live cumulative average the completed Run will be judged on. Neither
-##                     windowed nor smoothed: see [member RunDirector.earn_rate].
+##   the run clock   — centred at the top, in the largest face on screen, counted down: what you
+##                     are feeling is how much time is left to earn in, not how much has gone. It
+##                     sits in the middle because it is the one thing read under pressure, and it
+##                     is read there without looking away from the road. Nothing on screen ranks
+##                     it. For the last [member urgency_seconds] it is replaced entirely — see
+##                     [method _apply_urgency].
+##   RATE            — top-right, the live cumulative average the completed Run will be judged on.
+##                     Neither windowed nor smoothed: see [member RunDirector.earn_rate].
 ##   RECORD          — the bar to beat, which is also the pace ghost's rate.
 ##
 ## There is no per-Run coin counter: it would disambiguate a good line from a good time, but the
@@ -26,6 +31,24 @@ extends CanvasLayer
 ## everywhere on screen, and a new record is a money event.
 @export var record_flash_color: Color = Color(0.29, 0.93, 0.42)
 
+## When the clock stops being a clock: the last stretch of a Run, where a coin two corners away has
+## stopped being worth going for. The hundredths in the corner have nothing left to say here — what
+## is left is a small integer — so the readout is swapped for the whole second, thrown into the
+## middle of the screen, over the road, where it cannot be missed and costs no glance away.
+@export var urgency_seconds: float = 5.0
+
+## What the last seconds are drawn in. Red rather than the money green, which everywhere else on
+## screen means something was gained.
+@export var urgency_color: Color = Color(0.94, 0.24, 0.24)
+
+## How long each second stays up. Shorter than a second on purpose: the gap is the point, since a
+## number that never leaves is a display, and one that arrives is an alarm.
+@export var urgency_flash_seconds: float = 0.45
+
+## How far the flash swells over its life, as a fraction of its size — 0.25 = a quarter bigger at
+## the instant it lands.
+@export var urgency_pulse_scale: float = 0.25
+
 ## How long into a Run the live rate stays blank: the first fraction of a second is a genuine 0/0 and
 ## the tenth is a wild number off a tiny denominator. Gated on elapsed time rather than on the first
 ## coin, which would blink between blank and live and would spell "nothing yet" and "nothing earned"
@@ -41,6 +64,7 @@ var _record_base_color: Color
 var _record_flash: float = 0.0
 
 @onready var _current_label: Label = $CurrentLabel
+@onready var _final_seconds_label: Label = $FinalSecondsLabel
 @onready var _rate_label: Label = $RateLabel
 @onready var _record_label: Label = $RecordLabel
 @onready var _checkpoint_label: Label = $CheckpointLabel
@@ -50,6 +74,9 @@ func _ready() -> void:
 	_director = get_node(director_path) as RunDirector
 
 	_record_base_color = _record_label.modulate
+	# Set from the export rather than authored in the scene, so the one place that says what the last
+	# seconds look like is the one place that decides when they start.
+	_final_seconds_label.add_theme_color_override("font_color", urgency_color)
 	_director.run_completed.connect(_on_run_completed)
 
 
@@ -64,7 +91,10 @@ func _process(delta: float) -> void:
 	if _director == null:
 		return
 
-	_current_label.text = _format_time(_director.run_clock)
+	# Counted down, not up: the number under time pressure is the time left.
+	var remaining: float = _director.run_remaining
+	_current_label.text = _format_time(remaining)
+	_apply_urgency(remaining, _director.phase == RunDirector.RunPhase.RACING)
 	# Polled, never cached: earn_rate is a computed property over the expression complete_run judges
 	# the Run on, so the number watched climbing is the number scored.
 	_rate_label.text = "RATE  %s" % _format_rate(_director.earn_rate, _director.run_clock)
@@ -77,15 +107,56 @@ func _process(delta: float) -> void:
 	_record_label.modulate = record_flash_color if _record_flash > 0.0 else _record_base_color
 
 
-# Two decimals: hundredths still separate two Runs of a ~90 s circuit and tick slowly enough to
-# read. The running clock and the recorded time share the formatter. The minute field appears only
-# once earned, so a short Run carries no permanent "0:".
+# Which clock is on screen, and what the middle one is doing this frame. Exactly one is visible at a
+# time: the corner clock and a five in the middle of the road are the same fact twice, and the second
+# copy is the one that would be read.
+#
+# Everything is written every frame rather than on the crossing edge, so an Abort or a new Run —
+# which jump the clock back over the threshold without passing through it — cannot leave a flash
+# stranded on screen or the top clock hidden behind one.
+#
+# Gated on Racing as well as on the threshold: at Timeout the middle of the screen belongs to
+# CountdownHud's Results prompt, and a "1" fading over it is a Run that has already ended still
+# counting.
+func _apply_urgency(remaining: float, is_racing: bool) -> void:
+	var urgent: bool = is_racing and remaining <= urgency_seconds
+	_current_label.visible = not urgent
+	_final_seconds_label.visible = urgent
+	if not urgent:
+		return
+
+	# Ceil, so the second being driven is the one on screen: 4.99 s left is "5", and stays 5 until
+	# the clock actually passes 4. maxi(1, ...) keeps the last moment from flashing a "0" — 0 is
+	# what the Run ends at, not a second anyone gets to drive.
+	_final_seconds_label.text = str(maxi(1, ceili(remaining)))
+
+	# Seconds since this digit landed. fposmod rather than subtracting floorf, so the arithmetic
+	# still holds at exactly 0.0 remaining.
+	var since_tick: float = 1.0 - fposmod(remaining, 1.0)
+	# Squared, so the digit reads at full strength for most of its life and then goes quickly. A
+	# linear fade spends its whole time half-lit and blurs one second into the next.
+	var flash: float = 1.0 - pow(minf(since_tick / urgency_flash_seconds, 1.0), 2.0)
+	_final_seconds_label.modulate = Color(1.0, 1.0, 1.0, flash)
+	# The label is the whole screen, so its centre is the screen's: the swell stays put instead of
+	# walking the digit across the road.
+	_final_seconds_label.pivot_offset = _final_seconds_label.size * 0.5
+	_final_seconds_label.scale = Vector2.ONE * (1.0 + urgency_pulse_scale * flash)
+
+
+# One decimal: enough motion to read as a clock running down, without the two digits of noise that
+# hundredths are at this size. The last five seconds — the only place a finer figure would change a
+# decision — have their own whole-second readout (see [method _apply_urgency]).
+#
+# Floored to the tenth rather than rounded, so the clock never claims time that is gone: 45.96 s
+# left reads 45.9, and 0.0 is not shown until the Run has actually reached it. The minute field
+# appears only once earned, so a short Run carries no permanent "0:".
 static func _format_time(seconds: float) -> String:
-	var minutes: int = floori(seconds / 60.0)
-	var remainder: float = seconds - minutes * 60.0
+	var tenths: int = floori(seconds * 10.0)
+	var minutes: int = floori(tenths / 600.0)
+	var remainder: float = (tenths - minutes * 600) / 10.0
 	if minutes > 0:
-		return "%d:%05.2f" % [minutes, remainder]
-	return "%.2f" % remainder
+		return "%d:%04.1f" % [minutes, remainder]
+	return "%.1f" % remainder
 
 
 # Both rate lines go through here, so the live figure and the record cannot read as different

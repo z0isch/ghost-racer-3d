@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://btxxge1lwpyql"]
+[gd_scene load_steps=30 format=3 uid="uid://btxxge1lwpyql"]
 
 [ext_resource type="Script" uid="uid://du123v1x0mws5" path="res://scripts/track/coin_spin.gd" id="1_gen_coin_spin"]
 [ext_resource type="Script" uid="uid://bxp3i4cnonh8y" path="res://addons/road-generator/nodes/road_manager.gd" id="1_vohcs"]
@@ -93,29 +93,6 @@ _data = {
 }
 point_count = 2
 
-[sub_resource type="BoxMesh" id="BoxMesh_gate_post"]
-size = Vector3(0.4, 5, 0.4)
-
-[sub_resource type="StandardMaterial3D" id="Material_gate"]
-albedo_color = Color(0.15, 0.45, 0.9, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_gate_bar"]
-size = Vector3(8.8, 0.4, 0.4)
-
-[sub_resource type="StandardMaterial3D" id="Material_gate_start"]
-albedo_color = Color(0.95, 0.95, 0.95, 1)
-
-[sub_resource type="StandardMaterial3D" id="Material_coin"]
-albedo_color = Color(0.95, 0.78, 0.18, 1)
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_coin"]
-material = SubResource("Material_coin")
-top_radius = 0.35
-bottom_radius = 0.35
-height = 0.04
-radial_segments = 20
-rings = 0
-
 [sub_resource type="BoxMesh" id="BoxMesh_htxe4"]
 size = Vector3(10, 3, 1)
 
@@ -144,6 +121,15 @@ size = Vector2(5, 4)
 [sub_resource type="BoxShape3D" id="BoxShape3D_g4lpy"]
 margin = 0.0
 size = Vector3(5, 0, 4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_gate_post"]
+size = Vector3(0.4, 5.0, 0.4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_gate_bar"]
+size = Vector3(8.8, 0.4, 0.4)
+
+[sub_resource type="StandardMaterial3D" id="Material_gate"]
+albedo_color = Color(0.15, 0.45, 0.9, 1)
 
 [node name="Circuit2" type="Node3D" unique_id=1961655717]
 
@@ -273,96 +259,6 @@ transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5, 
 
 [node name="HazardGhosts" type="Node3D" parent="." unique_id=2147155494]
 
-[node name="Checkpoints" type="Node3D" parent="." unique_id=873559398]
-
-[node name="Checkpoint00" type="Marker3D" parent="Checkpoints" unique_id=1520141712]
-transform = Transform3D(0.99689996, 0, -0.07868008, 0, 1, 0, 0.07868008, 0, 0.99689996, -42.438095, 0, -21.572191)
-
-[node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint00" unique_id=1336616795]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
-mesh = SubResource("BoxMesh_gate_post")
-surface_material_override/0 = SubResource("Material_gate")
-
-[node name="GatePostRight" type="MeshInstance3D" parent="Checkpoints/Checkpoint00" unique_id=1878533372]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 2.5, 0)
-mesh = SubResource("BoxMesh_gate_post")
-surface_material_override/0 = SubResource("Material_gate")
-
-[node name="GateBar" type="MeshInstance3D" parent="Checkpoints/Checkpoint00" unique_id=540256954]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
-mesh = SubResource("BoxMesh_gate_bar")
-surface_material_override/0 = SubResource("Material_gate")
-
-[node name="Checkpoint01" type="Marker3D" parent="Checkpoints" unique_id=1174982282]
-transform = Transform3D(-0.20734166, 0, -0.97826856, 0, 1, 0, 0.9782686, 0, -0.20734164, 6.1059675, 0, -39.388344)
-
-[node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint01" unique_id=1502218442]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
-mesh = SubResource("BoxMesh_gate_post")
-surface_material_override/0 = SubResource("Material_gate")
-
-[node name="GatePostRight" type="MeshInstance3D" parent="Checkpoints/Checkpoint01" unique_id=1829108968]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 2.5, 0)
-mesh = SubResource("BoxMesh_gate_post")
-surface_material_override/0 = SubResource("Material_gate")
-
-[node name="GateBar" type="MeshInstance3D" parent="Checkpoints/Checkpoint01" unique_id=1234309969]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
-mesh = SubResource("BoxMesh_gate_bar")
-surface_material_override/0 = SubResource("Material_gate")
-
-[node name="Checkpoint02" type="Marker3D" parent="Checkpoints" unique_id=1469550099]
-transform = Transform3D(-0.09488884, 0, 0.9954879, 0, 1, 0, -0.9954879, 0, -0.09488884, 2.9957025, 0, -0.13933563)
-
-[node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint02" unique_id=1900581772]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
-mesh = SubResource("BoxMesh_gate_post")
-surface_material_override/0 = SubResource("Material_gate_start")
-
-[node name="GatePostRight" type="MeshInstance3D" parent="Checkpoints/Checkpoint02" unique_id=908666387]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 2.5, 0)
-mesh = SubResource("BoxMesh_gate_post")
-surface_material_override/0 = SubResource("Material_gate_start")
-
-[node name="GateBar" type="MeshInstance3D" parent="Checkpoints/Checkpoint02" unique_id=1002676841]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
-mesh = SubResource("BoxMesh_gate_bar")
-surface_material_override/0 = SubResource("Material_gate_start")
-
-[node name="GateBarUpper" type="MeshInstance3D" parent="Checkpoints/Checkpoint02" unique_id=1600251667]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.9, 0)
-mesh = SubResource("BoxMesh_gate_bar")
-surface_material_override/0 = SubResource("Material_gate_start")
-
-[node name="Coins" type="Node3D" parent="." unique_id=1748908209]
-
-[node name="Coin00" type="Marker3D" parent="Coins" unique_id=1371235723]
-transform = Transform3D(0.20734303, 0, 0.9782683, 0, 1, 0, -0.9782683, 0, 0.20734303, -25.433414, 0.4, 1.4363921)
-metadata/value = 1
-
-[node name="Mesh" type="MeshInstance3D" parent="Coins/Coin00" unique_id=360847292]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.48084593, 0, 0.10191345)
-mesh = SubResource("CylinderMesh_coin")
-script = ExtResource("1_gen_coin_spin")
-
-[node name="Coin01" type="Marker3D" parent="Coins" unique_id=2091315872]
-transform = Transform3D(0.094888754, 0, -0.9954879, 0, 1, 0, 0.9954879, 0, 0.094888754, -22.995726, 0.4, -36.574642)
-metadata/value = 1
-
-[node name="Mesh" type="MeshInstance3D" parent="Coins/Coin01" unique_id=2039455974]
-transform = Transform3D(0.7986355, 0.60181504, 0, 0, 0, -1, -0.60181504, 0.7986355, 0, 0, 0, 0)
-mesh = SubResource("CylinderMesh_coin")
-script = ExtResource("1_gen_coin_spin")
-
-[node name="Coin02" type="Marker3D" parent="Coins" unique_id=616530981]
-transform = Transform3D(-0.9969016, 0, 0.07865954, 0, 1, 0, -0.07865954, 0, -0.9969016, 23.935112, 0.47461674, -21.939516)
-metadata/value = 1
-
-[node name="Mesh" type="MeshInstance3D" parent="Coins/Coin02" unique_id=834087432]
-transform = Transform3D(0.27563712, 0.9612617, 0, 0, 0, -1, -0.9612617, 0.27563712, 0, 0, 0, 0)
-mesh = SubResource("CylinderMesh_coin")
-script = ExtResource("1_gen_coin_spin")
-
 [node name="Wall" type="StaticBody3D" parent="." unique_id=1603194263]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.327269, 0, -15.5378895)
 collision_layer = 2
@@ -396,3 +292,114 @@ mesh = SubResource("PlaneMesh_awscb")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Mud" unique_id=251084773]
 shape = SubResource("BoxShape3D_g4lpy")
+
+[node name="Checkpoints" type="Node3D" parent="."]
+
+[node name="Checkpoint00" type="Marker3D" parent="Checkpoints"]
+transform = Transform3D(0.20734303, 0, 0.9782683, 0, 1, 0, -0.9782683, 0, 0.20734303, -26.10599, 0, -0.61165994)
+
+[node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint00"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GatePostRight" type="MeshInstance3D" parent="Checkpoints/Checkpoint00"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GateBar" type="MeshInstance3D" parent="Checkpoints/Checkpoint00"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
+mesh = SubResource("BoxMesh_gate_bar")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="Checkpoint01" type="Marker3D" parent="Checkpoints"]
+transform = Transform3D(0.99689996, 0, -0.07868008, 0, 1, 0, 0.07868008, 0, 0.99689996, -42.438095, 0, -21.572191)
+
+[node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint01"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GatePostRight" type="MeshInstance3D" parent="Checkpoints/Checkpoint01"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GateBar" type="MeshInstance3D" parent="Checkpoints/Checkpoint01"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
+mesh = SubResource("BoxMesh_gate_bar")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="Checkpoint02" type="Marker3D" parent="Checkpoints"]
+transform = Transform3D(0.094888754, 0, -0.9954879, 0, 1, 0, 0.9954879, 0, 0.094888754, -22.995726, 0, -39.86065)
+
+[node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint02"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GatePostRight" type="MeshInstance3D" parent="Checkpoints/Checkpoint02"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GateBar" type="MeshInstance3D" parent="Checkpoints/Checkpoint02"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
+mesh = SubResource("BoxMesh_gate_bar")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="Checkpoint03" type="Marker3D" parent="Checkpoints"]
+transform = Transform3D(-0.20734166, 0, -0.97826856, 0, 1, 0, 0.9782686, 0, -0.20734164, 6.1059675, 0, -39.388344)
+
+[node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint03"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GatePostRight" type="MeshInstance3D" parent="Checkpoints/Checkpoint03"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GateBar" type="MeshInstance3D" parent="Checkpoints/Checkpoint03"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
+mesh = SubResource("BoxMesh_gate_bar")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="Checkpoint04" type="Marker3D" parent="Checkpoints"]
+transform = Transform3D(-0.9969016, 0, 0.078659534, 0, 1, 0, -0.07865954, 0, -0.9969015, 22.438093, 0, -18.427837)
+
+[node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint04"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GatePostRight" type="MeshInstance3D" parent="Checkpoints/Checkpoint04"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GateBar" type="MeshInstance3D" parent="Checkpoints/Checkpoint04"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
+mesh = SubResource("BoxMesh_gate_bar")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="Checkpoint05" type="Marker3D" parent="Checkpoints"]
+transform = Transform3D(-0.09488884, 0, 0.9954879, 0, 1, 0, -0.9954879, 0, -0.09488884, 2.9957025, 0, -0.13933563)
+
+[node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint05"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GatePostRight" type="MeshInstance3D" parent="Checkpoints/Checkpoint05"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 2.5, 0)
+mesh = SubResource("BoxMesh_gate_post")
+surface_material_override/0 = SubResource("Material_gate")
+
+[node name="GateBar" type="MeshInstance3D" parent="Checkpoints/Checkpoint05"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
+mesh = SubResource("BoxMesh_gate_bar")
+surface_material_override/0 = SubResource("Material_gate")
+

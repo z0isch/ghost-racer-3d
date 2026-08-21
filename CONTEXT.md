@@ -169,7 +169,7 @@ _Avoid_: Best lap, high score, personal best.
 ### Timing and the ghost
 
 **Run clock**:
-The time elapsed in the current Run, started at countdown-zero and running until the circuit's configured duration is reached (a Timeout) or the player aborts. The thing you feel while driving, and on screen — but not a record in its own right. A Run is not good because it lasted long; it is good because it earned well for the time it had.
+The time elapsed in the current Run, started at countdown-zero and running until the circuit's configured duration is reached (a Timeout) or the player aborts. The thing you feel while driving — but not a record in its own right. On screen it is shown counted down rather than up, as the time left to earn in: what a driver acts on is how much Run is left, not how much has gone. For the last few seconds the readout leaves the top of the screen entirely and each remaining whole second is flashed, red and large, in the middle of the road — hundredths have nothing to say once what is left is a small integer, and a number that arrives reads as an alarm where one that never leaves reads as a display. A Run is not good because it lasted long; it is good because it earned well for the time it had.
 _Avoid_: Lap clock.
 
 **Ghost line**:
