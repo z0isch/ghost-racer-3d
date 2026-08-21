@@ -17,8 +17,8 @@
 # turns it into a real gate: a bad script stops the launch instead of producing a
 # dead node twenty seconds into a lap.
 #
-# THE IMPORT PASS IS NOT OPTIONAL. --check-only cannot resolve any class_name until
-# .godot/global_script_class_cache.cfg lists the project's classes - without it even
+# THE IMPORT PASS IS NOT OPTIONAL. Resolving any class_name needs
+# .godot/global_script_class_cache.cfg to list the project's classes - without it even
 # kart.gd fails to find its own `class_name Kart`, and the resulting "Could not find
 # type" errors look exactly like real type errors. .godot/ is gitignored, so this
 # happens on every new clone/worktree. The guard below runs the editor once to build it.
@@ -26,6 +26,13 @@
 # The guard tests the cache's CONTENT, not just its existence. A cache can be present
 # and empty (`list=[]`), and an existence-only test walks straight past that into a wall
 # of bogus type errors.
+#
+# THE CHECKER RUNS AS A LIVE SCENE TREE, NOT --check-only. --check-only never starts the
+# SceneTree, so this project's autoloads (Purse, CircuitSession, LoadoutHolder,
+# IncomeRunner) are never registered, and every script that references one by its global
+# name fails with a bogus "Identifier not found" even though it is correct. tools/track/
+# check.gd runs as a real --script SceneTree instead, where autoloads are live, and
+# type-checks every scripts/**/*.gd and tests/**/*.gd file itself by loading each one.
 
 $ErrorActionPreference = "Stop"
 $godot = Join-Path $env:USERPROFILE "Downloads\Godot_v4.7.1-stable_win64\Godot_v4.7.1-stable_win64_console.exe"
@@ -54,27 +61,20 @@ try {
     # Start-Process redirects at the OS level, so stderr is never a PS stream.
     $errFile = [System.IO.Path]::GetTempFileName()
     $outFile = [System.IO.Path]::GetTempFileName()
-    $failed = @()
     try {
-        foreach ($f in Get-ChildItem "scripts", "tests" -Recurse -Filter *.gd) {
-            $rel = (Resolve-Path -Relative $f.FullName) -replace '^\.[\\/]', '' -replace '\\', '/'
-            $p = Start-Process -FilePath $godot -NoNewWindow -Wait -PassThru `
-                -ArgumentList @("--headless", "--path", ".", "--check-only", "--script", "res://$rel") `
-                -RedirectStandardError $errFile -RedirectStandardOutput $outFile
-            if ($p.ExitCode -ne 0) {
-                $failed += $rel
-                Write-Host ""
-                Write-Host "check: FAILED $rel" -ForegroundColor Red
-                Get-Content $errFile | Where-Object { $_ -match "error" } |
-                    ForEach-Object { Write-Host "  $_" }
-            }
+        $p = Start-Process -FilePath $godot -NoNewWindow -Wait -PassThru `
+            -ArgumentList @("--headless", "--path", ".", "--script", "res://tools/track/check.gd") `
+            -RedirectStandardError $errFile -RedirectStandardOutput $outFile
+        if ($p.ExitCode -ne 0) {
+            Write-Host ""
+            Get-Content $outFile | Where-Object { $_ -match "^check:" } |
+                ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            Write-Host ""
+            Get-Content $errFile | Where-Object { $_ -match "error" } |
+                ForEach-Object { Write-Host "  $_" }
+            throw "type check failed"
         }
     }
     finally { Remove-Item $errFile, $outFile -ErrorAction SilentlyContinue }
-
-    if ($failed.Count -gt 0) {
-        Write-Host ""
-        throw "$($failed.Count) script(s) failed the type check: $($failed -join ', ')"
-    }
 }
 finally { Pop-Location }

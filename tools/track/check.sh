@@ -17,8 +17,8 @@
 # turns it into a real gate: a bad script stops the launch instead of producing a
 # dead node twenty seconds into a lap.
 #
-# THE IMPORT PASS IS NOT OPTIONAL. --check-only cannot resolve any class_name until
-# .godot/global_script_class_cache.cfg lists the project's classes - without it even
+# THE IMPORT PASS IS NOT OPTIONAL. Resolving any class_name needs
+# .godot/global_script_class_cache.cfg to list the project's classes - without it even
 # kart.gd fails to find its own `class_name Kart`, and the resulting "Could not find
 # type" errors look exactly like real type errors. .godot/ is gitignored, so this
 # happens on every new clone/worktree. The guard below runs the editor once to build it.
@@ -26,6 +26,13 @@
 # The guard tests the cache's CONTENT, not just its existence. A cache can be present
 # and empty (`list=[]`), and an existence-only test walks straight past that into a wall
 # of bogus type errors.
+#
+# THE CHECKER RUNS AS A LIVE SCENE TREE, NOT --check-only. --check-only never starts the
+# SceneTree, so this project's autoloads (Purse, CircuitSession, LoadoutHolder,
+# IncomeRunner) are never registered, and every script that references one by its global
+# name fails with a bogus "Identifier not found" even though it is correct. tools/track/
+# check.gd runs as a real --script SceneTree instead, where autoloads are live, and
+# type-checks every scripts/**/*.gd and tests/**/*.gd file itself by loading each one.
 GODOT="$HOME/Downloads/Godot_v4.7.1-stable_win64/Godot_v4.7.1-stable_win64_console.exe"
 cd "$(dirname "$0")/../.." || exit 1
 
@@ -38,18 +45,8 @@ if ! grep -q '"class"' .godot/global_script_class_cache.cfg 2>/dev/null; then
 	fi
 fi
 
-FAILED=""
-for f in $(find scripts tests -name '*.gd' | sort); do
-	if ! OUT="$("$GODOT" --headless --path . --check-only --script "res://$f" 2>&1)"; then
-		FAILED="$FAILED $f"
-		echo ""
-		echo "check: FAILED $f" >&2
-		echo "$OUT" | grep -i error | sed 's/^/  /' >&2
-	fi
-done
-
-if [ -n "$FAILED" ]; then
+if ! OUT="$("$GODOT" --headless --path . --script res://tools/track/check.gd 2>&1)"; then
 	echo "" >&2
-	echo "check: script(s) failed the type check:$FAILED" >&2
+	echo "$OUT" | grep -E "^check:|error" -i | sed 's/^/  /' >&2
 	exit 1
 fi

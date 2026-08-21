@@ -31,8 +31,14 @@ crashing. **Do not unwire it** from the launch scripts on the grounds that
 `project.godot` already sets the warnings.
 
 The first run on a fresh clone or worktree is slow (~4.5 s): `.godot/` is gitignored, so
-the check has to run the editor once to build the class cache before `--check-only` can
-resolve any `class_name`. Warm runs are ~1.5 s.
+the check has to run the editor once to build the class cache before any `class_name` can
+be resolved. Warm runs are ~1.5 s.
+
+The check itself runs as a live `SceneTree` (`tools/track/check.gd`, launched via
+`--script`) rather than per-file `--check-only`: `--check-only` never starts the
+`SceneTree`, so this project's autoloads (`Purse`, `CircuitSession`, `LoadoutHolder`,
+`IncomeRunner`) are never registered, and any script that references one by its global
+name would fail with a bogus "Identifier not found".
 
 ## Desktop
 
