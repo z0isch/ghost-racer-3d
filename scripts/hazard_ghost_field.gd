@@ -61,11 +61,11 @@ var loadout: CircuitLoadout = null
 ## reason. Set by race.gd, bound to the resolved Circuit.
 var save_loadout: Callable = Callable()
 
-## Metres of ghost line left clear at the start and end, for BoostGhostField's reason: a hazard is
-## never handed before the driver has picked up speed off the line, nor right before the final
-## gate.
+## Metres of ghost line left clear at the start, for BoostGhostField.start_margin's identical
+## reason: a hazard is never handed before the driver has picked up speed off the line. Nothing
+## clears the end, for the same reason BoostGhostField clears none either: a Run wraps rather than
+## finishing at a gate.
 @export var start_margin: float = 10.0
-@export var end_margin: float = 10.0
 
 ## Fraction of its own slot a hazard may wander across at spawn, for BoostGhostField's reason. It
 ## still drives the whole line afterward — this only varies where in its lap the traffic starts out.
@@ -207,14 +207,13 @@ func _process(delta: float) -> void:
 
 
 ## Starting arclength distances for [param count] hazard ghosts along a line of [param total_length]
-## metres, one per equal slot of the span left by the margins — BoostGhostField.place_along's
+## metres, one per equal slot of the span left by [param margin_start] — BoostGhostField.place_along's
 ## stratification, minus the pose resolution and the lateral offset: a hazard has no side to stand
 ## on, only a place in the line to start driving from.
 static func place_along(
 	total_length: float,
 	count: int,
 	margin_start: float,
-	margin_end: float,
 	rng: RandomNumberGenerator,
 	jitter: float,
 ) -> Array[float]:
@@ -222,7 +221,7 @@ static func place_along(
 	if count <= 0 or total_length <= 0.0:
 		return result
 
-	var usable: float = total_length - margin_start - margin_end
+	var usable: float = total_length - margin_start
 	if usable <= 0.0:
 		return result
 
@@ -327,7 +326,6 @@ func _place_ghosts() -> void:
 		_total_length,
 		ghost_count,
 		start_margin,
-		end_margin,
 		_rng,
 		placement_jitter,
 	)

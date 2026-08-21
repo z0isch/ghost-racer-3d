@@ -97,13 +97,32 @@ var _fallback_start_pose: Transform3D = Transform3D.IDENTITY
 var _phase: RunPhase = RunPhase.COUNTDOWN
 var _run_clock: float = 0.0
 var _run_earnings: int = 0
-var _record_earn_rate: float = -1.0 # <0 until a Run has actually been completed
 var _phase_remaining: float = 0.0
 var _checkpoint_index: int = 0
 var _checkpoint_count: int = 0
 var _checkpoints: Array[Checkpoint] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
 var _has_last_kart_position: bool = false
+
+## How many checkpoints this Run has taken, across every wrap — unlike checkpoint_index, which
+## resets to 0 on a wrap, this counts straight through, alongside _ladder_rung (which pays for the
+## next one rather than counting the ones already banked). Reset only in _begin_countdown.
+var _run_checkpoints_taken: int = 0
+
+## The record Run's figures — the Run the ghost line was recorded from, whether that was set this
+## session or loaded from disk. Null until a line exists to compare against, which is the whole
+## "no comparison to draw" condition: a circuit nobody has completed a Run on has no ghost.
+##
+## Holds the earn rate too, so the promotion bar and the figures it was computed from are one object
+## rather than a scalar beside a struct that could disagree with it — [member record_earn_rate]
+## reads out of here.
+var _record_totals: RunTotals = null
+
+## The record that stood when the Run that just finished was driven — the ghost actually raced,
+## captured at the top of complete_run before promotion can overwrite [member _record_totals].
+## Without it a Run that takes the record would be compared against itself and every delta on the
+## results screen would read zero, which is the opposite of what beating your best should look like.
+var _raced_ghost: RunTotals = null
 
 ## Which rung the next checkpoint pays: 1 for the Run's first, rising by one at every checkpoint
 ## taken and running straight through every wrap. Reset only in _begin_countdown, alongside
@@ -151,11 +170,23 @@ var run_earnings: int:
 var earn_rate: float:
 	get: return 0.0 if _run_clock <= 0.0 else _run_earnings / _run_clock
 
-## The session's highest completed-Run earn rate, and the bar a Run must strictly beat to promote
-## its recording to the pace ghost. Stored nowhere else: promotion is exactly "strictly higher rate"
-## with no side conditions, so the ghost is the record-holding Run by construction.
+## The record earn rate, and the bar a Run must strictly beat to promote its recording to the pace
+## ghost. Stored nowhere else: promotion is exactly "strictly higher rate" with no side conditions,
+## so the ghost is the record-holding Run by construction. Read out of [member _record_totals], so
+## the bar and the Run it came from cannot drift apart.
 var record_earn_rate: float:
-	get: return _record_earn_rate
+	get: return -1.0 if _record_totals == null else _record_totals.rate
+
+## The record Run's whole set of figures — what the ghost line out on the track was driven at. Null
+## on a circuit no Run has ever been completed on. Read-only: callers must not mutate it.
+var record_totals: RunTotals:
+	get: return _record_totals
+
+## The record the Run that just finished was actually racing, which is what the results screen
+## compares that Run against. Distinct from [member record_totals] on exactly the Runs where the
+## comparison matters most — the ones that took the record. Null if that Run had no ghost to race.
+var raced_ghost: RunTotals:
+	get: return _raced_ghost
 
 ## The Run's whole time budget: the circuit's configured duration plus every clock taken so far.
 ## Not known at Countdown and rises mid-Run, which is exactly what the HUD readout jumping *up*
@@ -180,6 +211,11 @@ var checkpoint_index: int:
 
 var checkpoint_count: int:
 	get: return _checkpoint_count
+
+## How many checkpoints this Run has banked so far, counting straight through every wrap — what the
+## results screen shows as "this race", alongside [member run_earnings].
+var run_checkpoints_taken: int:
+	get: return _run_checkpoints_taken
 
 ## The record Run's line. Copy-on-write, so reading is ~free and callers must not mutate. Two
 ## read-only getters rather than a sample_at(t) accessor: the boost ghost field walks the whole
@@ -279,12 +315,17 @@ func complete_run() -> void:
 	var run_time: float = _run_clock
 	var rate: float = earn_rate
 
-	# The negative sentinel is the "first completed Run promotes unconditionally" rule: an earn rate
-	# is never negative, so a real Run can never sit at or below it, and a zero-earning opening Run
-	# still promotes. The strict > is the rest: a tie does not displace the incumbent.
-	var is_record: bool = _record_earn_rate < 0.0 or rate > _record_earn_rate
+	# Captured before the promotion below can replace it: the ghost this Run was driven against is
+	# what the results screen measures the Run by, and on a record Run that is precisely the record
+	# about to stop existing.
+	_raced_ghost = _record_totals
+
+	# The null record is the "first completed Run promotes unconditionally" rule: a circuit with no
+	# ghost has no bar, so a zero-earning opening Run still promotes. The strict > is the rest: a tie
+	# does not displace the incumbent.
+	var is_record: bool = _record_totals == null or rate > _record_totals.rate
 	if is_record:
-		_record_earn_rate = rate
+		_record_totals = RunTotals.of(_run_earnings, _run_checkpoints_taken, run_time, rate)
 		# Packed arrays are copy-on-write, so duplicate() is ~1 µs and the copy is never
 		# materialised: the recording is cleared on the next lines regardless.
 		_ghost_line_positions = _recording_positions.duplicate()
@@ -395,6 +436,7 @@ func _sweep_pending_checkpoint() -> void:
 	var value: int = _ladder_rung * base_checkpoint_value
 	_run_earnings += value
 	_ladder_rung += 1
+	_run_checkpoints_taken += 1
 	checkpoint_paid.emit(value, checkpoint.origin, direction)
 
 	# The index the *next* sample will occupy — the sample taken at the end of this same frame's
@@ -443,7 +485,21 @@ func _load_ghost_line() -> void:
 	_ghost_line_positions = ghost_line.positions
 	_ghost_line_yaws = ghost_line.yaws
 	_ghost_line_checkpoints = ghost_line.checkpoint_samples
-	_record_earn_rate = ghost_line.earn_rate
+
+	# A line saved before the results screen wanted the record Run's earnings and length carries
+	# neither, and the two are reconstructed rather than the whole line being thrown away: the
+	# checkpoint count is exactly how many crossings it recorded, the earnings are that many rungs of
+	# the ladder, and the length is the sample count at one sample per physics tick — the rate these
+	# same lines are recorded and replayed at. Reconstructed earnings assume the circuit's base
+	# checkpoint value has not been re-authored since; that is off only in the results screen's delta
+	# column, and only until the next record overwrites the line with figures it actually measured.
+	var earnings: int = ghost_line.run_earnings
+	var run_time: float = ghost_line.run_time
+	if earnings < 0 or run_time <= 0.0:
+		earnings = ladder_total(ghost_line.checkpoint_samples.size(), base_checkpoint_value)
+		run_time = ghost_line.positions.size() / float(Engine.physics_ticks_per_second)
+	_record_totals = RunTotals.of(earnings, ghost_line.checkpoint_samples.size(), run_time,
+			ghost_line.earn_rate)
 
 
 # Mirrors the promotion in complete_run to disk, so the next session's _load_ghost_line picks up
@@ -454,7 +510,9 @@ func _save_ghost_line() -> void:
 	var ghost_line := GhostLine.new()
 	ghost_line.positions = _ghost_line_positions
 	ghost_line.yaws = _ghost_line_yaws
-	ghost_line.earn_rate = _record_earn_rate
+	ghost_line.earn_rate = _record_totals.rate
+	ghost_line.run_earnings = _record_totals.earnings
+	ghost_line.run_time = _record_totals.time
 	ghost_line.checkpoint_samples = _ghost_line_checkpoints
 	ghost_line.checkpoints_per_wrap = _checkpoint_count
 	var error: Error = ResourceSaver.save(ghost_line, ghost_line_path)
@@ -469,6 +527,7 @@ func _begin_countdown(seconds: float) -> void:
 	_phase_remaining = seconds
 	_run_clock = 0.0
 	_run_earnings = 0
+	_run_checkpoints_taken = 0
 	_earned_seconds = 0.0
 	_ladder_rung = 1
 	_checkpoint_index = 0
@@ -509,6 +568,16 @@ static func ladder_value(rung: int, base: int) -> int:
 	return rung * base
 
 
+## What a Run taking [param checkpoints] checkpoints earns off the ladder, start to finish: rungs
+## 1..n summed, in closed form rather than a loop. Reconstructs a pre-figures ghost line's earnings
+## (see [method _load_ghost_line]) — the ladder is the only thing a Run's money can come from, so
+## a recording's checkpoint count determines what it earned exactly.
+static func ladder_total(checkpoints: int, base: int) -> int:
+	# Exact, not truncated: one of n and n+1 is always even, so the halving never discards anything.
+	@warning_ignore("integer_division")
+	return base * checkpoints * (checkpoints + 1) / 2
+
+
 ## One checkpoint, resolved once from its marker so the physics step does no node lookups. A plane
 ## (origin, forward) carrying a bounded cross-section measured along right and up — the marker's own
 ## axes, which are the road's axes where it stands, so the prism rolls with the camber.
@@ -524,3 +593,29 @@ class Checkpoint extends RefCounted:
 	var forward: Vector3 = Vector3.ZERO
 	var right: Vector3 = Vector3.ZERO
 	var up: Vector3 = Vector3.ZERO
+
+
+## One completed Run's figures, as the results screen reads them: what it earned, how many
+## checkpoints it took, how long it lasted, and the rate the first two make. Only ever built for a
+## Run that holds a record — the live Run's figures are the director's own fields, and this is the
+## shape they are frozen into once they belong to the ghost.
+##
+## The rate is stored rather than recomputed from earnings/time because a loaded line's rate is the
+## authoritative one: it is the number promotion was judged on, and recomputing it from
+## reconstructed figures would quietly move the bar.
+##
+## RefCounted rather than a value type, which GDScript lacks: two instances at most, both replaced
+## only at a Run boundary.
+class RunTotals extends RefCounted:
+	var earnings: int = 0
+	var checkpoints: int = 0
+	var time: float = 0.0
+	var rate: float = 0.0
+
+	static func of(p_earnings: int, p_checkpoints: int, p_time: float, p_rate: float) -> RunTotals:
+		var totals := RunTotals.new()
+		totals.earnings = p_earnings
+		totals.checkpoints = p_checkpoints
+		totals.time = p_time
+		totals.rate = p_rate
+		return totals

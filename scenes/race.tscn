@@ -145,12 +145,12 @@ script = ExtResource("18_hazard_ghost_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../RunDirector")
 ghosts_path = NodePath("../Circuit/HazardGhosts")
-end_margin = 0.0
-placement_jitter = 0.503
+start_margin = 15.0
+placement_jitter = 0.0
 min_speed = 0.0
 max_speed = 14.0
 hit_slow_multiplier = 0.75
-pickup_radius_fraction = 2.0
+pickup_radius_fraction = 3.0
 line_width = 0.25
 line_color = Color(0.9490196, 0.101960786, 0.101960786, 0.4509804)
 
@@ -202,6 +202,125 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 14
 theme_override_font_sizes/font_size = 128
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Results" type="Control" parent="CountdownHud" unique_id=1124207439]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Headline" type="Label" parent="CountdownHud/Results" unique_id=1124207440]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -500.0
+offset_top = -280.0
+offset_right = 500.0
+offset_bottom = -180.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 14
+theme_override_font_sizes/font_size = 76
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Rows" type="HBoxContainer" parent="CountdownHud/Results" unique_id=1124207441]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -380.0
+offset_top = -130.0
+offset_right = 380.0
+offset_bottom = 110.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 40
+alignment = 1
+
+[node name="Names" type="RichTextLabel" parent="CountdownHud/Results/Rows" unique_id=1124207442]
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/default_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/line_separation = 16
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/normal_font_size = 30
+bbcode_enabled = true
+scroll_active = false
+autowrap_mode = 0
+
+[node name="Values" type="RichTextLabel" parent="CountdownHud/Results/Rows" unique_id=1124207443]
+custom_minimum_size = Vector2(170, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/default_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/line_separation = 16
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/normal_font_size = 30
+bbcode_enabled = true
+scroll_active = false
+autowrap_mode = 0
+
+[node name="Deltas" type="RichTextLabel" parent="CountdownHud/Results/Rows" unique_id=1124207444]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/default_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/line_separation = 16
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/normal_font_size = 30
+bbcode_enabled = true
+scroll_active = false
+autowrap_mode = 0
+
+[node name="Caption" type="Label" parent="CountdownHud/Results" unique_id=1124207445]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -400.0
+offset_top = 132.0
+offset_right = 400.0
+offset_bottom = 164.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.62, 0.62, 0.68, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Prompt" type="Label" parent="CountdownHud/Results" unique_id=1124207446]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -400.0
+offset_top = 196.0
+offset_right = 400.0
+offset_bottom = 240.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 30
 horizontal_alignment = 1
 vertical_alignment = 1
 

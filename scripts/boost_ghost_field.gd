@@ -53,8 +53,8 @@ const RoadSegment = preload("res://addons/road-generator/nodes/road_segment.gd")
 @export var road_container_path: NodePath
 ## The same start-line Marker3D the [RunDirector] teleports the kart onto. The centreline is a
 ## closed loop with no inherent start; this is where it is cut and which direction it is walked, so
-## [member start_margin]/[member end_margin] clear the same stretch of road the driver actually
-## starts and finishes on rather than an arbitrary RoadPoint.
+## [member start_margin] clears the same stretch of road the driver actually starts on rather than
+## an arbitrary RoadPoint.
 @export var start_line_path: NodePath
 ## The circuit's BoostGhosts node: an empty runtime spawn parent. The field owns what stands under
 ## it; nothing is authored there.
@@ -82,11 +82,9 @@ var loadout: CircuitLoadout = null
 var save_loadout: Callable = Callable()
 
 ## Metres of centreline left clear at the start, so a ghost is never handed before the driver has
-## picked up speed off the line.
+## picked up speed off the line. Nothing clears the end: a Run wraps rather than finishing at a
+## gate ([CONTEXT.md]'s **Wrap**), so there is no "just before the end" to protect.
 @export var start_margin: float = 10.0
-## Metres of centreline left clear at the end, so a ghost is never handed right before the final
-## gate.
-@export var end_margin: float = 10.0
 
 ## Fraction of its own slot a ghost may wander across. 0.0 pins every ghost to its slot's midpoint,
 ## which is a fixed field for as long as the road stands; 1.0 lets a ghost reach the slot edge it
@@ -222,8 +220,8 @@ func _process(delta: float) -> void:
 
 
 ## Poses for [param count] boost ghosts along [param positions]/[param yaws], one per equal slot of
-## the span left by [param margin_start] / [param margin_end]. Empty for a count of zero or a line
-## too short to hold the margins.
+## the span left by [param margin_start]. Empty for a count of zero or a line too short to hold the
+## margin.
 ##
 ## Stratified rather than uniformly random: a ghost is drawn inside its own slot, never across the
 ## whole line, so a field re-rolled at every countdown can neither clump three ghosts into one
@@ -235,16 +233,14 @@ func _process(delta: float) -> void:
 ## _lateral_placements], not this static function; a TestCase is a RefCounted that cannot touch the
 ## scene tree, and this is the seam the geometry suite tests.
 ##
-## Parameters named margin_start/margin_end rather than start_margin/end_margin (which the
-## exported [member start_margin]/[member end_margin] already claim on this class): GDScript's
-## shadowed_variable check fires on a static function parameter reusing an instance member's name,
-## even though the two never interact.
+## Parameter named margin_start rather than start_margin (which the exported [member start_margin]
+## already claims on this class): GDScript's shadowed_variable check fires on a static function
+## parameter reusing an instance member's name, even though the two never interact.
 static func place_along(
 	positions: PackedVector3Array,
 	yaws: PackedFloat32Array,
 	count: int,
 	margin_start: float,
-	margin_end: float,
 	rng: RandomNumberGenerator,
 	jitter: float,
 ) -> Array[Transform3D]:
@@ -260,7 +256,7 @@ static func place_along(
 		cumulative.append(cumulative[i - 1] + positions[i - 1].distance_to(positions[i]))
 
 	var total: float = cumulative[cumulative.size() - 1]
-	var usable: float = total - margin_start - margin_end
+	var usable: float = total - margin_start
 	if usable <= 0.0:
 		return result
 
@@ -317,7 +313,6 @@ func _place_ghosts() -> void:
 		_centreline_yaws,
 		ghost_count,
 		start_margin,
-		end_margin,
 		_rng,
 		placement_jitter,
 	)
@@ -338,7 +333,7 @@ func _place_ghosts() -> void:
 ## [member _start_line], when set, is where the loop is cut into an open line and which direction it
 ## is walked: without it the loop is cut at an arbitrary RoadPoint and walked in that RoadPoint's
 ## own "next" direction, which still yields a driveable centreline but no longer lines up
-## [member start_margin]/[member end_margin] with where the driver actually starts and finishes.
+## [member start_margin] with where the driver actually starts.
 func _build_centreline() -> void:
 	if not _centreline_positions.is_empty() or _road_container == null:
 		return
