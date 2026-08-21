@@ -84,7 +84,7 @@ var save_loadout: Callable = Callable()
 ## Seconds added to the Run when a hazard is cleared by a hop instead of hit, via [signal
 ## hazard_jumped]. Tunable independently of a clock's own seconds — a dodge is a smaller, riskier
 ## trick than driving over an authored clock, so this defaults lower.
-@export var jump_time_bonus: float = 2.0
+@export var jump_time_bonus: float = 0.0
 ## Fraction of the kart's own collision radius ([member Kart.sphere_radius]) a hazard reaches out
 ## to, for BoostGhostField.pickup_radius_fraction's identical reason and identical default.
 @export var pickup_radius_fraction: float = 4.0
