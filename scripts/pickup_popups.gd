@@ -23,6 +23,9 @@ extends Node3D
 @export var director_path: NodePath
 ## clock_taken → "+10s", pointedly not green.
 @export var clock_field_path: NodePath
+## hazard_jumped → "+2s", for the trick rather than the clock — its own colour, not clock_color, so
+## a run-clock popup and a jump-bonus popup never read as the same pickup.
+@export var hazard_ghost_field_path: NodePath
 
 ## How far in front of the pickup the text appears, along the pickup's own travel direction: far
 ## enough that you drive through it, close enough that it still belongs to the pickup you took. At
@@ -46,6 +49,10 @@ extends Node3D
 ## final-seconds urgency red already spoken for elsewhere on screen.
 @export var clock_color: Color = Color(0.4, 0.75, 1.0)
 
+## The jump bonus's own colour: a trick reward, not a clock, and not the hazard ghost's own red
+## either — a bright lime so "+2s" for clearing a hazard never gets mistaken for either.
+@export var jump_color: Color = Color(0.6, 1.0, 0.2)
+
 ## With [member pixel_size], sizes the text in metres rather than pixels: 64 * 0.005 = 0.32 m tall,
 ## about half the height of the 0.6 m disc it came from.
 @export var font_size: int = 64
@@ -65,6 +72,10 @@ func _ready() -> void:
 	else:
 		push_warning("PickupPopups: no ClockField — no clock feedback.")
 
+	var hazard_field: HazardGhostField = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
+	if hazard_field != null:
+		hazard_field.hazard_jumped.connect(_on_hazard_jumped)
+
 
 func _on_checkpoint_paid(value: int, pickup_position: Vector3, direction: Vector3) -> void:
 	_spawn("$%d" % value, money_color, pickup_position, direction)
@@ -72,6 +83,10 @@ func _on_checkpoint_paid(value: int, pickup_position: Vector3, direction: Vector
 
 func _on_clock_taken(seconds: float, pickup_position: Vector3, direction: Vector3) -> void:
 	_spawn("+%ds" % roundi(seconds), clock_color, pickup_position, direction)
+
+
+func _on_hazard_jumped(seconds: float, pickup_position: Vector3, direction: Vector3) -> void:
+	_spawn("+%ds" % roundi(seconds), jump_color, pickup_position, direction)
 
 
 ## One popup per pickup, with no stacking logic. Sweeping three checkpoints in half a second leaves

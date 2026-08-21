@@ -298,7 +298,7 @@ var speed: float:
 
 ## The tuned speed ceiling, for consumers that want a 0..1 fraction of it (ChaseCamera's FOV).
 var max_speed: float:
-	get: return _model.tuning.max_speed
+	get: return _model.top_speed
 
 ## Rear slip magnitude above an epsilon. Read by the camera and the cosmetics.
 ##

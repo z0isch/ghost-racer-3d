@@ -95,8 +95,19 @@ extends Resource
 ## True: a boost ghost banks a charge, spent on the driver's own timing by the boost button.
 ## False: a boost ghost fires immediately on contact, as a pad would — no charge, no button, no
 ## KartState.boost_charges to read. A tuning switch rather than two code paths in the field or the
-## model, so a playtest can compare the two feels without a second circuit.
+## model, so a playtest can compare the two feels without a second circuit. Ignored when [member
+## boost_raises_top_speed] is true — that mode replaces both of these rather than picking between
+## them.
 @export var store_boost_charges: bool = true
+## True: a boost ghost never charges and never fires an instant boost at all — instead it
+## permanently raises the kart's own top speed by [member top_speed_bump], for the rest of the Run.
+## Cumulative across every ghost taken, and only cleared when the kart itself resets (a new
+## countdown), the same lifecycle a boost ghost field's take already has. A tuning switch, so a
+## playtest can compare "temporary overspeed" against "a faster kart" without a second circuit.
+@export var boost_raises_top_speed: bool = false
+## m/s added to the kart's top speed by each ghost taken, when [member boost_raises_top_speed] is
+## true.
+@export var top_speed_bump: float = 1.0
 
 # --- Hop -----------------------------------------------------------------------------------
 ## Right trigger: a timed dodge, in KartModel's own terms still not a jump. It buys the driver a

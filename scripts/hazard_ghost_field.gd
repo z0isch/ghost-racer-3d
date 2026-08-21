@@ -12,16 +12,22 @@ extends Node
 ##
 ## Placed at runtime along the run director's ghost line ([method _field_range] — one wrap of it,
 ## or all of it if no wrap was completed), at every countdown and whenever the line changes; a re-place
-## first frees whatever stood there before. A *wrap* only restores the field here rather than
-## re-placing it — see [method _on_wrapped], which is where hazards and boost ghosts part company.
+## first frees whatever stood there before. A *wrap* does nothing at all to the field — unlike the
+## boost ghosts, hazards are neither restored nor re-placed there: cleared is cleared for the rest
+## of the Run, and the traffic still standing keeps driving straight through the wrap boundary.
 ##
 ## Each hazard trails a short ribbon down the line ahead of itself ([method _update_ribbons]),
 ## rather than the field painting the whole wrap red: under Runs the same wrap is driven over and
 ## over, so a wrap-long ribbon is permanent scenery, where a per-hazard one is a warning about
 ## traffic that is actually coming.
 
-## One ghost, the instant it is taken. Position only, for BoostGhostField's reason.
+## One ghost, the instant it is hit head-on. Position only, for BoostGhostField's reason.
 signal hazard_hit(position: Vector3)
+## One ghost, the instant it is cleared by a hop instead. Carries the seconds the jump is worth, so
+## RunDirector can bank them the same way it banks a clock, and position/direction in ClockField.
+## clock_taken's own shape, so PickupPopups can spawn a popup for this pickup exactly as it does
+## for that one.
+signal hazard_jumped(seconds: float, position: Vector3, direction: Vector3)
 
 ## The same imported model every ghost in this game uses. No hazard_car.tscn: the field instances
 ## this directly, one per placement.
@@ -75,6 +81,10 @@ var save_loadout: Callable = Callable()
 ## nothing. Kept separate from the ghost's own driving speed: how hard a hit costs you is a
 ## different dial than how fast the traffic comes at you.
 @export var hit_slow_multiplier: float = 0.5
+## Seconds added to the Run when a hazard is cleared by a hop instead of hit, via [signal
+## hazard_jumped]. Tunable independently of a clock's own seconds — a dodge is a smaller, riskier
+## trick than driving over an authored clock, so this defaults lower.
+@export var jump_time_bonus: float = 2.0
 ## Fraction of the kart's own collision radius ([member Kart.sphere_radius]) a hazard reaches out
 ## to, for BoostGhostField.pickup_radius_fraction's identical reason and identical default.
 @export var pickup_radius_fraction: float = 4.0
@@ -145,8 +155,8 @@ func _ready() -> void:
 		_pickup_radius = pickup_radius_fraction * _kart.sphere_radius
 
 	if _director != null:
+		# countdown_started only: a wrap deliberately leaves the field alone (see class doc).
 		_director.countdown_started.connect(_on_countdown_started)
-		_director.wrapped.connect(_on_wrapped)
 
 	if _ghosts_root == null:
 		push_warning("HazardGhostField: no HazardGhosts node — nothing to spawn traffic into.")
@@ -519,6 +529,7 @@ func _sweep_ghosts() -> void:
 
 	var previous: Vector3 = _last_kart_position
 	_last_kart_position = position
+	var direction: Vector3 = ClockField.sweep_direction(previous, position, _kart.global_transform.basis)
 
 	for hazard: Hazard in _ghosts:
 		if hazard.taken:
@@ -527,19 +538,21 @@ func _sweep_ghosts() -> void:
 			continue
 		if absf(position.y - hazard.origin.y) > max_vertical_gap:
 			continue
-		# The swept test itself ignores height (see class doc), so a hop dodges by immunity rather
-		# than clearance: the hazard is not taken and the driver keeps whatever position the hop
-		# was spent avoiding, rather than banking a free hit for landing back on the line.
-		if _kart.is_hopping:
-			continue
 		hazard.taken = true
 		hazard.node.visible = false
 		# Here rather than left to the next [method _update_ribbons]: the sweep is deferred and the
 		# ribbons were already updated this frame, so waiting would leave a warning hanging in the
 		# air for a frame after the thing it warned about was hit.
 		hazard.ribbon.visible = false
-		_kart.apply_hazard_slow(hit_slow_multiplier)
-		hazard_hit.emit(hazard.origin)
+		# The swept test itself ignores height (see class doc), so a hop clears a hazard by immunity
+		# rather than clearance — the hazard still disappears exactly as a hit one does, but instead
+		# of costing speed it pays out jump_time_bonus, rewarding the trick rather than merely
+		# forgiving it.
+		if _kart.is_hopping:
+			hazard_jumped.emit(jump_time_bonus, hazard.origin, direction)
+		else:
+			_kart.apply_hazard_slow(hit_slow_multiplier)
+			hazard_hit.emit(hazard.origin)
 
 
 ## Re-places the whole field at every countdown, for BoostGhostField._on_countdown_started's
@@ -547,26 +560,6 @@ func _sweep_ghosts() -> void:
 func _on_countdown_started() -> void:
 	_has_last_kart_position = false
 	_place_ghosts()
-
-
-## Restores the standing field at every wrap — every hazard hit during the wrap comes back, since
-## "hit once is hit for the rest of the wrap" and the wrap is now over — but deliberately does
-## *not* re-place it, unlike the boost field on the same signal.
-##
-## A boost ghost is consumed and then stands still, so nothing but a re-place can bring it back or
-## move it. A hazard drives ([method _advance_ghosts]), recirculating the whole wrap under its own
-## speed, so it re-rolls itself continuously and has nothing to gain from being freed and respawned.
-## What that would cost is real: oncoming cars popping out of existence and a fresh field appearing
-## in front of a driver already at speed — the countdown could do that unseen from a standing start,
-## a wrap boundary crossed at pace cannot — and [member start_margin] re-applied at the line every
-## single wrap, cutting a hole in the traffic there that recurs for the length of the Run.
-##
-## [member _has_last_kart_position] is untouched for the reason it always was: a wrap is not a
-## teleport, so clearing it here would drop one frame of the kart's own swept test.
-func _on_wrapped() -> void:
-	for hazard: Hazard in _ghosts:
-		hazard.taken = false
-		hazard.node.visible = true
 
 
 func _build_ghost_material() -> StandardMaterial3D:

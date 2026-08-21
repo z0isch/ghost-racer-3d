@@ -151,7 +151,8 @@ min_speed = 0.0
 max_speed = 14.0
 hit_slow_multiplier = 0.75
 pickup_radius_fraction = 2.0
-line_width = 0.05
+line_width = 0.25
+line_color = Color(0.9490196, 0.101960786, 0.101960786, 0.4509804)
 
 [node name="PurseLink" type="Node" parent="." unique_id=417553903]
 script = ExtResource("11_purse")
@@ -161,9 +162,11 @@ director_path = NodePath("../RunDirector")
 script = ExtResource("12_pickup_popups")
 director_path = NodePath("../RunDirector")
 clock_field_path = NodePath("../ClockField")
+hazard_ghost_field_path = NodePath("../HazardGhostField")
 lead_distance = 5.0
 rise = 5.0
 lifetime = 1.5
+jump_color = Color(0.4, 0.7490196, 1, 1)
 font_size = 256
 
 [node name="RunDirector" type="Node" parent="." unique_id=299497301]
@@ -173,6 +176,7 @@ chase_camera_path = NodePath("../ChaseCamera")
 start_line_path = NodePath("../Circuit/StartLine")
 checkpoints_path = NodePath("../Circuit/Checkpoints")
 clock_field_path = NodePath("../ClockField")
+hazard_ghost_field_path = NodePath("../HazardGhostField")
 restart_countdown_seconds = 1.0
 
 [node name="PaceGhost" type="Node3D" parent="." unique_id=871962825]

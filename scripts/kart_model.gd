@@ -65,6 +65,12 @@ var _boost_charges: int = 0
 var _charge_bump: float = 0.0
 var _charge_bleed: float = 0.0
 
+## Permanent top-speed gain banked so far this Run, under tuning.boost_raises_top_speed. Added
+## straight onto tuning.max_speed wherever the ceiling is computed ([method _effective_top_speed]),
+## rather than living as its own separate ceiling, so surface multipliers and every other consumer
+## of "the kart's top speed" see the raised number without a second code path.
+var _top_speed_bonus: float = 0.0
+
 # The hop's whole state: whether a window is open, and how far into it. Two fields rather than
 # folding "open" into a sign or sentinel on the elapsed time, for reset()'s reason: both go back to
 # their plain zero values together.
@@ -155,7 +161,7 @@ func _integrate_forward_speed(input: KartInput, surface_multiplier: float, delta
 		_forward_speed = 0.0
 		return
 
-	var effective_max: float = tuning.max_speed * surface_multiplier
+	var effective_max: float = _effective_top_speed() * surface_multiplier
 	var effective_acceleration: float = tuning.acceleration * surface_multiplier
 	var throttle: float = - input.brake if input.brake > 0.01 else 1.0
 
@@ -321,11 +327,18 @@ func apply_hazard_slow(multiplier: float) -> void:
 ## With tuning.store_boost_charges false, there is nothing to bank: the ghost's grant fires
 ## straight through to apply_boost, the pad's own behaviour, and boost_charges stays 0 for the
 ## life of the run.
+##
+## With tuning.boost_raises_top_speed true, neither of those happens: the ghost never charges and
+## never fires an instant boost, it just raises _top_speed_bonus by tuning.top_speed_bump — checked
+## first, so it overrides store_boost_charges rather than the two stacking.
 func add_boost_charge(bump: float, bleed: float) -> void:
+	if bump <= 0.0:
+		return
+	if tuning.boost_raises_top_speed:
+		_top_speed_bonus += tuning.top_speed_bump
+		return
 	if not tuning.store_boost_charges:
 		apply_boost(bump, bleed)
-		return
-	if bump <= 0.0:
 		return
 	_boost_charges += 1
 	_charge_bump = bump
@@ -377,6 +390,7 @@ func reset() -> void:
 	_boost_charges = 0
 	_charge_bump = 0.0
 	_charge_bleed = 0.0
+	_top_speed_bonus = 0.0
 	_hop_active = false
 	_hop_elapsed = 0.0
 
@@ -384,7 +398,7 @@ func reset() -> void:
 ## Fills a caller-owned KartState. The view gets a copy of the numbers and no handle on the model.
 func snapshot_into(state: KartState) -> void:
 	state.speed = speed
-	state.max_speed = tuning.max_speed
+	state.max_speed = _effective_top_speed()
 	state.rear_slip_degrees = rear_slip_degrees
 	state.rear_slip_fraction = rear_slip_fraction
 	state.steer_fraction = steer_fraction
@@ -460,6 +474,12 @@ var drift_side: float:
 var frozen: bool:
 	get: return _frozen
 
+## tuning.max_speed plus any permanent bonus banked via boost_raises_top_speed ghosts ([method
+## _effective_top_speed]). What Kart.max_speed reads for ChaseCamera's FOV fraction, so a raised
+## ceiling shows up there too rather than only in how the kart actually drives.
+var top_speed: float:
+	get: return _effective_top_speed()
+
 ## m/s the kart is currently carrying above its ceiling on boost credit, 0.0 when not boosting. Not
 ## a stored "boost amount" — it is the overspeed itself, so it cannot disagree with the speed on
 ## screen.
@@ -494,7 +514,16 @@ var hop_fraction: float:
 # Speed as a 0..1 fraction of the tuned maximum. Both the ceiling and the rear grip interpolate
 # against it, which is what makes the same flick a snap at 4 m/s and a long committed arc at 12.
 func _speed_fraction() -> float:
-	return clampf(absf(_forward_speed) / tuning.max_speed, 0.0, 1.0) if tuning.max_speed > 0.0 else 0.0
+	var effective_top_speed: float = _effective_top_speed()
+	return clampf(absf(_forward_speed) / effective_top_speed, 0.0, 1.0) if effective_top_speed > 0.0 else 0.0
+
+
+## tuning.max_speed plus whatever [member _top_speed_bonus] a boost-raises-top-speed ghost has
+## banked so far this Run. The single source every consumer of "the kart's top speed" — the
+## longitudinal ceiling, the speed-fraction taper, KartState.max_speed — reads through, so the
+## bonus shows up everywhere top_speed already did rather than needing its own plumbing.
+func _effective_top_speed() -> float:
+	return tuning.max_speed + _top_speed_bonus
 
 
 # A long way round at low speed, barely any swing flat out. Too steep and fast corners go numb, too

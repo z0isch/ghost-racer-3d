@@ -55,6 +55,10 @@ enum RunPhase {
 @export var checkpoints_path: NodePath
 ## The ClockField whose pickups extend [member run_budget].
 @export var clock_field_path: NodePath
+## The HazardGhostField whose jumped-over ghosts also extend [member run_budget], via [signal
+## HazardGhostField.hazard_jumped]. Left unset, hopping a hazard still clears it — the field does
+## that on its own — but no time is banked for it.
+@export var hazard_ghost_field_path: NodePath
 
 ## Where the ghost line is persisted. Loaded on [method _ready] if the file exists, and overwritten
 ## every time a Run promotes a new record — so the "drive one Run to get ghosts" tax is paid once,
@@ -216,6 +220,13 @@ func _ready() -> void:
 	else:
 		push_warning("RunDirector: no ClockField — no Run can be extended.")
 
+	var hazard_field: HazardGhostField = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
+	if hazard_field != null:
+		# unbind(2) drops hazard_jumped's position and direction arguments, for clock_taken's
+		# identical reason: _on_clock_taken only ever banks the seconds it's handed, whichever
+		# pickup handed them.
+		hazard_field.hazard_jumped.connect(_on_clock_taken.unbind(2))
+
 	# The phase must resolve before Kart's physics step reads frozen, or the GO frame is spent still
 	# frozen — a dead frame the driver feels as a hitch off the line. Checkpoint detection needs the
 	# opposite, the kart's position after move_and_slide, hence the deferred swept test.
@@ -292,8 +303,10 @@ func complete_run() -> void:
 	run_completed.emit(run_time, is_record)
 
 
-# No phase guard: ClockField sweeps only while Racing and re-checks the phase inside its own
-# deferred callback, so a pickup cannot reach here outside a live Run.
+# Shared by ClockField.clock_taken and HazardGhostField.hazard_jumped: banking seconds is banking
+# seconds regardless of which pickup earned them, so one handler serves both rather than each
+# duplicating this one line. No phase guard: both fields sweep only while Racing and re-check the
+# phase inside their own deferred callback, so a pickup cannot reach here outside a live Run.
 func _on_clock_taken(seconds: float) -> void:
 	_earned_seconds += seconds
 
