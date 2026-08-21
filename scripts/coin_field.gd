@@ -51,7 +51,7 @@ signal coin_taken(value: int, position: Vector3, direction: Vector3)
 const MIN_MEANINGFUL_SPEED: float = 1.0
 
 var _kart: Kart
-var _director: LapDirector
+var _director: RunDirector
 var _coins: Array[Coin] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
 var _has_last_kart_position: bool = false
@@ -59,7 +59,7 @@ var _has_last_kart_position: bool = false
 
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
-	_director = get_node_or_null(director_path) as LapDirector
+	_director = get_node_or_null(director_path) as RunDirector
 
 	if _director != null:
 		_director.countdown_started.connect(_on_countdown_started)
@@ -71,7 +71,7 @@ func _ready() -> void:
 ## the director runs at the head of the physics frame (process_physics_priority = -100) and the
 ## kart moves after it: the position the kart finishes the frame at only exists after the flush.
 func _physics_process(_delta: float) -> void:
-	if _kart == null or _director == null or _director.phase != LapDirector.LapPhase.RACING:
+	if _kart == null or _director == null or _director.phase != RunDirector.RunPhase.RACING:
 		return
 	_sweep_coins.call_deferred()
 
@@ -81,7 +81,7 @@ func _physics_process(_delta: float) -> void:
 ## only caller reads it once per countdown.
 ##
 ## Taken-ness is deliberately not filtered. The callers place things against the field's shape, and
-## the shape is what the countdown restores — a coin that was taken last lap is standing again by
+## the shape is what the countdown restores — a coin that was taken last Run is standing again by
 ## the time anything acts on this.
 func coin_origins() -> PackedVector3Array:
 	var origins := PackedVector3Array()
@@ -114,7 +114,7 @@ static func segment_takes_coin(
 	return (start + travelled * along).distance_squared_to(coin) <= radius * radius
 
 
-## Resolved once, as LapDirector._resolve_checkpoints does, so the physics step performs no node
+## Resolved once, as RunDirector._resolve_checkpoints does, so the physics step performs no node
 ## lookups. A scene without a generated Coins node has no coins, which keeps this script runnable
 ## outside main.tscn.
 ##
@@ -155,9 +155,9 @@ func _resolve_coins() -> void:
 
 
 func _sweep_coins() -> void:
-	# Re-checked: the director's sweep is queued first and can end the lap inside this same flush.
-	# Without the guard a coin taken on the finishing frame lands in the next lap's earnings.
-	if _director.phase != LapDirector.LapPhase.RACING:
+	# Re-checked: the director's sweep is queued first and can end the Run inside this same flush.
+	# Without the guard a coin taken on the finishing frame lands in the next Run's earnings.
+	if _director.phase != RunDirector.RunPhase.RACING:
 		return
 
 	var position: Vector3 = _kart.global_position
@@ -210,7 +210,7 @@ func _on_countdown_started() -> void:
 		coin.node.visible = true
 
 
-## One coin, resolved once from its marker. RefCounted for the same reason LapDirector.Checkpoint
+## One coin, resolved once from its marker. RefCounted for the same reason RunDirector.Checkpoint
 ## is: built in _ready, never allocated in the physics step. The origin is the centre of the disc.
 class Coin extends RefCounted:
 	var node: Node3D = null

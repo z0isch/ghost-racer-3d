@@ -1,0 +1,7 @@
+# Replace the infinite lap loop with fixed-duration Runs
+
+Status: proposed
+
+The game used to have no end condition at all: a **lap** was one ordered pass through a circuit's checkpoints, and completing one always looped straight back into another countdown, forever. We're replacing that with a **Run**: a fixed time budget (configured per circuit) during which the checkpoints still have to be taken in order and wrap back to the first after the last, but the attempt itself stops on a clock — either a **Timeout** when the budget runs out (which keeps the result and can set a record) or an **Abort** on `reset` (which discards it entirely, as before). "Lap" is retired as a concept; nothing tracks or names a single pass through the checkpoints on its own anymore.
+
+We chose this to try the game with real time pressure instead of an unbounded practice loop, and picked the "fixed total time, no bonus on checkpoints" shape over a classic checkpoint-adds-time model to keep the first iteration simple. It touches nearly every system in `CONTEXT.md` — the run director (formerly lap director), the earn rate record, and every ghost system (pace, boost, hazard, income) that was built around a single short lap-length recording now has to work with a longer, multi-wrap recording per Run. That last part is a known open question, not yet resolved: those ghost consumers are being left to consume the longer recording unchanged until it's clear whether that actually holds up.

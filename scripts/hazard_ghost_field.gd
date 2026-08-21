@@ -102,7 +102,7 @@ var save_loadout: Callable = Callable()
 @export var line_color: Color = Color(0.95, 0.1, 0.1, 0.2)
 
 var _kart: Kart
-var _director: LapDirector
+var _director: RunDirector
 var _ghosts_root: Node3D
 var _ghosts: Array[Hazard] = []
 var _cumulative: PackedFloat32Array = PackedFloat32Array()
@@ -120,7 +120,7 @@ var _line_mesh_instance: MeshInstance3D
 
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
-	_director = get_node_or_null(director_path) as LapDirector
+	_director = get_node_or_null(director_path) as RunDirector
 	_ghosts_root = get_node_or_null(ghosts_path) as Node3D
 	if _kart != null:
 		_pickup_radius = pickup_radius_fraction * _kart.sphere_radius
@@ -144,7 +144,7 @@ func _ready() -> void:
 ##
 ## The dev inputs live here, not gated on phase, for BoostGhostField's identical reason.
 func _physics_process(delta: float) -> void:
-	if _director != null and _director.phase == LapDirector.LapPhase.RACING:
+	if _director != null and _director.phase == RunDirector.RunPhase.RACING:
 		_advance_ghosts(delta)
 		if _kart != null:
 			_sweep_ghosts.call_deferred()
@@ -369,8 +369,8 @@ func _advance_ghosts(delta: float) -> void:
 
 
 func _sweep_ghosts() -> void:
-	# Re-checked: the director's sweep is queued first and can end the lap inside this same flush.
-	if _director.phase != LapDirector.LapPhase.RACING:
+	# Re-checked: the director's sweep is queued first and can end the Run inside this same flush.
+	if _director.phase != RunDirector.RunPhase.RACING:
 		return
 
 	var position: Vector3 = _kart.global_position

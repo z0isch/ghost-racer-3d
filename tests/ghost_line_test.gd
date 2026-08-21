@@ -1,9 +1,9 @@
 class_name GhostLineTest
 extends TestCase
 
-## The persistence round trip GhostLine exists for: LapDirector saves one to disk on every record
-## lap and loads it back on _ready, so a track only needs to be recorded once, by whoever commits
-## the file. This suite doesn't touch LapDirector — it pins the one thing that can silently break
+## The persistence round trip GhostLine exists for: RunDirector saves one to disk on every record
+## Run and loads it back on _ready, so a track only needs to be recorded once, by whoever commits
+## the file. This suite doesn't touch RunDirector — it pins the one thing that can silently break
 ## that promise, ResourceSaver/ResourceLoader losing or reshaping the packed arrays in transit.
 ##
 ## Written under user:// rather than res://: the test runner has no guarantee the working tree is

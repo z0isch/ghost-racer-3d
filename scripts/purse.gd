@@ -6,13 +6,13 @@ extends Node
 ## autoload is the only thing in Godot that does. A regular node dies with the scene that owned it,
 ## which would zero the purse every time the kart crosses a start line.
 ##
-## Not on LapDirector either, a split recorded in CONTEXT.md under **Purse holder**. The director
-## owns lap state and clears all of it in _begin_countdown, and a session-scoped total behind a
-## per-lap reset eventually gets cleared by accident. Hence what is absent here: no connection to
-## countdown_started and no reset path, so no lap boundary can reach in.
+## Not on RunDirector either, a split recorded in CONTEXT.md under **Purse holder**. The director
+## owns Run state and clears all of it in _begin_countdown, and a session-scoped total behind a
+## per-Run reset eventually gets cleared by accident. Hence what is absent here: no connection to
+## countdown_started and no reset path, so no Run boundary can reach in.
 ##
 ## The total only ever goes up. Nothing subtracts from it, coins are banked the instant they are
-## touched, and an abort costs the abandoned lap its earnings but not its contribution here. It is a
+## touched, and an abort costs the abandoned Run its earnings but not its contribution here. It is a
 ## reward rather than a currency or a score: the pace ghost is promoted on the earn rate, not on
 ## this, and nothing is won or lost by having more.
 ##

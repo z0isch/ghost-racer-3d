@@ -42,7 +42,7 @@ func for_circuit(circuit: Circuit) -> CircuitLoadout:
 
 
 ## Writes the cached loadout for [param circuit] back to disk. No-op on a null circuit or an empty
-## path, mirroring [method LapDirector._save_ghost_line].
+## path, mirroring [method RunDirector._save_ghost_line].
 func save(circuit: Circuit) -> void:
 	if circuit == null or circuit.loadout_path.is_empty():
 		return

@@ -3,8 +3,8 @@ extends CanvasLayer
 
 ## The purse on screen, top-centre and green.
 ##
-## Its own CanvasLayer rather than a row in LapHud: a different place on screen, a different source
-## object (Purse, not LapDirector), and a different lifetime — the purse outlives every lap and
+## Its own CanvasLayer rather than a row in RunHud: a different place on screen, a different source
+## object (Purse, not RunDirector), and a different lifetime — the purse outlives every Run and
 ## abort, and nothing here is ever reset. It is the reward number, not a racing stat.
 ##
 ## Read-only and polled each _process. The one discrete edge, the flash on pickup, comes in on

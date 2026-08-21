@@ -2,7 +2,7 @@ class_name GateDimming
 extends RefCounted
 
 ## The duplicate-and-alpha technique shared by every material-dimming path in the game: [class
-## LapDirector] dims every gate but the pending one during a race, [class InertCircuit] dims every
+## RunDirector] dims every gate but the pending one during a race, [class InertCircuit] dims every
 ## gate in the open world, where there is no pending one at all, and also translucences a circuit's
 ## bought coins out there. One implementation, so a change to how a material is dimmed — a
 ## transparency mode fix, a second material surface — reaches all three rather than only whichever

@@ -4,10 +4,10 @@ extends Node
 ## Dims every gate on a circuit instance standing in the open world, and shows its loadout: bought
 ## coins translucent, unbought coins hidden entirely.
 ##
-## No lap director runs out here, so nothing would otherwise dim the intermediate gates the way
-## [method LapDirector._update_gate_visibility] does inside a race — every gate would render at
-## full brightness, reading as "every gate is the pending one", which is a lie with no lap in
-## progress. Dimming itself is [class GateDimming], shared with the lap director, so the shared
+## No run director runs out here, so nothing would otherwise dim the intermediate gates the way
+## [method RunDirector._update_gate_visibility] does inside a race — every gate would render at
+## full brightness, reading as "every gate is the pending one", which is a lie with no Run in
+## progress. Dimming itself is [class GateDimming], shared with the run director, so the shared
 ## resource authored into the circuit scene is never mutated, and a race scene loaded afterwards
 ## still sees the original, undimmed material.
 ##

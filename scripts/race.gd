@@ -6,10 +6,10 @@ extends Node3D
 ##
 ## Done in [method _enter_tree] rather than authored into the scene: _enter_tree fires top-down as
 ## a scene is added to the tree, and this node's fires before any of its siblings' _ready — in
-## particular before LapDirector._ready resolves NodePaths like "../Circuit/StartLine" and reads
+## particular before RunDirector._ready resolves NodePaths like "../Circuit/StartLine" and reads
 ## its ghost_line_path. Since this node is already inside the tree by the time its own _enter_tree
 ## runs, add_child here cascades the new child's _enter_tree immediately, ahead of the siblings
-## still waiting their turn in the same top-down pass — and get_node("LapDirector") already
+## still waiting their turn in the same top-down pass — and get_node("RunDirector") already
 ## resolves, because the whole scene's node structure exists before any of it enters the tree.
 ##
 ## At identity: [member GhostLine.positions] are recorded in the circuit's own coordinates, and any
@@ -19,10 +19,10 @@ extends Node3D
 ## Falls back to circuit3 when nothing is pending — running race.tscn directly, outside the
 ## world's entry flow, still plays a circuit rather than nothing.
 ##
-## Also owns exit_circuit: live in any lap phase, deliberately separate from LapDirector's own
-## reset/abort handling. Exiting discards the in-progress lap exactly as an abort does — but there
-## is nothing to explicitly discard here, since a lap only ever reaches the ghost line and the
-## record earn rate through [method LapDirector.complete_lap], and this scene tearing down takes
+## Also owns exit_circuit: live in any Run phase, deliberately separate from RunDirector's own
+## reset/abort handling. Exiting discards the in-progress Run exactly as an abort does — but there
+## is nothing to explicitly discard here, since a Run only ever reaches the ghost line and the
+## record earn rate through [method RunDirector.complete_run], and this scene tearing down takes
 ## the unpromoted recording with it. [autoload CircuitSession]'s return pose was set once, at
 ## entry, and is left untouched — it is the pose this race is exited back to.
 
@@ -35,7 +35,7 @@ const FALLBACK_CIRCUIT: Circuit = preload("res://circuits/circuit3.tres")
 const WORLD_SCENE_PATH: String = "res://main.tscn"
 
 @export var kart_path: NodePath = NodePath("Kart")
-@export var lap_director_path: NodePath = NodePath("LapDirector")
+@export var run_director_path: NodePath = NodePath("RunDirector")
 @export var coin_field_path: NodePath = NodePath("CoinField")
 @export var boost_ghost_field_path: NodePath = NodePath("BoostGhostField")
 @export var hazard_ghost_field_path: NodePath = NodePath("HazardGhostField")
@@ -55,15 +55,16 @@ func _enter_tree() -> void:
 	circuit_node.name = "Circuit"
 	add_child(circuit_node)
 
-	var lap_director: LapDirector = get_node_or_null(lap_director_path) as LapDirector
-	if lap_director != null:
-		lap_director.ghost_line_path = circuit.ghost_line_path
+	var run_director: RunDirector = get_node_or_null(run_director_path) as RunDirector
+	if run_director != null:
+		run_director.ghost_line_path = circuit.ghost_line_path
+		run_director.run_duration_seconds = circuit.run_duration_seconds
 		# The reverse edge of the wiring this scene already does: it hands the circuit's ghost line
 		# to the director, so it is also the natural place to forward a promoted one back out to
 		# [autoload IncomeRunner], which sits inside no scene and has no connection of its own to the
-		# director. LapDirector must not learn about the runner — it owns lap state and knows nothing
+		# director. RunDirector must not learn about the runner — it owns Run state and knows nothing
 		# about autoloads.
-		lap_director.lap_completed.connect(_on_lap_completed)
+		run_director.run_completed.connect(_on_run_completed)
 
 	# Resolved once, in the same breath as the ghost line, and pushed into the coin field and the
 	# two ghost fields — so those fields go on taking their counts from whoever owns them rather
@@ -110,10 +111,10 @@ func _physics_process(_delta: float) -> void:
 			_kart.frozen = false
 
 
-## A completed lap that set no record changed nothing this circuit's income ghosts run on; only a
+## A completed Run that set no record changed nothing this circuit's income ghosts run on; only a
 ## promotion needs forwarding. The re-seat is invisible when it happens — income ghosts are hidden
 ## inside a race — so there is no visual cost to snapping it immediately rather than waiting for the
 ## player to leave.
-func _on_lap_completed(_lap_time: float, is_record: bool) -> void:
+func _on_run_completed(_run_time: float, is_record: bool) -> void:
 	if is_record:
 		IncomeRunner.reseat(_circuit)

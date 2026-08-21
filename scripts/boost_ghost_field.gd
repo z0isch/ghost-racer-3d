@@ -51,7 +51,7 @@ const RoadSegment = preload("res://addons/road-generator/nodes/road_segment.gd")
 ## The circuit's RoadContainer, whose generated RoadSegments' curves are walked into the
 ## centreline the field spawns ghosts along ([method _build_centreline]).
 @export var road_container_path: NodePath
-## The same start-line Marker3D the [LapDirector] teleports the kart onto. The centreline is a
+## The same start-line Marker3D the [RunDirector] teleports the kart onto. The centreline is a
 ## closed loop with no inherent start; this is where it is cut and which direction it is walked, so
 ## [member start_margin]/[member end_margin] clear the same stretch of road the driver actually
 ## starts and finishes on rather than an arbitrary RoadPoint.
@@ -135,7 +135,7 @@ var save_loadout: Callable = Callable()
 @export var ghost_color: Color = Color(1.0, 0.65, 0.2, 0.35)
 
 var _kart: Kart
-var _director: LapDirector
+var _director: RunDirector
 var _coin_field: CoinField
 var _ghosts_root: Node3D
 var _ghosts: Array[Ghost] = []
@@ -161,7 +161,7 @@ var _rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
-	_director = get_node_or_null(director_path) as LapDirector
+	_director = get_node_or_null(director_path) as RunDirector
 	_coin_field = get_node_or_null(coin_field_path) as CoinField
 	_ghosts_root = get_node_or_null(ghosts_path) as Node3D
 	if _kart != null:
@@ -190,10 +190,10 @@ func _ready() -> void:
 ## moves after it, so the position the kart finishes the frame at only exists after the flush.
 ##
 ## The dev inputs live here, not gated on phase or on whether a centreline exists: the field owns
-## the count, so the field owns the input that changes it, and pressing `]` on lap 1 must still
-## raise the count that lap 2 opens with.
+## the count, so the field owns the input that changes it, and pressing `]` before any Run has
+## completed must still raise the count the next Run opens with.
 func _physics_process(_delta: float) -> void:
-	if _kart != null and _director != null and _director.phase == LapDirector.LapPhase.RACING:
+	if _kart != null and _director != null and _director.phase == RunDirector.RunPhase.RACING:
 		_sweep_ghosts.call_deferred()
 
 	if Input.is_action_just_pressed("dev_boost_more"):
@@ -451,7 +451,7 @@ func _nearest_index(positions: PackedVector3Array, point: Vector3) -> int:
 
 ## One yaw per position in [param positions], each the heading of the step into the next position
 ## (`-atan2(dir.x, dir.z)`'s convention inverted to match [member Kart]'s own `forward =
-## -basis.z`— see [member LapDirector._recording_yaws], which records `global_rotation.y` off that
+## -basis.z`— see [member RunDirector._recording_yaws], which records `global_rotation.y` off that
 ## same basis). The last position has no "next" step of its own, so it repeats the step before it
 ## rather than wrapping onto the first — the walk is an open line by the time this runs, not the
 ## closed loop it started as.
@@ -545,8 +545,8 @@ func _spawn_ghost(pose: Transform3D) -> Ghost:
 
 
 func _sweep_ghosts() -> void:
-	# Re-checked: the director's sweep is queued first and can end the lap inside this same flush.
-	if _director.phase != LapDirector.LapPhase.RACING:
+	# Re-checked: the director's sweep is queued first and can end the Run inside this same flush.
+	if _director.phase != RunDirector.RunPhase.RACING:
 		return
 
 	var position: Vector3 = _kart.global_position
@@ -580,9 +580,8 @@ func _take_ghost(ghost: Ghost) -> void:
 
 
 ## Re-places the whole field so it is exactly whole at the moment the driver looks at the track
-## during the countdown — the signal that exists precisely for this. Not called on lap_completed:
-## rearranging the circuit while the player is still reading their lap time during the Finished
-## hold.
+## during the countdown — the signal that exists precisely for this. Not called on run_completed:
+## rearranging the circuit while the player is still reading the Results screen.
 func _on_countdown_started() -> void:
 	_has_last_kart_position = false
 	_place_ghosts()

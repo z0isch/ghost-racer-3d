@@ -22,7 +22,7 @@ extends Node
 ## that for free (CONTEXT.md's **Income ghost view**).
 signal pickup(circuit: Circuit, position: Vector3, direction: Vector3, value: int)
 
-## Ghost lines are recorded one sample per physics tick ([method LapDirector._append_sample]), so
+## Ghost lines are recorded one sample per physics tick ([method RunDirector._append_sample]), so
 ## walking them at this same rate is what makes a ghost retrace exactly what was driven.
 var _sample_rate: float:
 	get: return Engine.physics_ticks_per_second
@@ -32,8 +32,8 @@ var _circuits: Dictionary[Circuit, CircuitIncome] = {}
 
 ## The summed instantaneous income rate across every registered circuit, in dollars per second.
 ## Exposed with nothing reading it yet — a global $/sec readout is wanted eventually and this is the
-## number it will read. Never conflated with [member LapDirector.earn_rate]: that measures how well
-## a lap was driven and is the only thing that can set a record; this measures what has been bought.
+## number it will read. Never conflated with [member RunDirector.earn_rate]: that measures how well
+## a Run was driven and is the only thing that can set a record; this measures what has been bought.
 var income_rate: float:
 	get:
 		var total: float = 0.0
@@ -121,7 +121,7 @@ func _advance(circuit: Circuit, income: CircuitIncome, delta: float) -> void:
 			pickup.emit(circuit, p.position, p.direction, p.value)
 
 
-## Mirrors [method LapDirector._load_ghost_line]: a missing or unloadable file is not an error, just
+## Mirrors [method RunDirector._load_ghost_line]: a missing or unloadable file is not an error, just
 ## an empty ghost line.
 func _load_ghost_line(circuit: Circuit) -> GhostLine:
 	if circuit.ghost_line_path.is_empty() or not ResourceLoader.exists(circuit.ghost_line_path):

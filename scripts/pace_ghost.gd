@@ -1,14 +1,14 @@
 class_name PaceGhost
 extends Node3D
 
-## The pace ghost: a translucent replay of the ghost line — the highest earn rate lap driven this
+## The pace ghost: a translucent replay of the ghost line — the highest earn rate Run driven this
 ## session — running beside you from the moment the countdown ends.
 ##
 ## Pure playback: the director owns the ghost line itself, both the in-progress recording and the
 ## promoted line. This node only reads it.
 ##
 ## There is no frozen flag and no state machine: the ghost has no physics to freeze, and its pose is
-## a pure function of the director's lap clock.
+## a pure function of the director's Run clock.
 
 @export var kart_path: NodePath
 @export var director_path: NodePath
@@ -22,14 +22,14 @@ extends Node3D
 ## no_depth_test: an always-visible silhouette through barriers and crests.
 @export var visible_through_geometry: bool = false
 
-var _director: LapDirector
+var _director: RunDirector
 
 
 func _ready() -> void:
-	_director = get_node_or_null(director_path) as LapDirector
+	_director = get_node_or_null(director_path) as RunDirector
 
 	_apply_ghost_material(self)
-	visible = false # lap 1 has no ghost
+	visible = false # no Run has completed yet, so there is no ghost
 
 
 # Driven from _process, not _physics_process: the ghost is a pace reference you stare at, so it
@@ -40,21 +40,21 @@ func _process(_delta: float) -> void:
 		return
 
 	match _director.phase:
-		LapDirector.LapPhase.COUNTDOWN:
+		RunDirector.RunPhase.COUNTDOWN:
 			# Pinned to sample 0: the clock is zero and stays there, so you and the ghost share
 			# the start line until either of you moves.
 			visible = true
 			_apply(0, 0, 0.0)
 			return
 
-		LapDirector.LapPhase.FINISHED:
-			# Hidden, and this is the uncontended window _on_lap_completed's buffer swap lands in.
+		RunDirector.RunPhase.RESULTS:
+			# Hidden, and this is the uncontended window _on_run_completed's buffer swap lands in.
 			visible = false
 			return
 
-	# Racing: a pure function of the lap clock. The director accumulates the clock on the same tick
+	# Racing: a pure function of the Run clock. The director accumulates the clock on the same tick
 	# the sample is appended, so sample i sits at exactly i x dt — no stored timestamps.
-	var t: float = _director.current_lap_time * Engine.physics_ticks_per_second
+	var t: float = _director.run_clock * Engine.physics_ticks_per_second
 	var index: int = int(t)
 	if index >= _director.ghost_line_positions.size() - 1:
 		# Out of samples: the ghost finished before you did. Hidden rather than parked on the

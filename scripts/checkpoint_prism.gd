@@ -3,7 +3,7 @@ extends RefCounted
 
 ## The swept-plane crossing test shared by every checkpoint prism in the game — CONTEXT.md,
 ## **Checkpoint prism**: bounded laterally and vertically, no thickness, crossed rather than
-## entered. [class LapDirector] tests a lap's checkpoints against it.
+## entered. [class RunDirector] tests a Run's checkpoints against it.
 
 
 ## True if the segment [param previous] -> [param position] crosses the plane through [param

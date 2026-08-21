@@ -21,7 +21,7 @@ extends SceneTree
 ## nodes. Every other block — the road, the ground, the StartLine, node order, unique_ids — comes
 ## through byte for byte.
 
-# The prism's ceiling (LapDirector.checkpoint_ceiling), so the gate draws the rule rather than
+# The prism's ceiling (RunDirector.checkpoint_ceiling), so the gate draws the rule rather than
 # approximating it.
 const GATE_HEIGHT := 5.0
 const GATE_POST_THICKNESS := 0.4
@@ -346,7 +346,7 @@ func _transform_to_root(node: Node3D, scene_root: Node3D) -> Transform3D:
 
 
 ## The road's own frame at arclength `s`: origin on the centreline, -Z along the direction of
-## travel, Y the road's up and X the driver's right — exactly the basis LapDirector reads a
+## travel, Y the road's up and X the driver's right — exactly the basis RunDirector reads a
 ## checkpoint's prism out of (`forward = -basis.z`, `right = basis.x`, `up = basis.y`).
 ##
 ## The up vector is a plain lerp of the span's two RoadPoints' up vectors, not a simplification: it

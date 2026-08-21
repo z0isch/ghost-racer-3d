@@ -56,8 +56,8 @@ const MUD_LAYER_BIT: int = 1 << 2
 ## not how the kart feels to drive.
 @export var jump_speed: float = 8.0
 
-## A *driver-input* concept, not a lap concept: Kart names no lap phase and holds no reference to
-## LapDirector. While set, the physics step still runs surface classification,
+## A *driver-input* concept, not a Run concept: Kart names no Run phase and holds no reference to
+## RunDirector. While set, the physics step still runs surface classification,
 ## gravity, ground snap and cosmetics; what it suppresses is throttle/brake/steer/slip, and it
 ## pins forward speed, yaw and lateral speed at zero.
 ##
@@ -66,7 +66,7 @@ const MUD_LAYER_BIT: int = 1 << 2
 var frozen: bool = false:
 	set(value):
 		frozen = value
-		# LapDirector freezes the kart from its own _ready, which may run before this node's;
+		# RunDirector freezes the kart from its own _ready, which may run before this node's;
 		# _ready re-applies whatever was set in the meantime.
 		if _model != null:
 			_model.freeze(value)
@@ -96,7 +96,7 @@ func _ready() -> void:
 	_model.freeze(frozen)
 
 
-# The "reset" action is read by LapDirector alone; two readers of one action in one frame is a race.
+# The "reset" action is read by RunDirector alone; two readers of one action in one frame is a race.
 func _physics_process(delta: float) -> void:
 	_classify_surface()
 

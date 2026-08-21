@@ -5,9 +5,9 @@
 [ext_resource type="Script" uid="uid://bfwqdtfsatc44" path="res://scripts/chase_camera.gd" id="2_chase_camera"]
 [ext_resource type="Resource" uid="uid://dfaeho636uia" path="res://tuning/default.tres" id="3_4c57u"]
 [ext_resource type="Script" uid="uid://dbysge02jo6wo" path="res://scripts/debug_hud.gd" id="3_debug_hud"]
-[ext_resource type="Script" uid="uid://dmftaorexfhvj" path="res://scripts/lap_director.gd" id="5_lap_director"]
+[ext_resource type="Script" uid="uid://dmftaorexfhvj" path="res://scripts/run_director.gd" id="5_run_director"]
 [ext_resource type="Script" uid="uid://cimslld3mxxch" path="res://scripts/countdown_hud.gd" id="6_countdown_hud"]
-[ext_resource type="Script" uid="uid://wbsa1w3drfsf" path="res://scripts/lap_hud.gd" id="7_lap_hud"]
+[ext_resource type="Script" uid="uid://wbsa1w3drfsf" path="res://scripts/run_hud.gd" id="7_run_hud"]
 [ext_resource type="Script" uid="uid://n3krn4s0chb4" path="res://scripts/pace_ghost.gd" id="8_pace_ghost"]
 [ext_resource type="PackedScene" uid="uid://dhb86lw6o4g5n" path="res://cars/FBX/SportsCar.fbx" id="9_ghost_model"]
 [ext_resource type="Script" uid="uid://c28f467qgtyl" path="res://scripts/coin_field.gd" id="10_coin_field"]
@@ -126,13 +126,13 @@ text = "On-road"
 [node name="CoinField" type="Node" parent="." unique_id=417553902]
 script = ExtResource("10_coin_field")
 kart_path = NodePath("../Kart")
-director_path = NodePath("../LapDirector")
+director_path = NodePath("../RunDirector")
 coins_path = NodePath("../Circuit/Coins")
 
 [node name="BoostGhostField" type="Node" parent="." unique_id=417553907]
 script = ExtResource("15_boost_ghost_field")
 kart_path = NodePath("../Kart")
-director_path = NodePath("../LapDirector")
+director_path = NodePath("../RunDirector")
 road_container_path = NodePath("../Circuit/RoadManager/RoadContainer")
 start_line_path = NodePath("../Circuit/StartLine")
 ghosts_path = NodePath("../Circuit/BoostGhosts")
@@ -145,7 +145,7 @@ ghost_color = Color(0, 0.5176471, 0.34509805, 0.5921569)
 [node name="HazardGhostField" type="Node" parent="." unique_id=417553908]
 script = ExtResource("18_hazard_ghost_field")
 kart_path = NodePath("../Kart")
-director_path = NodePath("../LapDirector")
+director_path = NodePath("../RunDirector")
 ghosts_path = NodePath("../Circuit/HazardGhosts")
 end_margin = 0.0
 placement_jitter = 0.503
@@ -163,8 +163,8 @@ coin_field_path = NodePath("../CoinField")
 script = ExtResource("12_pickup_popups")
 coin_field_path = NodePath("../CoinField")
 
-[node name="LapDirector" type="Node" parent="." unique_id=299497301]
-script = ExtResource("5_lap_director")
+[node name="RunDirector" type="Node" parent="." unique_id=299497301]
+script = ExtResource("5_run_director")
 kart_path = NodePath("../Kart")
 chase_camera_path = NodePath("../ChaseCamera")
 start_line_path = NodePath("../Circuit/StartLine")
@@ -175,7 +175,7 @@ restart_countdown_seconds = 1.0
 [node name="PaceGhost" type="Node3D" parent="." unique_id=871962825]
 script = ExtResource("8_pace_ghost")
 kart_path = NodePath("../Kart")
-director_path = NodePath("../LapDirector")
+director_path = NodePath("../RunDirector")
 ghost_color = Color(0.6901961, 0.003921569, 0.98039216, 0.3372549)
 
 [node name="SportsCar" parent="PaceGhost" unique_id=1655867908 instance=ExtResource("9_ghost_model")]
@@ -183,7 +183,7 @@ transform = Transform3D(-0.55, 0, 3.4969112e-08, 0, 0.6, 0, -4.8082526e-08, 0, -
 
 [node name="CountdownHud" type="CanvasLayer" parent="." unique_id=151872398]
 script = ExtResource("6_countdown_hud")
-director_path = NodePath("../LapDirector")
+director_path = NodePath("../RunDirector")
 
 [node name="CountdownLabel" type="Label" parent="CountdownHud" unique_id=1124207438]
 anchors_preset = 15
@@ -198,11 +198,11 @@ theme_override_font_sizes/font_size = 128
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="LapHud" type="CanvasLayer" parent="." unique_id=744120865]
-script = ExtResource("7_lap_hud")
-director_path = NodePath("../LapDirector")
+[node name="RunHud" type="CanvasLayer" parent="." unique_id=744120865]
+script = ExtResource("7_run_hud")
+director_path = NodePath("../RunDirector")
 
-[node name="CurrentLabel" type="Label" parent="LapHud" unique_id=283114907]
+[node name="CurrentLabel" type="Label" parent="RunHud" unique_id=283114907]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
@@ -216,7 +216,7 @@ theme_override_font_sizes/font_size = 44
 text = "0.00"
 horizontal_alignment = 2
 
-[node name="RateLabel" type="Label" parent="LapHud" unique_id=283114908]
+[node name="RateLabel" type="Label" parent="RunHud" unique_id=283114908]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
@@ -230,7 +230,7 @@ theme_override_font_sizes/font_size = 20
 text = "RATE  --.--/s"
 horizontal_alignment = 2
 
-[node name="RecordLabel" type="Label" parent="LapHud" unique_id=283114909]
+[node name="RecordLabel" type="Label" parent="RunHud" unique_id=283114909]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
@@ -244,7 +244,7 @@ theme_override_font_sizes/font_size = 20
 text = "RECORD  --.--/s"
 horizontal_alignment = 2
 
-[node name="CheckpointLabel" type="Label" parent="LapHud" unique_id=630187224]
+[node name="CheckpointLabel" type="Label" parent="RunHud" unique_id=630187224]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0

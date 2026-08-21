@@ -10,14 +10,16 @@ extends CanvasLayer
 @export var director_path: NodePath
 ## How long "GO!" hangs after the freeze releases.
 @export var go_display_seconds: float = 0.6
+## Shown during Results, telling the player how to start a new Run.
+@export var results_prompt: String = "press RESET to run again"
 
-var _director: LapDirector
+var _director: RunDirector
 
 @onready var _label: Label = $CountdownLabel
 
 
 func _ready() -> void:
-	_director = get_node_or_null(director_path) as LapDirector
+	_director = get_node_or_null(director_path) as RunDirector
 
 
 func _process(_delta: float) -> void:
@@ -27,12 +29,12 @@ func _process(_delta: float) -> void:
 	match _director.phase:
 		# Ceil, so a 3.0 s countdown reads 3 → 2 → 1 with a full second each rather than
 		# flashing "3" for one frame.
-		LapDirector.LapPhase.COUNTDOWN:
+		RunDirector.RunPhase.COUNTDOWN:
 			_label.text = str(maxi(1, ceili(_director.phase_remaining)))
-		LapDirector.LapPhase.RACING:
-			_label.text = "GO!" if _director.current_lap_time < go_display_seconds else ""
-		# Blank: the completed time belongs to LapHud, alongside the record.
-		LapDirector.LapPhase.FINISHED:
-			_label.text = ""
+		RunDirector.RunPhase.RACING:
+			_label.text = "GO!" if _director.run_clock < go_display_seconds else ""
+		# Results is a real stop, not a held instant — tell the player how to continue.
+		RunDirector.RunPhase.RESULTS:
+			_label.text = results_prompt
 		_:
 			_label.text = ""

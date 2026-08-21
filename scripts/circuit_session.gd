@@ -9,7 +9,7 @@ extends Node
 ## general state bag — a single-purpose owner does not become one either.
 
 ## The circuit a CircuitEntryTrigger just sent the kart to race. Read by [script race.gd] to pick
-## which circuit_scene to instance and which ghost_line_path to give the LapDirector.
+## which circuit_scene to instance and which ghost_line_path to give the RunDirector.
 var pending_circuit: Circuit = null
 
 ## Where the world places the kart on return from a race scene, and whether that placement is
