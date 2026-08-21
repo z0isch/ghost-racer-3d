@@ -6,9 +6,10 @@ extends Node3D
 ## coordinates applies directly with no arithmetic — this node is authored at identity under the
 ## circuit root.
 ##
-## A pure view: it owns no money, no progress and no coins. Each frame it asks the runner where this
-## circuit's ghosts are and moves cars there; the runner is never told whether anything is drawing
-## it, so a hidden ghost still earns (CONTEXT.md's **Income ghost view**).
+## A pure view: it owns no money and no progress — not where a ghost has got to, not which rung of
+## the ladder it is on. Each frame it asks the runner where this circuit's ghosts are and moves cars
+## there; the runner is never told whether anything is drawing it, so a hidden ghost still earns
+## (CONTEXT.md's **Income ghost view**).
 ##
 ## Not a job for InertCircuit — that node renders things authored into the circuit that stand still.
 ## Income ghosts are spawned cars driven by an autoload on a per-frame update, which is a different
@@ -43,7 +44,7 @@ const MODEL_TRANSFORM: Transform3D = Transform3D(
 @export var car_visibility_range_end: float = 150.0
 @export var popup_visibility_range_end: float = 60.0
 
-## How far in front of a taken coin the popup appears, along the pickup's own travel direction —
+## How far in front of a paid checkpoint the popup appears, along the pickup's own travel direction —
 ## matching [member PickupPopups.lead_distance].
 @export var popup_lead_distance: float = 1.0
 @export var popup_rise: float = 1.5
@@ -93,11 +94,11 @@ func _spawn_ghost() -> Node3D:
 ## Circuit-local, exactly as [signal IncomeRunner.pickup] reports it: converted to world space by
 ## the fact of standing in this circuit's own coordinate frame ([method Node3D.to_global]), the same
 ## turn CONTEXT.md's **Income ghost view** entry describes.
-func _on_pickup(pickup_circuit: Circuit, coin_position: Vector3, direction: Vector3, value: int) -> void:
+func _on_pickup(pickup_circuit: Circuit, checkpoint_position: Vector3, direction: Vector3, value: int) -> void:
 	if pickup_circuit != circuit:
 		return
 
-	var local_spawn: Vector3 = coin_position + direction * popup_lead_distance
+	var local_spawn: Vector3 = checkpoint_position + direction * popup_lead_distance
 	_spawn_popup(value, to_global(local_spawn))
 
 

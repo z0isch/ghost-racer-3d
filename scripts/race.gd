@@ -36,7 +36,7 @@ const WORLD_SCENE_PATH: String = "res://main.tscn"
 
 @export var kart_path: NodePath = NodePath("Kart")
 @export var run_director_path: NodePath = NodePath("RunDirector")
-@export var coin_field_path: NodePath = NodePath("CoinField")
+@export var clock_field_path: NodePath = NodePath("ClockField")
 @export var boost_ghost_field_path: NodePath = NodePath("BoostGhostField")
 @export var hazard_ghost_field_path: NodePath = NodePath("HazardGhostField")
 
@@ -59,6 +59,7 @@ func _enter_tree() -> void:
 	if run_director != null:
 		run_director.ghost_line_path = circuit.ghost_line_path
 		run_director.run_duration_seconds = circuit.run_duration_seconds
+		run_director.base_checkpoint_value = circuit.base_checkpoint_value
 		# The reverse edge of the wiring this scene already does: it hands the circuit's ghost line
 		# to the director, so it is also the natural place to forward a promoted one back out to
 		# [autoload IncomeRunner], which sits inside no scene and has no connection of its own to the
@@ -66,16 +67,16 @@ func _enter_tree() -> void:
 		# about autoloads.
 		run_director.run_completed.connect(_on_run_completed)
 
-	# Resolved once, in the same breath as the ghost line, and pushed into the coin field and the
+	# Resolved once, in the same breath as the ghost line, and pushed into the clock field and the
 	# two ghost fields — so those fields go on taking their counts from whoever owns them rather
 	# than each growing its own dependency on [autoload LoadoutHolder] (CONTEXT.md's **Loadout
 	# holder**).
 	var loadout: CircuitLoadout = LoadoutHolder.for_circuit(circuit)
 	var save_loadout: Callable = LoadoutHolder.save.bind(circuit)
 
-	var coin_field: CoinField = get_node_or_null(coin_field_path) as CoinField
-	if coin_field != null:
-		coin_field.live_coin_count = loadout.coin_count
+	var clock_field: ClockField = get_node_or_null(clock_field_path) as ClockField
+	if clock_field != null:
+		clock_field.live_clock_count = loadout.clock_count
 
 	var boost_field: BoostGhostField = get_node_or_null(boost_ghost_field_path) as BoostGhostField
 	if boost_field != null:

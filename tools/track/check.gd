@@ -16,7 +16,7 @@ func _initialize() -> void:
 		var script: GDScript = load(path)
 		var err := script.reload()
 		# ERR_ALREADY_IN_USE: this script already has live instances (an autoload, or a
-		# field initializer that instantiated it eagerly, e.g. IncomeRunner's CoinOrigins).
+		# field initializer that instantiated it eagerly).
 		# reload() refuses to touch it, but the mere existence of an instance proves the
 		# engine already compiled this exact on-disk source successfully during its own
 		# startup, moments before this loop ran - so it is a pass, not a skip.

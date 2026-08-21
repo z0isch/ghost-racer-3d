@@ -16,7 +16,7 @@ extends CanvasLayer
 ##                     Neither windowed nor smoothed: see [member RunDirector.earn_rate].
 ##   RECORD          — the bar to beat, which is also the pace ghost's rate.
 ##
-## There is no per-Run coin counter: it would disambiguate a good line from a good time, but the
+## There is no per-Run clock counter: it would disambiguate a good line from a good time, but the
 ## simpler screen wins. One Label beside CP if a playtest ever wants it.
 ##
 ## Read-only and polled each _process, except the record flash, a discrete edge that comes in on the
@@ -31,7 +31,7 @@ extends CanvasLayer
 ## everywhere on screen, and a new record is a money event.
 @export var record_flash_color: Color = Color(0.29, 0.93, 0.42)
 
-## When the clock stops being a clock: the last stretch of a Run, where a coin two corners away has
+## When the clock stops being a clock: the last stretch of a Run, where a clock two corners away has
 ## stopped being worth going for. The hundredths in the corner have nothing left to say here — what
 ## is left is a small integer — so the readout is swapped for the whole second, thrown into the
 ## middle of the screen, over the road, where it cannot be missed and costs no glance away.
@@ -51,8 +51,8 @@ extends CanvasLayer
 
 ## How long into a Run the live rate stays blank: the first fraction of a second is a genuine 0/0 and
 ## the tenth is a wild number off a tiny denominator. Gated on elapsed time rather than on the first
-## coin, which would blink between blank and live and would spell "nothing yet" and "nothing earned"
-## the same way.
+## checkpoint, which would blink between blank and live and would spell "nothing yet" and "nothing
+## earned" the same way.
 const RATE_BLANK_SECONDS: float = 1.0
 
 ## "No number yet" reads as blanks in the shape of one, never as 0.00, which for a rate would claim
@@ -160,8 +160,8 @@ static func _format_time(seconds: float) -> String:
 
 
 # Both rate lines go through here, so the live figure and the record cannot read as different
-# quantities. Two decimals: at $1 a coin the interesting range is small, and tenths would flatten
-# most of a Run's progress into one digit.
+# quantities. Two decimals: at a base checkpoint value of $1 the interesting range is small, and
+# tenths would flatten most of a Run's progress into one digit.
 #
 # The record passes INF for `elapsed`: it has no blanking window, and its negative sentinel is what
 # keeps it blank until a Run sets it.

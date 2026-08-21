@@ -1,9 +1,9 @@
-extends SceneTree
+﻿extends SceneTree
 
-## Places a circuit's Checkpoints and Coins evenly around a road-generator loop.
+## Places a circuit's Checkpoints and Clocks evenly around a road-generator loop.
 ##
 ##   godot --headless --path . --script res://tools/track/place_features.gd -- \
-##       --scene res://scenes/circuit3.tscn --checkpoints 6 --coins 14
+##       --scene res://scenes/circuit3.tscn --checkpoints 6 --clocks 14
 ##
 ## (tools/track/place_features.ps1 and .sh wrap that line; use those.)
 ##
@@ -15,7 +15,7 @@ extends SceneTree
 ## road's actual one, a gate can land anywhere on the loop — banked, cresting or flat — and its
 ## prism still lies on the surface, so even spacing can be genuinely even.
 ##
-## It touches only the Checkpoints and Coins subtrees, and the sub-resources those subtrees are the
+## It touches only the Checkpoints and Clocks subtrees, and the sub-resources those subtrees are the
 ## last user of. The scene file is rewritten by surgery on its text: instantiating a RoadContainer
 ## and packing it back would bake the addon's generated RoadSegment meshes into the scene as real
 ## nodes. Every other block — the road, the ground, the StartLine, node order, unique_ids — comes
@@ -27,14 +27,20 @@ const GATE_HEIGHT := 5.0
 const GATE_POST_THICKNESS := 0.4
 const GATE_BAR_THICKNESS := 0.4
 
-const COIN_MESH_RADIUS := 0.35
-const COIN_THICKNESS := 0.04
-const COIN_HEIGHT := 0.4 ## hover above the road surface, measured along the road's own up
-const COIN_SPIN_PHASE_DEG := 37.0 ## per-coin yaw offset so the field does not turn in lockstep
-const COIN_SPIN_SCRIPT := "res://scripts/track/coin_spin.gd"
+## A ring, not the retired coin's solid disc — a clock that read as a coin but paid seconds is
+## exactly the confusion CONTEXT.md's colour rules exist to prevent, and a distinct silhouette
+## settles it before colour even has to.
+const CLOCK_OUTER_RADIUS := 0.4
+const CLOCK_INNER_RADIUS := 0.22
+const CLOCK_HEIGHT := 0.4 ## hover above the road surface, measured along the road's own up
+const CLOCK_SPIN_PHASE_DEG := 37.0 ## per-clock yaw offset so the field does not turn in lockstep
+const CLOCK_SPIN_SCRIPT := "res://scripts/track/clock_spin.gd"
+## Seconds a single clock adds to the Run's time budget. A balance number, not a maths constant —
+## the spec leaves it open and this is the ship-and-tune default.
+const CLOCK_SECONDS := 10.0
 
 const CHECKPOINTS_NODE := "Checkpoints"
-const COINS_NODE := "Coins"
+const CLOCKS_NODE := "Clocks"
 const START_LINE_NODE := "StartLine"
 
 ## Step for the coarse walk that projects the StartLine onto the loop. Fine enough that the
@@ -87,7 +93,7 @@ var _instantiated: Node = null
 func _run(opts: Dictionary) -> int:
 	var scene_path: String = opts["scene"]
 	var checkpoint_count: int = opts["checkpoints"]
-	var coin_count: int = opts["coins"]
+	var clock_count: int = opts["clocks"]
 
 	var packed: PackedScene = ResourceLoader.load(scene_path, "PackedScene") as PackedScene
 	if packed == null:
@@ -135,29 +141,29 @@ func _run(opts: Dictionary) -> int:
 		gate_s.append(fposmod(finish_s + float(i) * spacing, loop_length))
 
 	var clearance: float = opts["gate_clearance"]
-	var coin_s: Array[float] = []
+	var clock_s: Array[float] = []
 	var crowded: int = 0
-	if coin_count > 0:
-		var coin_spacing: float = loop_length / float(coin_count)
-		for j: int in coin_count:
-			# The first defence against a coin landing in a gate: at equal counts every coin sits
+	if clock_count > 0:
+		var clock_spacing: float = loop_length / float(clock_count)
+		for j: int in clock_count:
+			# The first defence against a clock landing in a gate: at equal counts every clock sits
 			# exactly between two gates and nothing has to move.
-			var s: float = fposmod(finish_s + (float(j) + 0.5) * coin_spacing, loop_length)
+			var s: float = fposmod(finish_s + (float(j) + 0.5) * clock_spacing, loop_length)
 			var cleared: float = _clear_of_gates(s, gate_s, loop_length, clearance)
 			if is_nan(cleared):
 				crowded += 1
 				cleared = s
-			coin_s.append(cleared)
+			clock_s.append(cleared)
 
 	if crowded > 0:
 		push_warning(
-			"place_features: %d coin(s) could not be moved %.1f m clear of every gate — "
+			"place_features: %d clock(s) could not be moved %.1f m clear of every gate — "
 			% [crowded, clearance]
-			+ "the loop is too short for %d gates and %d coins at that clearance."
-			% [checkpoint_count, coin_count]
+			+ "the loop is too short for %d gates and %d clocks at that clearance."
+			% [checkpoint_count, clock_count]
 		)
 
-	var laterals: Array[float] = opts["coin_lateral"]
+	var laterals: Array[float] = opts["clock_lateral"]
 	var half_width: float = opts["half_width"]
 
 	var report: PackedStringArray = PackedStringArray()
@@ -179,16 +185,16 @@ func _run(opts: Dictionary) -> int:
 				% [i, gate_s[i], _vec_str(frame.origin), "  (start/finish)" if is_finish else ""]
 			)
 
-	var coin_text: String = ""
-	if coin_count > 0:
-		coin_text = "[node name=\"%s\" type=\"Node3D\" parent=\".\"]\n\n" % COINS_NODE
-		for j: int in coin_count:
+	var clock_text: String = ""
+	if clock_count > 0:
+		clock_text = "[node name=\"%s\" type=\"Node3D\" parent=\".\"]\n\n" % CLOCKS_NODE
+		for j: int in clock_count:
 			var lateral: float = laterals[j % laterals.size()]
-			var frame: Transform3D = _sample_road(spans, loop_length, coin_s[j])
-			coin_text += _coin_block(j, frame, lateral)
+			var frame: Transform3D = _sample_road(spans, loop_length, clock_s[j])
+			clock_text += _clock_block(j, frame, lateral)
 			report.append(
-				"  Coin%02d        s=%7.2f  lateral %+5.1f  %s"
-				% [j, coin_s[j], lateral, _vec_str(_coin_origin(frame, lateral))]
+				"  Clock%02d        s=%7.2f  lateral %+5.1f  %s"
+				% [j, clock_s[j], lateral, _vec_str(_clock_origin(frame, lateral))]
 			)
 
 	print("\n".join(report))
@@ -198,13 +204,13 @@ func _run(opts: Dictionary) -> int:
 		print("place_features: --dry-run, %s not written" % scene_path)
 		return 0
 
-	var written: String = _rewrite_scene(scene_path, checkpoint_text, coin_text, coin_count > 0, half_width)
+	var written: String = _rewrite_scene(scene_path, checkpoint_text, clock_text, clock_count > 0, half_width)
 	if written.is_empty():
 		return 1
 
 	print(
-		"place_features: wrote %s — %d checkpoints, %d coins"
-		% [scene_path, checkpoint_count, coin_count]
+		"place_features: wrote %s — %d checkpoints, %d clocks"
+		% [scene_path, checkpoint_count, clock_count]
 	)
 	return 0
 
@@ -408,8 +414,8 @@ func _project_onto_loop(spans: Array[Span], loop_length: float, target: Vector3)
 ## it was already leaning. Returns NAN when no such position exists nearby, which is the answer for a
 ## loop with more gates than it has room for.
 ##
-## A coin sitting in a gate is not a bug — the pickup test ignores Y and never consults the gate —
-## but the driver reads the gate as the thing to aim at and the coin as the thing to detour for, and
+## A clock sitting in a gate is not a bug — the pickup test ignores Y and never consults the gate —
+## but the driver reads the gate as the thing to aim at and the clock as the thing to detour for, and
 ## overlapping them collapses the choice the earn rate is built on.
 func _clear_of_gates(s: float, gate_s: Array[float], loop_length: float, clearance: float) -> float:
 	var current: float = s
@@ -458,17 +464,17 @@ func _mesh_child(name: String, parent: String, origin: Vector3, mesh_id: String,
 	)
 
 
-func _coin_origin(frame: Transform3D, lateral: float) -> Vector3:
-	# Lateral is metres to the driver's right and the hover is along the road's own up, so a coin out
+func _clock_origin(frame: Transform3D, lateral: float) -> Vector3:
+	# Lateral is metres to the driver's right and the hover is along the road's own up, so a clock out
 	# on the banking stands off the surface it belongs to rather than off world level.
-	return frame.origin + frame.basis.x * lateral + frame.basis.y * COIN_HEIGHT
+	return frame.origin + frame.basis.x * lateral + frame.basis.y * CLOCK_HEIGHT
 
 
-## A coin marker is level and yaw-only, unlike a checkpoint's, and that is a requirement:
-## coin_spin.gd turns the disc about Vector3.UP in the marker's parent space, so a marker rolled with
-## the banking would lay the coin on its side. It costs nothing, the pickup test being a horizontal
-## distance to this origin that consults no basis.
-func _coin_block(index: int, frame: Transform3D, lateral: float) -> String:
+## A clock marker is level and yaw-only, unlike a checkpoint's, and that is a requirement:
+## clock_spin.gd turns the ring about Vector3.UP in the marker's parent space, so a marker rolled
+## with the banking would lay the clock on its side. It costs nothing, the pickup test being a
+## horizontal distance to this origin that consults no basis.
+func _clock_block(index: int, frame: Transform3D, lateral: float) -> String:
 	var forward: Vector3 = -frame.basis.z
 	var level_forward: Vector3 = Vector3(forward.x, 0.0, forward.z).normalized()
 	if level_forward.length_squared() < 0.5:
@@ -476,9 +482,9 @@ func _coin_block(index: int, frame: Transform3D, lateral: float) -> String:
 	var z_axis: Vector3 = -level_forward
 	var basis := Basis(Vector3.UP.cross(z_axis).normalized(), Vector3.UP, z_axis)
 
-	# The disc stands on edge, face square to the road. R_y(phase) * R_x(90): the X rotation lays
-	# CylinderMesh's axis of symmetry into the marker's +Z, the Y rotation is the per-coin phase.
-	var angle: float = deg_to_rad(float(index) * COIN_SPIN_PHASE_DEG)
+	# The ring stands on edge, face square to the road. R_y(phase) * R_x(90): the X rotation lays
+	# TorusMesh's axis of symmetry into the marker's +Z, the Y rotation is the per-clock phase.
+	var angle: float = deg_to_rad(float(index) * CLOCK_SPIN_PHASE_DEG)
 	var mesh_basis := Basis(
 		Vector3(cos(angle), 0.0, -sin(angle)),
 		Vector3(sin(angle), 0.0, cos(angle)),
@@ -486,29 +492,29 @@ func _coin_block(index: int, frame: Transform3D, lateral: float) -> String:
 	)
 
 	return (
-		"[node name=\"Coin%02d\" type=\"Marker3D\" parent=\"%s\"]\n" % [index, COINS_NODE]
-		+ "transform = %s\n" % var_to_str(Transform3D(basis, _coin_origin(frame, lateral)))
-		# Value rides on the marker so CoinField needs no second table. Flat $1: what a coin is worth
-		# is a balance decision this tool does not make.
-		+ "metadata/value = 1\n\n"
-		+ "[node name=\"Mesh\" type=\"MeshInstance3D\" parent=\"%s/Coin%02d\"]\n" % [COINS_NODE, index]
+		"[node name=\"Clock%02d\" type=\"Marker3D\" parent=\"%s\"]\n" % [index, CLOCKS_NODE]
+		+ "transform = %s\n" % var_to_str(Transform3D(basis, _clock_origin(frame, lateral)))
+		# Seconds rides on the marker so ClockField needs no second table. A flat default: what a
+		# clock is worth is a balance decision this tool does not make.
+		+ "metadata/seconds = %s\n\n" % CLOCK_SECONDS
+		+ "[node name=\"Mesh\" type=\"MeshInstance3D\" parent=\"%s/Clock%02d\"]\n" % [CLOCKS_NODE, index]
 		+ "transform = %s\n" % var_to_str(Transform3D(mesh_basis, Vector3.ZERO))
-		+ "mesh = SubResource(\"CylinderMesh_coin\")\n"
+		+ "mesh = SubResource(\"TorusMesh_clock\")\n"
 		# A placeholder resolved to the scene's real ext_resource id in _rewrite_scene, which is not
 		# known until the file is parsed. The token carries @ so it cannot collide with a real id.
-		+ "script = ExtResource(\"%s\")\n\n" % COIN_SCRIPT_TOKEN
+		+ "script = ExtResource(\"%s\")\n\n" % CLOCK_SCRIPT_TOKEN
 	)
 
 
 # ------------------------------------------------------------------------------ scene surgery
 
-const COIN_SCRIPT_TOKEN := "@coin_spin@"
+const CLOCK_SCRIPT_TOKEN := "@clock_spin@"
 
 
-## Rewrites the .tscn in place, replacing the Checkpoints and Coins subtrees and nothing else.
+## Rewrites the .tscn in place, replacing the Checkpoints and Clocks subtrees and nothing else.
 ## Returns the written text, or "" on failure.
 func _rewrite_scene(
-	scene_path: String, checkpoint_text: String, coin_text: String, needs_coin_script: bool, half_width: float
+	scene_path: String, checkpoint_text: String, clock_text: String, needs_clock_script: bool, half_width: float
 ) -> String:
 	var source: String = FileAccess.get_file_as_string(scene_path)
 	if source.is_empty():
@@ -539,10 +545,10 @@ func _rewrite_scene(
 	# Reference counted rather than matched by name, so a shared Material_gate survives.
 	_drop_orphaned_subs(subs, nodes)
 
-	if needs_coin_script:
-		var coin_script_id: String = _ensure_ext_resource(ext, COIN_SPIN_SCRIPT, "Script")
-		coin_text = coin_text.replace(
-			"ExtResource(\"%s\")" % COIN_SCRIPT_TOKEN, "ExtResource(\"%s\")" % coin_script_id
+	if needs_clock_script:
+		var clock_script_id: String = _ensure_ext_resource(ext, CLOCK_SPIN_SCRIPT, "Script")
+		clock_text = clock_text.replace(
+			"ExtResource(\"%s\")" % CLOCK_SCRIPT_TOKEN, "ExtResource(\"%s\")" % clock_script_id
 		)
 
 	var taken: Dictionary = {}
@@ -551,7 +557,7 @@ func _rewrite_scene(
 	var ids: Dictionary = {}
 	for wanted: String in [
 		"BoxMesh_gate_post", "BoxMesh_gate_bar", "Material_gate",
-		"Material_coin", "CylinderMesh_coin",
+		"Material_clock", "TorusMesh_clock",
 	]:
 		var id: String = wanted
 		var suffix: int = 1
@@ -579,17 +585,17 @@ func _rewrite_scene(
 		).replace(
 			"SubResource(\"Material_gate\")", "SubResource(\"%s\")" % ids["Material_gate"]
 		)
-	if not coin_text.is_empty():
+	if not clock_text.is_empty():
 		generated_subs += (
-			"[sub_resource type=\"StandardMaterial3D\" id=\"%s\"]\nalbedo_color = Color(0.95, 0.78, 0.18, 1)\n\n"
-			% ids["Material_coin"]
-			+ "[sub_resource type=\"CylinderMesh\" id=\"%s\"]\n" % ids["CylinderMesh_coin"]
-			+ "material = SubResource(\"%s\")\n" % ids["Material_coin"]
-			+ "top_radius = %s\nbottom_radius = %s\nheight = %s\nradial_segments = 20\nrings = 0\n\n"
-			% [COIN_MESH_RADIUS, COIN_MESH_RADIUS, COIN_THICKNESS]
+			"[sub_resource type=\"StandardMaterial3D\" id=\"%s\"]\nalbedo_color = Color(0.4, 0.75, 1.0, 1)\n\n"
+			% ids["Material_clock"]
+			+ "[sub_resource type=\"TorusMesh\" id=\"%s\"]\n" % ids["TorusMesh_clock"]
+			+ "material = SubResource(\"%s\")\n" % ids["Material_clock"]
+			+ "inner_radius = %s\nouter_radius = %s\nring_sides = 12\nrings = 24\n\n"
+			% [CLOCK_INNER_RADIUS, CLOCK_OUTER_RADIUS]
 		)
-		coin_text = coin_text.replace(
-			"SubResource(\"CylinderMesh_coin\")", "SubResource(\"%s\")" % ids["CylinderMesh_coin"]
+		clock_text = clock_text.replace(
+			"SubResource(\"TorusMesh_clock\")", "SubResource(\"%s\")" % ids["TorusMesh_clock"]
 		)
 
 	var sub_count: int = subs.size() + generated_subs.count("[sub_resource")
@@ -602,7 +608,7 @@ func _rewrite_scene(
 	for block: Block in nodes:
 		out += block.text
 	out += checkpoint_text
-	out += coin_text
+	out += clock_text
 	for block: Block in trailing:
 		out += block.text
 
@@ -619,9 +625,9 @@ func _rewrite_scene(
 func _is_generated_node(block: Block) -> bool:
 	var parent: String = str(block.attrs.get("parent", ""))
 	var name: String = str(block.attrs.get("name", ""))
-	if parent == "." and (name == CHECKPOINTS_NODE or name == COINS_NODE):
+	if parent == "." and (name == CHECKPOINTS_NODE or name == CLOCKS_NODE):
 		return true
-	for root_name: String in [CHECKPOINTS_NODE, COINS_NODE]:
+	for root_name: String in [CHECKPOINTS_NODE, CLOCKS_NODE]:
 		if parent == root_name or parent.begins_with(root_name + "/"):
 			return true
 	return false
@@ -724,14 +730,14 @@ func _parse_blocks(source: String) -> Array[Block]:
 # ------------------------------------------------------------------------------ arguments
 
 
-const USAGE := """usage: place_features --scene <path> --checkpoints <n> --coins <n> [options]
+const USAGE := """usage: place_features --scene <path> --checkpoints <n> --clocks <n> [options]
 
   --scene PATH             the circuit scene to rewrite (res:// or project-relative)
   --checkpoints N          number of checkpoints; the last is the start/finish gate
-  --coins N                number of coins
+  --clocks N                number of clocks
   --start-finish-setback M  metres the start/finish gate sits BEHIND the StartLine (default 8)
-  --gate-clearance M       minimum arclength between a coin and any gate (default 4)
-  --coin-lateral A,B,..    metres right of the centreline, cycled per coin (default 0)
+  --gate-clearance M       minimum arclength between a clock and any gate (default 4)
+  --clock-lateral A,B,..    metres right of the centreline, cycled per clock (default 0)
   --half-width M           road half width the prism and gate are built to (default 4)
   --dry-run                report the placement without writing the scene"""
 
@@ -740,10 +746,10 @@ func _parse_args(args: PackedStringArray) -> Dictionary:
 	var opts: Dictionary = {
 		"scene": "",
 		"checkpoints": -1,
-		"coins": -1,
+		"clocks": -1,
 		"start_finish_setback": 8.0,
 		"gate_clearance": 4.0,
-		"coin_lateral": [0.0] as Array[float],
+		"clock_lateral": [0.0] as Array[float],
 		"half_width": 4.0,
 		"dry_run": false,
 	}
@@ -758,8 +764,8 @@ func _parse_args(args: PackedStringArray) -> Dictionary:
 			"--checkpoints":
 				opts["checkpoints"] = value.to_int()
 				i += 1
-			"--coins":
-				opts["coins"] = value.to_int()
+			"--clocks":
+				opts["clocks"] = value.to_int()
 				i += 1
 			"--start-finish-setback":
 				opts["start_finish_setback"] = value.to_float()
@@ -770,11 +776,11 @@ func _parse_args(args: PackedStringArray) -> Dictionary:
 			"--half-width":
 				opts["half_width"] = value.to_float()
 				i += 1
-			"--coin-lateral":
+			"--clock-lateral":
 				var laterals: Array[float] = []
 				for piece: String in value.split(",", false):
 					laterals.append(piece.strip_edges().to_float())
-				opts["coin_lateral"] = laterals
+				opts["clock_lateral"] = laterals
 				i += 1
 			"--dry-run":
 				opts["dry_run"] = true
@@ -795,12 +801,12 @@ func _parse_args(args: PackedStringArray) -> Dictionary:
 	var checkpoint_count: int = opts["checkpoints"]
 	if checkpoint_count < 1:
 		problems.append("--checkpoints must be at least 1")
-	var coin_count: int = opts["coins"]
-	if coin_count < 0:
-		problems.append("--coins is required and cannot be negative")
-	var chosen_laterals: Array[float] = opts["coin_lateral"]
+	var clock_count: int = opts["clocks"]
+	if clock_count < 0:
+		problems.append("--clocks is required and cannot be negative")
+	var chosen_laterals: Array[float] = opts["clock_lateral"]
 	if chosen_laterals.is_empty():
-		problems.append("--coin-lateral needs at least one offset")
+		problems.append("--clock-lateral needs at least one offset")
 	if not problems.is_empty():
 		for problem: String in problems:
 			printerr("place_features: %s" % problem)

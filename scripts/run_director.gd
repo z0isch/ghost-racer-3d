@@ -1,11 +1,11 @@
 class_name RunDirector
 extends Node
 
-## The single owner of all mutable Run state: the Run phase, the Run clock, checkpoint progress, the
-## Run's earnings and the record earn rate, and the ghost line — both the in-progress recording and
-## the promoted line the pace ghost and the boost ghosts stand on.
+## The single owner of all mutable Run state: the Run phase, the Run clock, checkpoint progress,
+## the Run's earnings and the record earn rate, and the ghost line — both the in-progress recording
+## and the promoted line the pace ghost and the boost ghosts stand on.
 ##
-## Run earnings live here rather than on CoinField because they are the numerator of the earn rate
+## Run earnings live here rather than on ClockField because they are the numerator of the earn rate
 ## and the Run clock is the denominator; splitting a fraction across two owners is how the two come
 ## to disagree. The purse is the mirror-image call and sits in scripts/purse.gd: a session total is
 ## not Run state, and housing it behind _begin_countdown's per-Run reset would eventually clear it.
@@ -19,10 +19,27 @@ signal run_started()
 signal run_completed(run_time: float, is_record: bool)
 signal run_aborted()
 ## Fired as the kart is teleported to the start line, so anything holding a swept previous-position
-## sample or per-Run state can invalidate it. [signal run_started] is a frame too late — the coin
+## sample or per-Run state can invalidate it. [signal run_started] is a frame too late — the clock
 ## field must already be whole while the driver looks at it during the countdown — and
 ## run_completed/run_aborted miss the scene load between them.
 signal countdown_started()
+
+## Fired the instant the checkpoint sequence wraps back to the first checkpoint. What the countdown
+## used to be for the boost and hazard fields: they restore and re-roll on this, so a long Run is
+## not one live wrap followed by an empty circuit. The clock field pointedly does not listen — it is
+## per-Run (CONTEXT.md's **Clock field**).
+signal wrapped()
+
+## One checkpoint payment, the instant the checkpoint is taken. The value is this Run's current
+## ladder rung times base_checkpoint_value; the position is the checkpoint marker's own origin, so a
+## popup traces where the money was; the direction is the swept segment's own travel direction, for
+## ClockField.clock_taken's identical reason — "which way is ahead" arrives with the report rather
+## than being looked up from a kart, which is what lets one popup serve both this and an income
+## ghost's pickup out in the world.
+##
+## unbind(2) applies here exactly as it did on ClockField.clock_taken: a one-argument handler connected bare
+## fails at emit time and the symptom is a purse that silently stops earning.
+signal checkpoint_paid(value: int, position: Vector3, direction: Vector3)
 
 enum RunPhase {
 	COUNTDOWN,
@@ -36,8 +53,8 @@ enum RunPhase {
 @export var start_line_path: NodePath
 ## The Checkpoints node: one inert Marker3D each, node order = circuit order.
 @export var checkpoints_path: NodePath
-## The CoinField whose pickups feed [member run_earnings].
-@export var coin_field_path: NodePath
+## The ClockField whose pickups extend [member run_budget].
+@export var clock_field_path: NodePath
 
 ## Where the ghost line is persisted. Loaded on [method _ready] if the file exists, and overwritten
 ## every time a Run promotes a new record — so the "drive one Run to get ghosts" tax is paid once,
@@ -45,9 +62,14 @@ enum RunPhase {
 ## behaves exactly as before, session-scoped and lost on exit.
 @export_file("*.tres") var ghost_line_path: String = ""
 
-## How long a Run lasts. Set by race.gd from the circuit's own run_duration_seconds, the same way
-## ghost_line_path is set today — RunDirector doesn't know what a Circuit is, only the number.
+## How long a Run lasts before any clock is taken. Set by race.gd from the circuit's own
+## run_duration_seconds, the same way ghost_line_path is set today — RunDirector doesn't know what a
+## Circuit is, only the number.
 @export var run_duration_seconds: float = 90.0
+
+## What the circuit's first checkpoint pays. Set by race.gd from Circuit.base_checkpoint_value, the
+## same way run_duration_seconds is — the director doesn't know what a Circuit is, only the number.
+@export var base_checkpoint_value: int = 1
 
 ## The checkpoint prism, in each marker's own frame: the road and nothing but the road, from 1 m
 ## below the surface to 5 m above, which is where the gate's posts and crossbar are. Exported so the
@@ -79,19 +101,29 @@ var _checkpoints: Array[Checkpoint] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
 var _has_last_kart_position: bool = false
 
+## Which rung the next checkpoint pays: 1 for the Run's first, rising by one at every checkpoint
+## taken and running straight through every wrap. Reset only in _begin_countdown, alongside
+## _run_earnings (CONTEXT.md's **Checkpoint ladder**).
+var _ladder_rung: int = 1
+
+## Seconds added to this Run by the clocks taken so far. Cleared at Countdown with everything else.
+var _earned_seconds: float = 0.0
+
 # The kart body's pose is exactly position + Y-yaw (rotate_y is the only write to its basis; bank,
 # cant and squash live on the Visual child), so these 16 bytes are exact rather than an
 # approximation. Paired packed arrays cost 16 bytes/sample against 48 for typed Arrays and 944 for a
 # RefCounted sample class; the price is lockstep, so append, clear and duplicate always come in
-# pairs, confined to _append_sample / complete_run / Run abort.
+# threes, confined to _append_sample / complete_run / Run abort.
 #
 # Double-buffered: the Run being driven is written while the record Run is read, and the two are
 # usually not adjacent Runs. Promotion happens in complete_run and only there, so no partial
 # recording has a path to the ghost line.
 var _recording_positions: PackedVector3Array = PackedVector3Array()
 var _recording_yaws: PackedFloat32Array = PackedFloat32Array()
+var _recording_checkpoints: PackedInt32Array = PackedInt32Array()
 var _ghost_line_positions: PackedVector3Array = PackedVector3Array()
 var _ghost_line_yaws: PackedFloat32Array = PackedFloat32Array()
+var _ghost_line_checkpoints: PackedInt32Array = PackedInt32Array()
 
 ## Polled by the HUD each _process; a per-frame clock pushed through a signal would be a signal in
 ## name only. Discrete Run edges use the signals above.
@@ -121,11 +153,17 @@ var earn_rate: float:
 var record_earn_rate: float:
 	get: return _record_earn_rate
 
+## The Run's whole time budget: the circuit's configured duration plus every clock taken so far.
+## Not known at Countdown and rises mid-Run, which is exactly what the HUD readout jumping *up*
+## is (CONTEXT.md's **Run clock**).
+var run_budget: float:
+	get: return run_duration_seconds + _earned_seconds
+
 ## Seconds left of the Run, clamped at 0. The Run clock counted the other way, so that the HUD and
-## the Timeout rule read off one number rather than each subtracting the duration for themselves.
+## the Timeout rule read off one number rather than each subtracting the budget for themselves.
 ## Full duration during Countdown, since a Run that has not started has spent nothing.
 var run_remaining: float:
-	get: return maxf(0.0, run_duration_seconds - _run_clock)
+	get: return maxf(0.0, run_budget - _run_clock)
 
 ## Seconds left of Countdown; 0 while Racing or Results.
 var phase_remaining: float:
@@ -150,6 +188,11 @@ var ghost_line_positions: PackedVector3Array:
 var ghost_line_yaws: PackedFloat32Array:
 	get: return _ghost_line_yaws
 
+## The record Run's checkpoint-crossing sample indices, matching [member GhostLine.checkpoint_samples].
+## Read by HazardGhostField to slice one wrap's worth of line and by IncomeRunner to pay the ladder.
+var ghost_line_checkpoints: PackedInt32Array:
+	get: return _ghost_line_checkpoints
+
 
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
@@ -164,17 +207,14 @@ func _ready() -> void:
 
 	_resolve_checkpoints()
 
-	# CoinField totals nothing, so the tally is made here, on the side that owns the clock it will be
-	# divided by. A scene without a coin field earns nothing, as one without checkpoints completes no
-	# Run; both keep this script runnable outside main.tscn.
-	var coin_field: CoinField = get_node_or_null(coin_field_path) as CoinField
-	if coin_field != null:
-		# unbind(2) drops coin_taken's position and direction arguments. Godot does not drop surplus
-		# arguments by itself: connected bare, every pickup would fail at emit time and no Run would
-		# earn.
-		coin_field.coin_taken.connect(_on_coin_taken.unbind(2))
+	var clock_field: ClockField = get_node_or_null(clock_field_path) as ClockField
+	if clock_field != null:
+		# unbind(2) drops clock_taken's position and direction arguments. Godot does not drop surplus
+		# arguments by itself: connected bare, every pickup would fail at emit time and no Run could
+		# ever be extended.
+		clock_field.clock_taken.connect(_on_clock_taken.unbind(2))
 	else:
-		push_warning("RunDirector: no CoinField — every Run earns nothing.")
+		push_warning("RunDirector: no ClockField — no Run can be extended.")
 
 	# The phase must resolve before Kart's physics step reads frozen, or the GO frame is spent still
 	# frozen — a dead frame the driver feels as a hitch off the line. Checkpoint detection needs the
@@ -194,6 +234,7 @@ func _physics_process(delta: float) -> void:
 		# 90% can never become a ghost line, and the previous line is left untouched.
 		_recording_positions.clear()
 		_recording_yaws.clear()
+		_recording_checkpoints.clear()
 		run_aborted.emit()
 		_begin_countdown(restart_countdown_seconds)
 		return
@@ -206,7 +247,7 @@ func _physics_process(delta: float) -> void:
 
 		RunPhase.RACING:
 			_run_clock += delta
-			if _run_clock >= run_duration_seconds:
+			if _run_clock >= run_budget:
 				complete_run()
 			else:
 				# Queued, not called: this runs at the head of the physics frame, and the swept test
@@ -221,27 +262,29 @@ func _physics_process(delta: float) -> void:
 				_begin_countdown(restart_countdown_seconds)
 
 
-## Called when the Run clock reaches [member run_duration_seconds] — a Timeout, the only way a Run
-## ends with a result. Holds the promotion rule, and the only copy of it.
+## Called when the Run clock reaches [member run_budget] — a Timeout, the only way a Run ends with
+## a result. Holds the promotion rule, and the only copy of it.
 func complete_run() -> void:
 	var run_time: float = _run_clock
 	var rate: float = earn_rate
 
 	# The negative sentinel is the "first completed Run promotes unconditionally" rule: an earn rate
-	# is never negative, so a real Run can never sit at or below it, and a zero-coin opening Run
+	# is never negative, so a real Run can never sit at or below it, and a zero-earning opening Run
 	# still promotes. The strict > is the rest: a tie does not displace the incumbent.
 	var is_record: bool = _record_earn_rate < 0.0 or rate > _record_earn_rate
 	if is_record:
 		_record_earn_rate = rate
 		# Packed arrays are copy-on-write, so duplicate() is ~1 µs and the copy is never
-		# materialised: the recording is cleared on the next two lines regardless.
+		# materialised: the recording is cleared on the next lines regardless.
 		_ghost_line_positions = _recording_positions.duplicate()
 		_ghost_line_yaws = _recording_yaws.duplicate()
+		_ghost_line_checkpoints = _recording_checkpoints.duplicate()
 		_save_ghost_line()
 	# Unconditional, so a losing Run's samples cannot leak into the next recording and the ghost
 	# line can stand unchanged for many Runs.
 	_recording_positions.clear()
 	_recording_yaws.clear()
+	_recording_checkpoints.clear()
 
 	_phase = RunPhase.RESULTS
 	if _kart != null:
@@ -249,10 +292,10 @@ func complete_run() -> void:
 	run_completed.emit(run_time, is_record)
 
 
-# No phase guard: CoinField sweeps only while Racing and re-checks the phase inside its own deferred
-# callback, so a pickup cannot reach here outside a live Run.
-func _on_coin_taken(value: int) -> void:
-	_run_earnings += value
+# No phase guard: ClockField sweeps only while Racing and re-checks the phase inside its own
+# deferred callback, so a pickup cannot reach here outside a live Run.
+func _on_clock_taken(seconds: float) -> void:
+	_earned_seconds += seconds
 
 
 # Resolved once. The markers are inert Marker3Ds in circuit order under a Checkpoints node;
@@ -335,9 +378,20 @@ func _sweep_pending_checkpoint() -> void:
 	if not crossed:
 		return
 
+	var direction: Vector3 = ClockField.sweep_direction(previous, position, _kart.global_transform.basis)
+	var value: int = _ladder_rung * base_checkpoint_value
+	_run_earnings += value
+	_ladder_rung += 1
+	checkpoint_paid.emit(value, checkpoint.origin, direction)
+
+	# The index the *next* sample will occupy — the sample taken at the end of this same frame's
+	# deferred flush, since _sweep_pending_checkpoint is queued before _append_sample.
+	_recording_checkpoints.append(_recording_positions.size())
+
 	_checkpoint_index += 1
 	if _checkpoint_index >= _checkpoints.size():
 		_checkpoint_index = 0 # wrap — a Run only ends by Timeout or Abort, never here
+		wrapped.emit()
 	_update_gate_visibility()
 
 
@@ -368,8 +422,14 @@ func _load_ghost_line() -> void:
 	if ghost_line == null:
 		push_warning("RunDirector: %s did not load as a GhostLine." % ghost_line_path)
 		return
+	# A line recorded before checkpoint_samples existed has no wrap structure and no ladder-era
+	# earn rate, so it is treated as a circuit that has never been driven rather than half-loaded:
+	# a pre-ladder rate is a flat-coin figure no ladder Run could be ranked against.
+	if ghost_line.checkpoint_samples.is_empty():
+		return
 	_ghost_line_positions = ghost_line.positions
 	_ghost_line_yaws = ghost_line.yaws
+	_ghost_line_checkpoints = ghost_line.checkpoint_samples
 	_record_earn_rate = ghost_line.earn_rate
 
 
@@ -382,6 +442,8 @@ func _save_ghost_line() -> void:
 	ghost_line.positions = _ghost_line_positions
 	ghost_line.yaws = _ghost_line_yaws
 	ghost_line.earn_rate = _record_earn_rate
+	ghost_line.checkpoint_samples = _ghost_line_checkpoints
+	ghost_line.checkpoints_per_wrap = _checkpoint_count
 	var error: Error = ResourceSaver.save(ghost_line, ghost_line_path)
 	if error != OK:
 		push_warning("RunDirector: failed to save ghost line to %s (%s)." % [ghost_line_path, error])
@@ -394,6 +456,8 @@ func _begin_countdown(seconds: float) -> void:
 	_phase_remaining = seconds
 	_run_clock = 0.0
 	_run_earnings = 0
+	_earned_seconds = 0.0
+	_ladder_rung = 1
 	_checkpoint_index = 0
 	_update_gate_visibility()
 	_has_last_kart_position = false # the teleport below invalidates the swept segment
@@ -424,6 +488,12 @@ func _start_run() -> void:
 
 func _start_pose() -> Transform3D:
 	return _start_line.global_transform if _start_line != null else _fallback_start_pose
+
+
+## What rung [param rung] of the checkpoint ladder pays at [param base] per rung — the ladder's
+## whole arithmetic, extracted so a RefCounted TestCase can reach it without a scene tree.
+static func ladder_value(rung: int, base: int) -> int:
+	return rung * base
 
 
 ## One checkpoint, resolved once from its marker so the physics step does no node lookups. A plane

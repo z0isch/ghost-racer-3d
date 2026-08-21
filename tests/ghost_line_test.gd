@@ -21,6 +21,8 @@ func test_round_trip_preserves_positions_yaws_and_earn_rate() -> void:
 	saved.positions = PackedVector3Array([Vector3(1.0, 0.0, 2.0), Vector3(3.5, 0.0, -4.5)])
 	saved.yaws = PackedFloat32Array([0.0, PI / 2.0])
 	saved.earn_rate = 12.5
+	saved.checkpoint_samples = PackedInt32Array([0, 5, 12])
+	saved.checkpoints_per_wrap = 3
 
 	var error: Error = ResourceSaver.save(saved, PATH)
 	check(error == OK, "GhostLine saves without error")
@@ -33,6 +35,10 @@ func test_round_trip_preserves_positions_yaws_and_earn_rate() -> void:
 	check(loaded.positions == saved.positions, "positions survive the round trip")
 	check(loaded.yaws == saved.yaws, "yaws survive the round trip")
 	check_near(loaded.earn_rate, saved.earn_rate, 1e-6, "earn rate survives the round trip")
+	# PackedInt32Array is a new packed type through ResourceSaver/ResourceLoader that nothing else
+	# in this suite exercises — exactly the kind of silent reshaping this suite exists to catch.
+	check(loaded.checkpoint_samples == saved.checkpoint_samples, "checkpoint samples survive the round trip")
+	check(loaded.checkpoints_per_wrap == saved.checkpoints_per_wrap, "checkpoints per wrap survives the round trip")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
 
@@ -42,3 +48,5 @@ func test_defaults_are_an_empty_unrecorded_line() -> void:
 	check(line.positions.is_empty(), "a fresh GhostLine has no positions")
 	check(line.yaws.is_empty(), "a fresh GhostLine has no yaws")
 	check(line.earn_rate < 0.0, "a fresh GhostLine's earn rate is the unrecorded sentinel")
+	check(line.checkpoint_samples.is_empty(), "a fresh GhostLine has no checkpoint samples")
+	check(line.checkpoints_per_wrap == 0, "a fresh GhostLine has no checkpoints per wrap")

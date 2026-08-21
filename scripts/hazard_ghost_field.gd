@@ -72,7 +72,7 @@ var save_loadout: Callable = Callable()
 ## to, for BoostGhostField.pickup_radius_fraction's identical reason and identical default.
 @export var pickup_radius_fraction: float = 4.0
 
-## Metres of vertical gap the swept test still counts as a hit, for CoinField.max_vertical_gap's
+## Metres of vertical gap the swept test still counts as a hit, for ClockField.max_vertical_gap's
 ## identical reason: the horizontal-only sweep would otherwise let a hazard be taken from a stretch
 ## of road that merely passes underneath or beside it at a different height.
 @export var max_vertical_gap: float = 5.0
@@ -127,6 +127,7 @@ func _ready() -> void:
 
 	if _director != null:
 		_director.countdown_started.connect(_on_countdown_started)
+		_director.wrapped.connect(_on_wrapped)
 
 	if _ghosts_root == null:
 		push_warning("HazardGhostField: no HazardGhosts node — nothing to spawn traffic into.")
@@ -138,7 +139,7 @@ func _ready() -> void:
 	_ghosts_root.add_child(_line_mesh_instance)
 
 
-## Deferred for CoinField's reason: the director runs at the head of the physics frame and the kart
+## Deferred for ClockField's reason: the director runs at the head of the physics frame and the kart
 ## moves after it. Ghosts are advanced inline, ahead of the sweep, so the sweep tests the position
 ## a hazard actually occupies this frame rather than last frame's.
 ##
@@ -234,8 +235,24 @@ static func _pose_at(
 	return Transform3D(Basis(Vector3.UP, yaw), position)
 
 
+## The sample range of one wrap of the ghost line: the first wrap recorded in it, or the whole line
+## if the recording holds no complete wrap. The hazards are a per-wrap field, so the ribbon and the
+## cumulative table are one wrap's worth and no more (CONTEXT.md's **Wrap**).
+##
+## Vector2i(0, 0) means "no complete wrap recorded" — a line shorter than one full pass of the
+## checkpoints, or no line at all — and must place no ghosts and draw no ribbon, exactly as an empty
+## ghost line does today: it is not a warning.
+func _wrap_range() -> Vector2i:
+	var per_wrap: int = _director.checkpoint_count
+	var crossings: PackedInt32Array = _director.ghost_line_checkpoints
+	if per_wrap <= 0 or crossings.size() < per_wrap:
+		return Vector2i(0, 0)
+	return Vector2i(0, crossings[per_wrap - 1])
+
+
 ## Frees the standing field and places a fresh one on the director's current ghost line. An empty
-## ghost line yields no ghosts and is not a warning, for BoostGhostField's reason: it is lap 1.
+## ghost line yields no ghosts and is not a warning, for BoostGhostField's reason: it is a circuit's
+## first Run.
 func _place_ghosts() -> void:
 	for hazard: Hazard in _ghosts:
 		hazard.node.queue_free()
@@ -261,14 +278,15 @@ func _place_ghosts() -> void:
 		_ghosts.append(_spawn_ghost(distance))
 
 
-## Cumulative arc length at each ghost-line sample, rebuilt whenever the line itself changes
-## (a re-place). Kept rather than recomputed every frame: _advance_ghosts walks it every physics
-## tick for every hazard, and the line stands unchanged for many laps at a time.
+## Cumulative arc length at each ghost-line sample of one wrap's slice ([method _wrap_range]),
+## rebuilt whenever the line itself changes (a re-place). Kept rather than recomputed every frame:
+## _advance_ghosts walks it every physics tick for every hazard, and the line stands unchanged for
+## many wraps at a time.
 func _build_cumulative() -> void:
 	_cumulative = PackedFloat32Array()
 	_total_length = 0.0
 
-	var positions: PackedVector3Array = _director.ghost_line_positions
+	var positions: PackedVector3Array = _wrap_positions()
 	if positions.size() < 2:
 		return
 
@@ -278,15 +296,32 @@ func _build_cumulative() -> void:
 	_total_length = _cumulative[_cumulative.size() - 1]
 
 
-## Redraws the path-preview ribbon from the whole ghost line, not just the hazards placed on it: the
-## line is what every hazard drives, and stays true even at ghost_count == 0. Called wherever the
-## line itself is rebuilt, alongside [method _build_cumulative].
+## The ghost line's positions, sliced to one wrap's worth by [method _wrap_range]. Both [method
+## _build_cumulative] and [method _rebuild_line_mesh] walk exactly this slice, so the ribbon and the
+## hazards it carries always agree on which stretch of the recording they belong to.
+func _wrap_positions() -> PackedVector3Array:
+	var range: Vector2i = _wrap_range()
+	if range.y <= range.x:
+		return PackedVector3Array()
+	return _director.ghost_line_positions.slice(range.x, range.y + 1)
+
+
+func _wrap_yaws() -> PackedFloat32Array:
+	var range: Vector2i = _wrap_range()
+	if range.y <= range.x:
+		return PackedFloat32Array()
+	return _director.ghost_line_yaws.slice(range.x, range.y + 1)
+
+
+## Redraws the path-preview ribbon from one wrap's worth of the ghost line, not just the hazards
+## placed on it: the line is what every hazard drives, and stays true even at ghost_count == 0.
+## Called wherever the line itself is rebuilt, alongside [method _build_cumulative].
 func _rebuild_line_mesh() -> void:
 	if _line_mesh_instance == null:
 		return
 
-	var positions: PackedVector3Array = _director.ghost_line_positions
-	var yaws: PackedFloat32Array = _director.ghost_line_yaws
+	var positions: PackedVector3Array = _wrap_positions()
+	var yaws: PackedFloat32Array = _wrap_yaws()
 	if positions.size() < 2:
 		_line_mesh_instance.mesh = null
 		return
@@ -328,8 +363,7 @@ func _build_line_material() -> StandardMaterial3D:
 func _spawn_ghost(distance: float) -> Hazard:
 	var wrapper := Node3D.new()
 	_ghosts_root.add_child(wrapper)
-	wrapper.global_transform = _pose_at(
-		_director.ghost_line_positions, _director.ghost_line_yaws, _cumulative, distance)
+	wrapper.global_transform = _pose_at(_wrap_positions(), _wrap_yaws(), _cumulative, distance)
 
 	var model: Node3D = GHOST_MODEL.instantiate() as Node3D
 	wrapper.add_child(model)
@@ -349,14 +383,15 @@ func _spawn_ghost(distance: float) -> Hazard:
 	return hazard
 
 
-## Steps every untaken hazard backward along the line by its own speed, wrapping past the start
-## back to the end — continuous oncoming traffic rather than a single pass.
+## Steps every untaken hazard backward along the wrap's slice of the line by its own speed,
+## wrapping past the start of that wrap back to its end — continuous oncoming traffic rather than a
+## single pass.
 func _advance_ghosts(delta: float) -> void:
 	if _total_length <= 0.0:
 		return
 
-	var positions: PackedVector3Array = _director.ghost_line_positions
-	var yaws: PackedFloat32Array = _director.ghost_line_yaws
+	var positions: PackedVector3Array = _wrap_positions()
+	var yaws: PackedFloat32Array = _wrap_yaws()
 
 	for hazard: Hazard in _ghosts:
 		if hazard.taken:
@@ -387,7 +422,7 @@ func _sweep_ghosts() -> void:
 	for hazard: Hazard in _ghosts:
 		if hazard.taken:
 			continue
-		if not CoinField.segment_takes_coin(previous, position, hazard.origin, _pickup_radius):
+		if not ClockField.segment_takes_clock(previous, position, hazard.origin, _pickup_radius):
 			continue
 		if absf(position.y - hazard.origin.y) > max_vertical_gap:
 			continue
@@ -409,6 +444,13 @@ func _on_countdown_started() -> void:
 	_place_ghosts()
 
 
+## Re-places the whole field at every wrap too — CONTEXT.md's **Boost ghost**, "the wrap is what
+## the countdown used to be" — without touching [member _has_last_kart_position]: a wrap is not a
+## teleport, so clearing it here would drop one frame of the kart's own swept sweep test.
+func _on_wrapped() -> void:
+	_place_ghosts()
+
+
 func _build_ghost_material() -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -426,7 +468,7 @@ func _apply_material(node: Node, material: StandardMaterial3D) -> void:
 		_apply_material(child, material)
 
 
-## One hazard, resolved at spawn. RefCounted for CoinField.Coin's reason.
+## One hazard, resolved at spawn. RefCounted for ClockField.Clock's reason.
 class Hazard extends RefCounted:
 	var node: Node3D = null # the wrapper; visibility toggles here
 	var distance: float = 0.0 # arclength along the ghost line, decreasing as it drives

@@ -1,7 +1,7 @@
 extends Node
 
-## Owner of every circuit's income ghosts: where each one has got to along its line, which coins it
-## has taken, and what it has earned.
+## Owner of every circuit's income ghosts: where each one has got to along its line, which rung of
+## the checkpoint ladder it is on, and what it has earned.
 ##
 ## An autoload for the reason [autoload Purse] and [autoload LoadoutHolder] are, and then harder:
 ## income has to go on accruing while the player is inside a race scene where none of it is
@@ -16,8 +16,11 @@ extends Node
 ## Circuit on _ready ([method register_circuit]). Idempotent and outlives the scene swap — this
 ## autoload holds the Circuit references, and the freed world nodes do not matter. Running race.tscn
 ## directly earns nothing, matching race.gd's own FALLBACK_CIRCUIT as an editor-only path.
+##
+## It no longer sweeps anything: a recording's checkpoint crossings are fully determined by that
+## recording, so they are found once at reseat and a ghost pays rung n on reaching crossing n.
 
-## One coin, taken by one circuit's income ghost. Circuit-local position and direction — this
+## One checkpoint, paid by one circuit's income ghost. Circuit-local position and direction — this
 ## autoload never converts to world coordinates; the view stands in the circuit's frame and does
 ## that for free (CONTEXT.md's **Income ghost view**).
 signal pickup(circuit: Circuit, position: Vector3, direction: Vector3, value: int)
@@ -27,7 +30,6 @@ signal pickup(circuit: Circuit, position: Vector3, direction: Vector3, value: in
 var _sample_rate: float:
 	get: return Engine.physics_ticks_per_second
 
-var _coin_origins := CoinOrigins.new()
 var _circuits: Dictionary[Circuit, CircuitIncome] = {}
 
 ## The summed instantaneous income rate across every registered circuit, in dollars per second.
@@ -57,10 +59,10 @@ func register_circuit(circuit: Circuit) -> void:
 	reseat(circuit)
 
 
-## Snaps every ghost of [param circuit] back to its i/N offset with a fresh taken-set, and re-reads
-## the circuit's current ghost line and income_ghost_count from disk. Called on registration (world
-## load), on an income ghost count change (issue 09's dev keys), and on a promoted ghost line
-## (forwarded in by race.gd — issue 08). Deferring the ghost-line case to the next world load would
+## Snaps every ghost of [param circuit] back to its i/N offset with its ladder back at rung 1, and
+## re-reads the circuit's current ghost line and income_ghost_count from disk. Called on
+## registration (world load), on an income ghost count change (the dev keys), and on a promoted
+## ghost line (forwarded in by race.gd). Deferring the ghost-line case to the next world load would
 ## keep paying the old, worse rate for an unbounded stretch of a session.
 func reseat(circuit: Circuit) -> void:
 	var income: CircuitIncome = _circuits.get(circuit)
@@ -70,25 +72,17 @@ func reseat(circuit: Circuit) -> void:
 	var ghost_line: GhostLine = _load_ghost_line(circuit)
 	income.positions = ghost_line.positions if ghost_line != null else PackedVector3Array()
 	income.yaws = ghost_line.yaws if ghost_line != null else PackedFloat32Array()
+	income.crossings = ghost_line.checkpoint_samples if ghost_line != null else PackedInt32Array()
+	income.base_value = circuit.base_checkpoint_value
 
 	var loadout: CircuitLoadout = LoadoutHolder.for_circuit(circuit)
-
-	# Clamped to the loadout's own coin_count, in authored order — CoinField._resolve_coins' own
-	# clamp, reproduced here: income is re-derived against the coins live *today*, not every coin
-	# the circuit happens to have authored. Without this an income ghost would earn from coins the
-	# player never bought.
-	var coins: CoinOrigins.Layout = _coin_origins.for_circuit(circuit)
-	var live_count: int = clampi(loadout.coin_count, 0, coins.positions.size())
-	income.coin_positions = coins.positions.slice(0, live_count)
-	income.coin_values = coins.values.slice(0, live_count)
-
 	var count: int = loadout.income_ghost_count
 	income.ghosts.clear()
 	# A circuit with no ghost line (or too short a one) has nowhere to run a ghost — no error, no
-	# special case, exactly as there are no boost ghosts on lap 1.
+	# special case, exactly as there are no boost ghosts before any Run has completed.
 	if income.positions.size() >= 2:
 		for i in count:
-			income.ghosts.append(IncomeGhostSweep.seat(i, count, income.positions))
+			income.ghosts.append(IncomeGhostSweep.seat(i, count, income.positions, income.crossings))
 
 	income.earned_since_reseat = 0.0
 	income.elapsed_since_reseat = 0.0
@@ -114,7 +108,7 @@ func _advance(circuit: Circuit, income: CircuitIncome, delta: float) -> void:
 	income.elapsed_since_reseat += delta
 	for ghost: IncomeGhostSweep.State in income.ghosts:
 		var pickups: Array[IncomeGhostSweep.Pickup] = IncomeGhostSweep.advance(
-			ghost, income.positions, income.coin_positions, income.coin_values, delta, _sample_rate)
+			ghost, income.positions, income.crossings, income.base_value, delta, _sample_rate)
 		for p: IncomeGhostSweep.Pickup in pickups:
 			income.earned_since_reseat += p.value
 			Purse.add_income(p.value)
@@ -132,13 +126,13 @@ func _load_ghost_line(circuit: Circuit) -> GhostLine:
 	return ghost_line
 
 
-## One circuit's whole income simulation: its cached ghost line and coin layout, its running
-## ghosts, and enough history to report an instantaneous rate.
+## One circuit's whole income simulation: its cached ghost line and checkpoint crossings, its
+## running ghosts, and enough history to report an instantaneous rate.
 class CircuitIncome extends RefCounted:
 	var positions: PackedVector3Array = PackedVector3Array()
 	var yaws: PackedFloat32Array = PackedFloat32Array()
-	var coin_positions: PackedVector3Array = PackedVector3Array()
-	var coin_values: PackedInt32Array = PackedInt32Array()
+	var crossings: PackedInt32Array = PackedInt32Array()
+	var base_value: int = 1
 	var ghosts: Array[IncomeGhostSweep.State] = []
 
 	## Reset at every reseat, so a stale rate from before a purchase or a promotion does not linger

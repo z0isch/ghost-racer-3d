@@ -9,3 +9,4 @@ circuit_scene = ExtResource("2_scene")
 ghost_line_path = "res://ghost_lines/circuit3.tres"
 loadout_path = "res://loadouts/circuit3.tres"
 display_name = "Circuit 3"
+base_checkpoint_value = 1

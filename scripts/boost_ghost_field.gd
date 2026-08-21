@@ -6,12 +6,12 @@ extends Node
 ## exactly the same, which is the playtest's finding, not an implementation shortcut — so there is
 ## one bump and one bleed here rather than per-ghost metadata.
 ##
-## Modelled on CoinField deliberately, down to the lifecycle: a ghost is taken once and stays taken
-## for the rest of the lap, exactly as a coin is, and the whole field is restored at every
-## countdown. Purely spatial: it emits [signal ghost_taken] and knows nothing about who listens —
+## Modelled on ClockField deliberately, down to the lifecycle: a ghost is taken once and stays taken
+## for the rest of the wrap, exactly as a clock is, and the whole field is restored — and re-rolled —
+## at every wrap. Purely spatial: it emits [signal ghost_taken] and knows nothing about who listens —
 ## not the camera's FOV punch, not the kart's speed.
 ##
-## Unlike CoinField's coins, the ghosts are not authored into the circuit: they are placed at
+## Unlike ClockField's clocks, the ghosts are not authored into the circuit: they are placed at
 ## runtime along the road's own centreline (walked from the RoadContainer's RoadPoints, [method
 ## _build_centreline]), one per equal slot of it and jittered inside that slot, so a re-place first
 ## frees whatever stood there before rather than restoring a fixed set. The centreline is deliberately
@@ -24,9 +24,7 @@ extends Node
 ## pinned to the line itself, the rest alternating either side of it at a fixed spacing — no check
 ## against the true road edge, so a wide fan on a narrow stretch of road can hang ghosts over the
 ## kerb or the grass; that's a tuning call (lateral_ghost_count/lateral_spacing against the
-## circuit's narrowest point), not something the field polices — or snapped onto a nearby coin if
-## one is close enough to hand the ghost to it instead of leaving two separate things to line up
-## for. See [method _lateral_placements].
+## circuit's narrowest point), not something the field polices. See [method _lateral_placements].
 
 ## One ghost, the instant it is taken. Position only — there is no per-ghost value to report, since
 ## every ghost grants the same bump.
@@ -59,10 +57,6 @@ const RoadSegment = preload("res://addons/road-generator/nodes/road_segment.gd")
 ## The circuit's BoostGhosts node: an empty runtime spawn parent. The field owns what stands under
 ## it; nothing is authored there.
 @export var ghosts_path: NodePath
-## Optional. The circuit's CoinField, so a ghost that lands near a coin can snap onto it instead of
-## sitting beside it as two separate things to line up for. Left unset, no snapping happens — a
-## scene without a coin field places ghosts exactly as it always has.
-@export var coin_field_path: NodePath
 
 ## Boost ghosts on the circuit. Setting it re-places the whole field immediately — the door the dev
 ## input and any later system (a difficulty curve, a purse spend) both go through, rather than the
@@ -105,23 +99,19 @@ var save_loadout: Callable = Callable()
 ## Metres between adjacent ghosts in the perpendicular fan.
 @export var lateral_spacing: float = 3.0
 
-## Metres within which a placed ghost snaps onto a coin instead of standing near one. 0 turns
-## snapping off entirely.
-@export var coin_snap_radius: float = 2.5
-
 ## m/s the banked charge puts straight into forward speed, above the tuned ceiling, once spent.
 ## Every ghost on the circuit.
 @export var bump: float = 10.0
 ## m/s^2 the overspeed comes back off at, once the charge is spent. Every ghost on the circuit.
 @export var bleed: float = 5.0
 ## Fraction of the kart's own collision radius ([member Kart.sphere_radius]) a ghost reaches out
-## to. Wider than a coin's: the ghost is a car-sized silhouette, and clipping its wing should
+## to. Wider than a clock's: the ghost is a car-sized silhouette, and clipping its wing should
 ## count. 4.0 against the kart's default 0.5 m sphere_radius reproduces the old fixed 2.0 m
 ## radius. [member _spawn_ghost] scales the model by this same fraction, so a wider pickup always
 ## shows as a visually bigger ghost rather than the two drifting apart.
 @export var pickup_radius_fraction: float = 4.0
 
-## Metres of vertical gap the swept test still counts as a hit, for CoinField.max_vertical_gap's
+## Metres of vertical gap the swept test still counts as a hit, for ClockField.max_vertical_gap's
 ## identical reason: the horizontal-only sweep would otherwise let a ghost be taken from a stretch
 ## of road that merely passes underneath or beside it at a different height.
 @export var max_vertical_gap: float = 5.0
@@ -136,7 +126,6 @@ var save_loadout: Callable = Callable()
 
 var _kart: Kart
 var _director: RunDirector
-var _coin_field: CoinField
 var _ghosts_root: Node3D
 var _ghosts: Array[Ghost] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
@@ -162,13 +151,13 @@ var _rng := RandomNumberGenerator.new()
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
 	_director = get_node_or_null(director_path) as RunDirector
-	_coin_field = get_node_or_null(coin_field_path) as CoinField
 	_ghosts_root = get_node_or_null(ghosts_path) as Node3D
 	if _kart != null:
 		_pickup_radius = pickup_radius_fraction * _kart.sphere_radius
 
 	if _director != null:
 		_director.countdown_started.connect(_on_countdown_started)
+		_director.wrapped.connect(_on_wrapped)
 
 	if _ghosts_root == null:
 		push_warning("BoostGhostField: no BoostGhosts node — nothing to boost off.")
@@ -186,7 +175,7 @@ func _ready() -> void:
 	_place_ghosts.call_deferred()
 
 
-## Deferred for CoinField's reason: the director runs at the head of the physics frame and the kart
+## Deferred for ClockField's reason: the director runs at the head of the physics frame and the kart
 ## moves after it, so the position the kart finishes the frame at only exists after the flush.
 ##
 ## The dev inputs live here, not gated on phase or on whether a centreline exists: the field owns
@@ -241,10 +230,9 @@ func _process(delta: float) -> void:
 ## may cross; at 0.0 every ghost sits exactly on its slot's midpoint.
 ##
 ## Purely a walk along the given line: it knows nothing about the road's actual width, so it
-## returns the line pose only. Moving a ghost off that pose — to anywhere still on the road,
-## or onto a nearby coin — needs the physics world and is [method _lateral_placements]'s job, not this
-## static function's; a TestCase is a RefCounted that cannot touch the scene tree, and this is the
-## seam the geometry suite tests.
+## returns the line pose only. Fanning a ghost out to either side of that pose needs [method
+## _lateral_placements], not this static function; a TestCase is a RefCounted that cannot touch the
+## scene tree, and this is the seam the geometry suite tests.
 ##
 ## Parameters named margin_start/margin_end rather than start_margin/end_margin (which the
 ## exported [member start_margin]/[member end_margin] already claim on this class): GDScript's
@@ -471,8 +459,7 @@ func _yaws_from_positions(positions: PackedVector3Array) -> PackedFloat32Array:
 ## increasing multiples of [member lateral_spacing] ([method _lateral_offset]). No check against
 ## the true road edge — every one of the fan is placed, so a wide fan on a narrow stretch of road
 ## can hang ghosts over the kerb or the grass; that's on whoever tunes lateral_ghost_count and
-## lateral_spacing, not something placement polices. A placed ghost lands on a nearby coin instead
-## if one stands close enough to hand it to.
+## lateral_spacing, not something placement polices.
 func _lateral_placements(pose: Transform3D) -> Array[Transform3D]:
 	var result: Array[Transform3D] = []
 	var right: Vector3 = pose.basis.x
@@ -482,9 +469,7 @@ func _lateral_placements(pose: Transform3D) -> Array[Transform3D]:
 		# basis.x is the pose's own right vector, so the offset leans with the line through a
 		# corner instead of being re-derived from the yaw here. translated, not translated_local:
 		# the vector is already in the line's space.
-		var placed: Transform3D = pose.translated(right * offset)
-		placed.origin = _nearest_coin_within(placed.origin, coin_snap_radius)
-		result.append(placed)
+		result.append(pose.translated(right * offset))
 	return result
 
 
@@ -500,25 +485,6 @@ func _lateral_offset(index: int) -> float:
 	var rung: int = (index + 1) / 2
 	var side: float = 1.0 if index % 2 == 1 else -1.0
 	return side * rung * lateral_spacing
-
-
-## The nearest coin to [param position] within [param radius], or [param position] itself if none
-## stands that close — the "no snap" case as a same-value return rather than a second output
-## channel, since every caller only ever compares the result back against what it passed in.
-## Deliberately not gated on taken-ness (CoinField.coin_origins' own reason): a ghost should stand on
-## the coin's slot in the field's shape, not chase whichever coins happen to still be up this lap.
-func _nearest_coin_within(position: Vector3, radius: float) -> Vector3:
-	if _coin_field == null or radius <= 0.0:
-		return position
-
-	var nearest: Vector3 = position
-	var nearest_distance_squared: float = radius * radius
-	for coin: Vector3 in _coin_field.coin_origins():
-		var distance_squared: float = position.distance_squared_to(coin)
-		if distance_squared <= nearest_distance_squared:
-			nearest = coin
-			nearest_distance_squared = distance_squared
-	return nearest
 
 
 func _spawn_ghost(pose: Transform3D) -> Ghost:
@@ -563,7 +529,7 @@ func _sweep_ghosts() -> void:
 	for ghost: Ghost in _ghosts:
 		if ghost.taken:
 			continue
-		if not CoinField.segment_takes_coin(previous, position, ghost.origin, _pickup_radius):
+		if not ClockField.segment_takes_clock(previous, position, ghost.origin, _pickup_radius):
 			continue
 		if absf(position.y - ghost.origin.y) > max_vertical_gap:
 			continue
@@ -587,6 +553,14 @@ func _on_countdown_started() -> void:
 	_place_ghosts()
 
 
+## Re-places the whole field at every wrap too, so a long Run is not one live wrap followed by an
+## empty circuit — CONTEXT.md's **Boost ghost**, "the wrap is what the countdown used to be".
+## [member _has_last_kart_position] is deliberately left alone: a wrap is not a teleport, and
+## clearing it here would drop one frame of the kart's own swept test.
+func _on_wrapped() -> void:
+	_place_ghosts()
+
+
 # Built here rather than authored on the mesh, for PaceGhost's reason: the ghost instances the same
 # imported FBX as the kart, whose internal node structure belongs to the importer.
 func _build_ghost_material() -> StandardMaterial3D:
@@ -607,7 +581,7 @@ func _apply_material(node: Node, material: StandardMaterial3D) -> void:
 		_apply_material(child, material)
 
 
-## One ghost, resolved at spawn. RefCounted for CoinField.Coin's reason: no allocation in the
+## One ghost, resolved at spawn. RefCounted for ClockField.Clock's reason: no allocation in the
 ## physics step, only at a re-place.
 class Ghost extends RefCounted:
 	var node: Node3D = null # the wrapper; visibility toggles here

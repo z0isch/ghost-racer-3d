@@ -1,15 +1,15 @@
 #!/usr/bin/env sh
-# Place a circuit's checkpoints and coins evenly around its road-generator loop.
-#   ./place_features.sh --scene scenes/circuit3.tscn --checkpoints 6 --coins 14
-#   ./place_features.sh --scene scenes/circuit3.tscn --checkpoints 6 --coins 14 --dry-run
+# Place a circuit's checkpoints and clocks evenly around its road-generator loop.
+#   ./place_features.sh --scene scenes/circuit3.tscn --checkpoints 6 --clocks 14
+#   ./place_features.sh --scene scenes/circuit3.tscn --checkpoints 6 --clocks 14 --dry-run
 #   ./place_features.sh --help
 #
 # The last checkpoint is the start/finish, and it is placed BEHIND the StartLine
-# (--start-finish-setback metres back along the loop), so a lap begins already clear of the gate
+# (--start-finish-setback metres back along the loop), so a Run begins already clear of the gate
 # that ends it. See CONTEXT.md's **Start line** entry for why either side would work and why this
 # is the one chosen.
 #
-# Rewrites the scene's Checkpoints and Coins subtrees and NOTHING ELSE — the road, the ground,
+# Rewrites the scene's Checkpoints and Clocks subtrees and NOTHING ELSE — the road, the ground,
 # the StartLine and every unique_id come through the rewrite byte for byte. Run --dry-run first
 # if you want to see the arclengths and positions before the file changes.
 #

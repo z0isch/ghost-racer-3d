@@ -13,8 +13,9 @@ extends CanvasLayer
 ## Reads the Purse autoload directly rather than through an exported NodePath: the purse now
 ## outlives the scene, so there is no scene-local node to point at.
 
-## How long the label stays lit after a pickup. Much shorter than the record flash next door: coins
-## arrive in bursts, and a long flash would stay lit through a good line and stop meaning "just now".
+## How long the label stays lit after a pickup. Much shorter than the record flash next door:
+## checkpoints arrive in bursts, and a long flash would stay lit through a good line and stop
+## meaning "just now".
 ## At this length a swept run holds the label lit continuously, reading as one event.
 @export var flash_duration: float = 0.25
 

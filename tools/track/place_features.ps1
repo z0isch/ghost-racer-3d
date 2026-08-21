@@ -1,12 +1,12 @@
-# Place a circuit's checkpoints and coins evenly around its road-generator loop.
-#   .\place_features.ps1 -Scene scenes/circuit3.tscn -Checkpoints 6 -Coins 14
-#   .\place_features.ps1 -Scene scenes/circuit3.tscn -Checkpoints 6 -Coins 14 -DryRun
+# Place a circuit's checkpoints and clocks evenly around its road-generator loop.
+#   .\place_features.ps1 -Scene scenes/circuit3.tscn -Checkpoints 6 -Clocks 14
+#   .\place_features.ps1 -Scene scenes/circuit3.tscn -Checkpoints 6 -Clocks 14 -DryRun
 #
 # The last checkpoint is the start/finish, and it is placed BEHIND the StartLine (-StartFinishSetback
-# metres back along the loop), so a lap begins already clear of the gate that ends it. See
+# metres back along the loop), so a Run begins already clear of the gate that ends it. See
 # CONTEXT.md's **Start line** entry for why either side would work and why this is the one chosen.
 #
-# Rewrites the scene's Checkpoints and Coins subtrees and NOTHING ELSE — the road, the ground,
+# Rewrites the scene's Checkpoints and Clocks subtrees and NOTHING ELSE — the road, the ground,
 # the StartLine and every unique_id come through the rewrite byte for byte. Run -DryRun first if
 # you want to see the arclengths and positions before the file changes.
 #
@@ -19,10 +19,10 @@
 param(
     [Parameter(Mandatory = $true)][string]$Scene,
     [Parameter(Mandatory = $true)][int]$Checkpoints,
-    [Parameter(Mandatory = $true)][int]$Coins,
+    [Parameter(Mandatory = $true)][int]$Clocks,
     [double]$StartFinishSetback = 8.0,
     [double]$GateClearance = 4.0,
-    [string]$CoinLateral = "0",
+    [string]$ClockLateral = "0",
     [double]$HalfWidth = 4.0,
     [switch]$DryRun
 )
@@ -38,10 +38,10 @@ try {
     $toolArgs = @(
         "--scene", $Scene,
         "--checkpoints", $Checkpoints,
-        "--coins", $Coins,
+        "--clocks", $Clocks,
         "--start-finish-setback", $StartFinishSetback,
         "--gate-clearance", $GateClearance,
-        "--coin-lateral", $CoinLateral,
+        "--clock-lateral", $ClockLateral,
         "--half-width", $HalfWidth
     )
     if ($DryRun) { $toolArgs += "--dry-run" }

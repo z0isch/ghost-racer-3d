@@ -163,7 +163,7 @@ vertical_alignment = 1
 [node name="Circuit3" parent="." unique_id=566470077 instance=ExtResource("20_circuit3_scene")]
 script = ExtResource("22_inert_circuit")
 checkpoints_path = NodePath("Checkpoints")
-coins_path = NodePath("Coins")
+clocks_path = NodePath("Clocks")
 circuit = ExtResource("18_circuit3")
 
 [node name="IncomeGhostView" type="Node3D" parent="Circuit3" unique_id=1922004481]
@@ -180,7 +180,7 @@ circuit = ExtResource("18_circuit3")
 transform = Transform3D(-0.64278764, 0, -0.76604444, 0, 1, 0, 0.76604444, 0, -0.64278764, 46.128582, 0, -23.117035)
 script = ExtResource("22_inert_circuit")
 checkpoints_path = NodePath("Checkpoints")
-coins_path = NodePath("Coins")
+clocks_path = NodePath("Clocks")
 circuit = ExtResource("19_circuit4")
 
 [node name="IncomeGhostView" type="Node3D" parent="Circuit4" unique_id=1922004482]

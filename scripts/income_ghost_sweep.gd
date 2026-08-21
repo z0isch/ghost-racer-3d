@@ -1,28 +1,25 @@
 class_name IncomeGhostSweep
 extends RefCounted
 
-## The income runner's per-ghost advance-and-sweep: where one ghost has got to along its recorded
-## line, and what it collects getting there. Pulled out of [autoload IncomeRunner] so a TestCase — a
-## RefCounted that cannot touch the scene tree — can call it directly, [class BoostGhostField]'s own
-## reason for keeping `place_along` a static function.
+## The income runner's per-ghost advance: where one ghost has got to along its recorded line, and
+## what it pays reaching the checkpoint crossings that recording made. Pulled out of [autoload
+## IncomeRunner] so a TestCase — a RefCounted that cannot touch the scene tree — can call it
+## directly, [class BoostGhostField]'s own reason for keeping `place_along` a static function.
 ##
 ## Walks every recorded segment crossed one at a time rather than jumping to wherever the clock
-## says the ghost should be — never one chord from wherever it started to wherever it ends up. A
-## chord across a hairpin would cut the inside of the corner and collect a coin the recorded line
-## never approached, which would make income framerate-dependent and farmable by tanking the frame
-## rate. Walking whole segments means the same elapsed time produces the same income whether it
-## arrives in one frame or sixty: [method advance] only ever pays out at a whole-segment crossing,
-## and the number of those crossed over a stretch of time depends on the time, not on how it was
-## chopped into frames.
+## says the ghost should be — never one chord from wherever it started to wherever it ends up.
+## Walking whole segments means the same elapsed time produces the same income whether it arrives
+## in one frame or sixty: [method advance] only ever pays out at a whole-segment crossing, and the
+## number of those crossed over a stretch of time depends on the time, not on how it was chopped
+## into frames.
+##
+## No sweep against any spatial pickup any more — a recording's checkpoint crossings are fully
+## determined by the recording itself, so they are precomputed once (by RunDirector, into
+## [member GhostLine.checkpoint_samples]) and this pays rung n the instant segment n's crossing
+## sample is reached.
 
-## The pickup radius and vertical gap CoinField.segment_takes_coin is swept with, matching the race
-## defaults ([member CoinField.pickup_radius], [member CoinField.max_vertical_gap]) so an income
-## ghost collects exactly what a kart driving the same line would.
-const PICKUP_RADIUS: float = 1.2
-const MAX_VERTICAL_GAP: float = 5.0
-
-## Where one ghost has got to along a recorded line, and which coins it has already taken this lap.
-## RefCounted rather than a value type, which GDScript lacks: one instance per ghost, mutated in
+## Where one ghost has got to along a recorded line, and which rung of the checkpoint ladder it is
+## on. RefCounted rather than a value type, which GDScript lacks: one instance per ghost, mutated in
 ## place every frame by [method advance].
 class State extends RefCounted:
 	## The recorded segment (positions[segment_index] -> positions[segment_index + 1]) the ghost is
@@ -31,39 +28,34 @@ class State extends RefCounted:
 	## How far through that segment, in whole-segment units, in [0, 1). Also what a view interpolates
 	## the ghost's drawn pose by ([method pose]).
 	var segment_progress: float = 0.0
-	## One flag per coin, cleared whenever the ghost wraps back to segment 0 — CONTEXT.md's **Income**:
-	## "each ghost carries its own idea of which coins it has taken".
-	var taken: Array[bool] = []
-
-	func reset_taken(coin_count: int) -> void:
-		taken.resize(coin_count)
-		taken.fill(false)
+	## The next entry of the recording's checkpoint_samples this ghost has yet to reach. Reset to 0
+	## when the recording pops back to the start — a Timeout followed by a Countdown, which is
+	## exactly what restarts the ladder at rung 1 (CONTEXT.md's **Income ghost**).
+	var next_crossing: int = 0
 
 
-## One coin taken during an [method advance] call: which coin (by index into the coin arrays
-## [method advance] was given), and what to report onward for a pickup popup.
+## One checkpoint paid during an [method advance] call: which rung paid it, and what to report
+## onward for a pickup popup.
 class Pickup extends RefCounted:
-	var index: int = 0
 	var position: Vector3 = Vector3.ZERO
 	var direction: Vector3 = Vector3.FORWARD
 	var value: int = 0
 
 
 ## Advances [param state] by [param delta] seconds along a line recorded at [param sample_rate]
-## samples/second, sweeping every whole recorded segment of [param positions] crossed along the way
-## against every untaken coin in [param coin_positions]/[param coin_values]. Returns the coins taken
-## this call, in the order they were crossed — never a repeat within a lap, since a taken coin is
-## skipped for the rest of it.
+## samples/second, paying [param base_value] times the rung reached at every entry of [param
+## crossings] crossed along the way. Returns the checkpoints paid this call, in the order they were
+## crossed.
 ##
-## Wraps the instant the last recorded segment is crossed: back to segment 0, with a fresh
-## taken-set, matching a lap's own pop from the start/finish gate back to the start line rather than
-## a blended loop — CONTEXT.md's **Income ghost**, "not blended". A line shorter than two samples
-## (no ghost line recorded yet) advances nothing and collects nothing.
+## Wraps the instant the last recorded segment is crossed: back to segment 0 with the ladder back at
+## its first rung, matching a Run's own pop from wherever the Timeout left it back to the start line
+## rather than a blended loop — CONTEXT.md's **Income ghost**, "not blended". A line shorter than
+## two samples (no ghost line recorded yet) advances nothing and pays nothing.
 static func advance(
 	state: State,
 	positions: PackedVector3Array,
-	coin_positions: PackedVector3Array,
-	coin_values: PackedInt32Array,
+	crossings: PackedInt32Array,
+	base_value: int,
 	delta: float,
 	sample_rate: float,
 ) -> Array[Pickup]:
@@ -72,50 +64,40 @@ static func advance(
 	if segment_count <= 0:
 		return pickups
 
-	if state.taken.size() != coin_positions.size():
-		state.reset_taken(coin_positions.size())
-
 	state.segment_progress += delta * sample_rate
 	while state.segment_progress >= 1.0:
-		var start: Vector3 = positions[state.segment_index]
-		var end: Vector3 = positions[state.segment_index + 1]
-		_sweep_segment(state, start, end, coin_positions, coin_values, pickups)
-
 		state.segment_progress -= 1.0
 		state.segment_index += 1
+
+		while (state.next_crossing < crossings.size()
+				and crossings[state.next_crossing] <= state.segment_index):
+			var crossing: int = crossings[state.next_crossing]
+			var pickup := Pickup.new()
+			# Rung n at crossing n, one-based: the recording's first checkpoint paid 1 × base and
+			# so does the ghost's, which is what makes income exactly the record earn rate.
+			pickup.value = (state.next_crossing + 1) * base_value
+			# The recorded pose at the crossing — the ghost is standing on the checkpoint prism at
+			# that sample, so the popup lands where the money was without this ever needing to know
+			# where a checkpoint is.
+			pickup.position = positions[crossing]
+			pickup.direction = _segment_direction(positions, crossing)
+			pickups.append(pickup)
+			state.next_crossing += 1
+
 		if state.segment_index >= segment_count:
 			state.segment_index = 0
-			state.reset_taken(coin_positions.size())
+			state.next_crossing = 0
 
 	return pickups
 
 
-static func _sweep_segment(
-	state: State,
-	start: Vector3,
-	end: Vector3,
-	coin_positions: PackedVector3Array,
-	coin_values: PackedInt32Array,
-	pickups: Array[Pickup],
-) -> void:
+## The travel direction into recorded sample [param index] — from the sample before it, flattened
+## to the horizontal, for RunDirector.checkpoint_paid's identical "which way is ahead" reason.
+static func _segment_direction(positions: PackedVector3Array, index: int) -> Vector3:
+	var start: Vector3 = positions[maxi(index - 1, 0)]
+	var end: Vector3 = positions[index]
 	var direction := Vector3(end.x - start.x, 0.0, end.z - start.z)
-	var travel_direction: Vector3 = direction.normalized() if direction.length_squared() > 0.0 else Vector3.FORWARD
-
-	for c in coin_positions.size():
-		if state.taken[c]:
-			continue
-		if not CoinField.segment_takes_coin(start, end, coin_positions[c], PICKUP_RADIUS):
-			continue
-		if absf(end.y - coin_positions[c].y) > MAX_VERTICAL_GAP:
-			continue
-
-		state.taken[c] = true
-		var pickup := Pickup.new()
-		pickup.index = c
-		pickup.position = coin_positions[c]
-		pickup.direction = travel_direction
-		pickup.value = coin_values[c]
-		pickups.append(pickup)
+	return direction.normalized() if direction.length_squared() > 0.0 else Vector3.FORWARD
 
 
 ## The pose [param state] should be drawn at: the recorded pose at [member State.segment_index]
@@ -135,8 +117,10 @@ static func pose(state: State, positions: PackedVector3Array, yaws: PackedFloat3
 
 ## A fresh ghost seated at slot [param index] of [param count]: `index / count` of the way along
 ## [param positions], in whole-and-fractional recorded segments — CONTEXT.md's **Income ghost**,
-## "the ith a fraction i/N of the way through it".
-static func seat(index: int, count: int, positions: PackedVector3Array) -> State:
+## "the ith a fraction i/N of the way through it". [member State.next_crossing] is seated to match:
+## every entry of [param crossings] the offset already skipped past must not be paid again the
+## instant the ghost starts running.
+static func seat(index: int, count: int, positions: PackedVector3Array, crossings: PackedInt32Array) -> State:
 	var state := State.new()
 	var segment_count: int = positions.size() - 1
 	if count <= 0 or segment_count <= 0:
@@ -145,4 +129,11 @@ static func seat(index: int, count: int, positions: PackedVector3Array) -> State
 	var offset: float = float(index) / float(count) * float(segment_count)
 	state.segment_index = mini(int(offset), segment_count - 1)
 	state.segment_progress = offset - state.segment_index
+
+	var skipped: int = 0
+	for crossing: int in crossings:
+		if crossing <= state.segment_index:
+			skipped += 1
+	state.next_crossing = skipped
+
 	return state

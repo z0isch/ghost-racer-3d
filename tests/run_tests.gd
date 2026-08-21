@@ -14,12 +14,12 @@ func _initialize() -> void:
 	var suites: Array[TestCase] = [
 		KartModelTest.new(),
 		KartInputTest.new(),
-		CoinPickupTest.new(),
+		ClockPickupTest.new(),
 		BoostGhostPlacementTest.new(),
 		HazardGhostPlacementTest.new(),
 		GhostLineTest.new(),
-		CoinOriginsTest.new(),
 		IncomeGhostSweepTest.new(),
+		CheckpointLadderTest.new(),
 	]
 
 	var failures: PackedStringArray = PackedStringArray()

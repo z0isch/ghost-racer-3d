@@ -1,12 +1,12 @@
 class_name IncomeGhostSweepTest
 extends TestCase
 
-## IncomeGhostSweep.advance/seat/pose — the substance of issue 06's income runner, pinned exactly
-## as CONTEXT.md's **Income** describes it: a coin pays once per lap and again after the wrap, the
-## same elapsed time pays the same money regardless of how it is chopped into frames, and separate
-## ghosts never compete for a coin.
+## IncomeGhostSweep.advance/seat/pose — the substance of the income runner, pinned exactly as
+## CONTEXT.md's **Income** describes it: rung n is paid at crossing n, the ladder restarts at rung 1
+## when the recording pops back to the start, the same elapsed time pays the same money regardless
+## of how it is chopped into frames, and separate ghosts never compete for a crossing.
 ##
-## Every case runs against a plain static line with no scene tree at all, for CoinPickupTest's own
+## Every case runs against a plain static line with no scene tree at all, for ClockPickupTest's own
 ## reason: this is the seam a TestCase can reach.
 
 const SAMPLE_RATE: float = 60.0
@@ -34,64 +34,74 @@ func _yaws(count: int) -> PackedFloat32Array:
 	return yaws
 
 
-func test_no_line_advances_and_collects_nothing() -> void:
+func test_no_line_advances_and_pays_nothing() -> void:
 	var state := IncomeGhostSweep.State.new()
 	var pickups: Array[IncomeGhostSweep.Pickup] = IncomeGhostSweep.advance(
-		state, PackedVector3Array(), PackedVector3Array(), PackedInt32Array(), 10.0, SAMPLE_RATE)
-	check(pickups.is_empty(), "an empty line collects nothing, however much time passes")
+		state, PackedVector3Array(), PackedInt32Array(), 1, 10.0, SAMPLE_RATE)
+	check(pickups.is_empty(), "an empty line pays nothing, however much time passes")
 	check(state.segment_index == 0, "and leaves the ghost parked at the head of the (nonexistent) line")
 
 
-func test_a_coin_on_the_line_is_taken_exactly_once() -> void:
-	# A line much longer than the distance advanced below, so the ghost is nowhere near wrapping —
-	# the wrap's own effect on the taken-set is test_the_wrap_clears_the_taken_set's to pin.
+func test_rung_n_is_paid_at_crossing_n() -> void:
 	var positions: PackedVector3Array = _straight_line(100)
-	var coins := PackedVector3Array([Vector3(5.0, 0.0, 0.0)])
-	var values := PackedInt32Array([1])
-	var state: IncomeGhostSweep.State = IncomeGhostSweep.seat(0, 1, positions)
+	var crossings := PackedInt32Array([5, 20, 40])
+	var state: IncomeGhostSweep.State = IncomeGhostSweep.seat(0, 1, positions, crossings)
 
-	# 10 samples' worth of elapsed time carries the ghost from x=0 to x=10, crossing the coin at x=5.
+	# 45 samples' worth of elapsed time carries the ghost past every crossing above.
 	var pickups: Array[IncomeGhostSweep.Pickup] = IncomeGhostSweep.advance(
-		state, positions, coins, values, 10.0 / SAMPLE_RATE, SAMPLE_RATE)
+		state, positions, crossings, 1, 45.0 / SAMPLE_RATE, SAMPLE_RATE)
 
-	check(pickups.size() == 1, "the coin on the line is collected exactly once")
-	if pickups.size() == 1:
-		check(pickups[0].value == 1, "at its own value")
-
-	var again: Array[IncomeGhostSweep.Pickup] = IncomeGhostSweep.advance(
-		state, positions, coins, values, 1.0 / SAMPLE_RATE, SAMPLE_RATE)
-	check(again.is_empty(), "and not a second time before the lap wraps")
+	check(pickups.size() == 3, "every crossing reached this call is paid")
+	if pickups.size() == 3:
+		check(pickups[0].value == 1, "the first crossing pays rung 1")
+		check(pickups[1].value == 2, "the second crossing pays rung 2")
+		check(pickups[2].value == 3, "the third crossing pays rung 3")
 
 
-func test_the_wrap_clears_the_taken_set_and_repays_the_coin() -> void:
+func test_the_ladder_scales_with_base_value() -> void:
+	var positions: PackedVector3Array = _straight_line(100)
+	var crossings := PackedInt32Array([5, 10])
+	var state: IncomeGhostSweep.State = IncomeGhostSweep.seat(0, 1, positions, crossings)
+
+	var pickups: Array[IncomeGhostSweep.Pickup] = IncomeGhostSweep.advance(
+		state, positions, crossings, 3, 15.0 / SAMPLE_RATE, SAMPLE_RATE)
+
+	check(pickups.size() == 2, "both crossings are reached")
+	if pickups.size() == 2:
+		check(pickups[0].value == 3, "rung 1 at base value 3 pays 3")
+		check(pickups[1].value == 6, "rung 2 at base value 3 pays 6")
+
+
+func test_the_recording_popping_restarts_the_ladder_at_rung_one() -> void:
 	var positions: PackedVector3Array = _straight_line(4)
-	var coins := PackedVector3Array([Vector3(1.0, 0.0, 0.0)])
-	var values := PackedInt32Array([1])
-	var state: IncomeGhostSweep.State = IncomeGhostSweep.seat(0, 1, positions)
+	var crossings := PackedInt32Array([1])
+	var state: IncomeGhostSweep.State = IncomeGhostSweep.seat(0, 1, positions, crossings)
 
-	# One full lap (4 segments) plus a second lap's worth again, in one call: the coin near the
-	# start of the line must be paid twice, once per lap, and not zero or thrice.
+	# One full pass of the recording (4 segments) plus a second pass's worth again, in one call: the
+	# crossing near the start of the line must be paid twice, at rung 1 both times, and not zero,
+	# thrice, or at a rung that kept climbing across the pop.
 	var pickups: Array[IncomeGhostSweep.Pickup] = IncomeGhostSweep.advance(
-		state, positions, coins, values, 8.0 / SAMPLE_RATE, SAMPLE_RATE)
+		state, positions, crossings, 1, 8.0 / SAMPLE_RATE, SAMPLE_RATE)
 
-	check(pickups.size() == 2, "a coin near the start of a short lap is paid once per lap crossed, not once total")
-	check(state.segment_index == 0, "and the ghost sits back at the head of the line after two whole laps")
+	check(pickups.size() == 2, "a crossing near the start of a short recording is paid once per pass, not once total")
+	if pickups.size() == 2:
+		check(pickups[0].value == 1, "the first pass pays rung 1")
+		check(pickups[1].value == 1, "and so does the second — the ladder restarts, it does not keep climbing")
+	check(state.segment_index == 0, "and the ghost sits back at the head of the line after two whole passes")
 
 
 func test_the_same_elapsed_time_pays_the_same_income_in_one_frame_or_sixty() -> void:
 	var positions: PackedVector3Array = _straight_line(120)
-	var coins := PackedVector3Array()
-	var values := PackedInt32Array()
+	var crossings := PackedInt32Array()
 	for i in 20:
-		coins.append(Vector3(float(i) * 5.0 + 2.5, 0.0, 0.0))
-		values.append(1)
+		crossings.append(i * 6 + 3)
 
 	var total_seconds: float = 2.0 # a deliberate frame-hitch's worth
 
 	var one_frame := IncomeGhostSweep.State.new()
 	var earned_one_frame: int = 0
 	for p: IncomeGhostSweep.Pickup in IncomeGhostSweep.advance(
-			one_frame, positions, coins, values, total_seconds, SAMPLE_RATE):
+			one_frame, positions, crossings, 1, total_seconds, SAMPLE_RATE):
 		earned_one_frame += p.value
 
 	var sixty_frames := IncomeGhostSweep.State.new()
@@ -99,7 +109,7 @@ func test_the_same_elapsed_time_pays_the_same_income_in_one_frame_or_sixty() -> 
 	var per_frame: float = total_seconds / 60.0
 	for _i in 60:
 		for p: IncomeGhostSweep.Pickup in IncomeGhostSweep.advance(
-				sixty_frames, positions, coins, values, per_frame, SAMPLE_RATE):
+				sixty_frames, positions, crossings, 1, per_frame, SAMPLE_RATE):
 			earned_sixty_frames += p.value
 
 	check(earned_one_frame == earned_sixty_frames,
@@ -108,40 +118,50 @@ func test_the_same_elapsed_time_pays_the_same_income_in_one_frame_or_sixty() -> 
 		"...and both ghosts end up at exactly the same point on the line")
 
 
-func test_two_ghosts_at_different_offsets_both_collect_the_same_coin() -> void:
-	# Spacing wider than 2x the pickup radius, so the coin sits inside exactly one segment's reach
-	# rather than two — a coin straddling a sample vertex would otherwise be caught by whichever of
-	# its two neighbouring segments a ghost happens to sweep first, and this suite is not the place
-	# to pin that boundary case.
+func test_two_ghosts_at_different_offsets_both_pay_the_same_crossing() -> void:
 	var positions: PackedVector3Array = _straight_line(10, 5.0)
-	var coins := PackedVector3Array([Vector3(22.5, 0.0, 0.0)])
-	var values := PackedInt32Array([1])
+	var crossings := PackedInt32Array([5])
 
-	var first: IncomeGhostSweep.State = IncomeGhostSweep.seat(0, 2, positions)
-	var second: IncomeGhostSweep.State = IncomeGhostSweep.seat(1, 2, positions)
+	var first: IncomeGhostSweep.State = IncomeGhostSweep.seat(0, 2, positions, crossings)
+	var second: IncomeGhostSweep.State = IncomeGhostSweep.seat(1, 2, positions, crossings)
 
-	# A full lap for each, independently: neither ghost's pass should be blocked by the other's.
+	# A full pass for each, independently: neither ghost's pass should be blocked by the other's.
 	var first_pickups: Array[IncomeGhostSweep.Pickup] = IncomeGhostSweep.advance(
-		first, positions, coins, values, 10.0 / SAMPLE_RATE, SAMPLE_RATE)
+		first, positions, crossings, 1, 10.0 / SAMPLE_RATE, SAMPLE_RATE)
 	var second_pickups: Array[IncomeGhostSweep.Pickup] = IncomeGhostSweep.advance(
-		second, positions, coins, values, 10.0 / SAMPLE_RATE, SAMPLE_RATE)
+		second, positions, crossings, 1, 10.0 / SAMPLE_RATE, SAMPLE_RATE)
 
-	check(first_pickups.size() == 1, "the first ghost collects the coin on its own pass")
-	check(second_pickups.size() == 1, "and the second ghost collects it too — ghosts never compete for a coin")
+	check(first_pickups.size() == 1, "the first ghost pays the crossing on its own pass")
+	check(second_pickups.size() == 1, "and the second ghost pays it too — ghosts never compete for a crossing")
 
 
 func test_seat_distributes_ghosts_evenly_along_the_line() -> void:
 	var positions: PackedVector3Array = _straight_line(100)
+	var crossings := PackedInt32Array()
 
-	var ghost_0: IncomeGhostSweep.State = IncomeGhostSweep.seat(0, 4, positions)
-	var ghost_1: IncomeGhostSweep.State = IncomeGhostSweep.seat(1, 4, positions)
-	var ghost_2: IncomeGhostSweep.State = IncomeGhostSweep.seat(2, 4, positions)
-	var ghost_3: IncomeGhostSweep.State = IncomeGhostSweep.seat(3, 4, positions)
+	var ghost_0: IncomeGhostSweep.State = IncomeGhostSweep.seat(0, 4, positions, crossings)
+	var ghost_1: IncomeGhostSweep.State = IncomeGhostSweep.seat(1, 4, positions, crossings)
+	var ghost_2: IncomeGhostSweep.State = IncomeGhostSweep.seat(2, 4, positions, crossings)
+	var ghost_3: IncomeGhostSweep.State = IncomeGhostSweep.seat(3, 4, positions, crossings)
 
 	check(ghost_0.segment_index == 0, "ghost 0 of 4 starts at the head of the line")
 	check_near(float(ghost_1.segment_index) + ghost_1.segment_progress, 25.0, 1e-4, "ghost 1 of 4 starts a quarter of the way in")
 	check_near(float(ghost_2.segment_index) + ghost_2.segment_progress, 50.0, 1e-4, "ghost 2 of 4 starts halfway in")
 	check_near(float(ghost_3.segment_index) + ghost_3.segment_progress, 75.0, 1e-4, "ghost 3 of 4 starts three-quarters in")
+
+
+func test_seat_skips_crossings_already_passed_by_its_offset() -> void:
+	var positions: PackedVector3Array = _straight_line(100)
+	# Seating ghost 2 of 4 lands it at segment 50 (see the placement test above); every crossing at
+	# or before that must not be paid again the instant this ghost starts running.
+	var crossings := PackedInt32Array([10, 30, 50, 70, 90])
+
+	var state: IncomeGhostSweep.State = IncomeGhostSweep.seat(2, 4, positions, crossings)
+	check(state.next_crossing == 3, "seat() skips every crossing at or before the seated offset")
+
+	var pickups: Array[IncomeGhostSweep.Pickup] = IncomeGhostSweep.advance(
+		state, positions, crossings, 1, 1.0 / SAMPLE_RATE, SAMPLE_RATE)
+	check(pickups.is_empty(), "and the next single-segment step does not immediately re-pay one of them")
 
 
 func test_pose_interpolates_between_whole_samples() -> void:

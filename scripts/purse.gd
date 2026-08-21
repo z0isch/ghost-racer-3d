@@ -11,8 +11,8 @@ extends Node
 ## per-Run reset eventually gets cleared by accident. Hence what is absent here: no connection to
 ## countdown_started and no reset path, so no Run boundary can reach in.
 ##
-## The total only ever goes up. Nothing subtracts from it, coins are banked the instant they are
-## touched, and an abort costs the abandoned Run its earnings but not its contribution here. It is a
+## The total only ever goes up. Nothing subtracts from it, checkpoints are banked the instant they
+## are taken, and an abort costs the abandoned Run its earnings but not its contribution here. It is a
 ## reward rather than a currency or a score: the pace ghost is promoted on the earn rate, not on
 ## this, and nothing is won or lost by having more.
 ##
@@ -34,7 +34,7 @@ const AUTOSAVE_INTERVAL_SECONDS: float = 10.0
 signal gained(amount: int, total: int)
 
 ## One income accrual, banked by an income ghost. Deliberately a separate signal from [signal
-## gained] rather than a flag on it: PurseHud's flash means "you took a coin", and CONTEXT.md's
+## gained] rather than a flag on it: PurseHud's flash means "you took a checkpoint", and CONTEXT.md's
 ## **Purse readout** calls firing it on income "a flash that fires whether or not the player did
 ## anything" — meaningless feedback. The total is the same purse either way; this is a second door
 ## into it, not a second purse.
@@ -66,9 +66,10 @@ func _notification(what: int) -> void:
 		save()
 
 
-## Banks the coin's own value rather than an assumed 1, so retuning what a coin is worth needs no
+## Banks the checkpoint's own ladder value rather than an assumed 1, so retuning the ladder needs no
 ## change on either side of the signal. Called by [class PurseLink], which a scene places to connect
-## a CoinField's coin_taken signal here — this autoload has no NodePath into any scene's CoinField.
+## a RunDirector's checkpoint_paid signal here — this autoload has no NodePath into any scene's
+## RunDirector.
 func add(value: int) -> void:
 	_total += value
 	gained.emit(value, _total)

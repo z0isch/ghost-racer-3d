@@ -1,32 +1,33 @@
 class_name PickupPopups
 extends Node3D
 
-## Floating money you drive through when you take a coin.
+## Floating text you drive through when you take a checkpoint or a clock.
 ##
-## It listens for pickups and knows nothing about totals: not the purse, not the lap earnings, not
-## the earn rate. Like CoinField, it is purely spatial.
+## It listens for pickups and knows nothing about totals: not the purse, not the run earnings, not
+## the earn rate. Like ClockField, it is purely spatial.
 ##
-## Purely cosmetic, and that is a rule rather than an observation, as it is for CoinSpin. Nothing
-## here is read back by the pickup test, the purse or the promotion rule, and a popup that failed to
-## spawn would cost only the feedback. The moment one is load-bearing, the value it displays has two
+## Purely cosmetic, and that is a rule rather than an observation, as it is for ClockSpin. Nothing
+## here is read back by any test, the purse or the promotion rule, and a popup that failed to spawn
+## would cost only the feedback. The moment one is load-bearing, the value it displays has two
 ## owners.
 ##
 ## Each popup is a Label3D spawned as a child of this node and freed by its own tween. No pool and
 ## no cap: at 0.8 s a live one is a rare handful of nodes.
 ##
 ## No reference to Kart of any kind: which way "ahead" is arrives with the pickup report itself
-## ([signal CoinField.coin_taken]'s direction argument), because out in the open world a pickup can
-## come from an income ghost with no kart involved at all. That is what lets this one node serve
-## both a race's pickups and the open world's.
+## ([signal RunDirector.checkpoint_paid]/[signal ClockField.clock_taken]'s direction argument),
+## because out in the open world a pickup can come from an income ghost with no kart involved at
+## all. That is what lets this one node serve both a race's pickups and the open world's.
 
-## The coin field whose pickups become popups. The position on `coin_taken` is the coin marker's
-## own — the popup traces where the coins were, not where the kart happened to be.
-@export var coin_field_path: NodePath
+## checkpoint_paid → "$12", money green.
+@export var director_path: NodePath
+## clock_taken → "+10s", pointedly not green.
+@export var clock_field_path: NodePath
 
-## How far in front of the coin the text appears, along the pickup's own travel direction: far
-## enough that you drive through it, close enough that it still belongs to the coin you took. At
+## How far in front of the pickup the text appears, along the pickup's own travel direction: far
+## enough that you drive through it, close enough that it still belongs to the pickup you took. At
 ## racing speed a metre is most of a chassis length ahead, and much more reads as belonging to the
-## next coin.
+## next pickup.
 @export var lead_distance: float = 1.0
 
 ## How far the text drifts upward over its life, in metres.
@@ -40,6 +41,11 @@ extends Node3D
 ## colour rather than by an arrow.
 @export var money_color: Color = Color(0.29, 0.93, 0.42)
 
+## The clock's own colour, deliberately not green: green is the purse's, and a clock is not money
+## (CONTEXT.md's **Pickup popup**). Blue-white, apart from the run clock's plain white and the
+## final-seconds urgency red already spoken for elsewhere on screen.
+@export var clock_color: Color = Color(0.4, 0.75, 1.0)
+
 ## With [member pixel_size], sizes the text in metres rather than pixels: 64 * 0.005 = 0.32 m tall,
 ## about half the height of the 0.6 m disc it came from.
 @export var font_size: int = 64
@@ -47,21 +53,33 @@ extends Node3D
 
 
 func _ready() -> void:
-	var coin_field: CoinField = get_node_or_null(coin_field_path) as CoinField
-	# A scene without a coin field pops nothing up, which keeps this script runnable outside main.tscn.
-	if coin_field == null:
-		push_warning("PickupPopups: no CoinField — no pickup feedback.")
-		return
+	var director: RunDirector = get_node_or_null(director_path) as RunDirector
+	if director != null:
+		director.checkpoint_paid.connect(_on_checkpoint_paid)
+	else:
+		push_warning("PickupPopups: no RunDirector — no checkpoint feedback.")
 
-	coin_field.coin_taken.connect(_on_coin_taken)
+	var clock_field: ClockField = get_node_or_null(clock_field_path) as ClockField
+	if clock_field != null:
+		clock_field.clock_taken.connect(_on_clock_taken)
+	else:
+		push_warning("PickupPopups: no ClockField — no clock feedback.")
 
 
-## One popup per pickup, with no stacking logic. Sweeping three coins in half a second leaves three
-## separate labels standing in space, reading as a trail of income along the line you took.
-func _on_coin_taken(value: int, coin_position: Vector3, direction: Vector3) -> void:
+func _on_checkpoint_paid(value: int, pickup_position: Vector3, direction: Vector3) -> void:
+	_spawn("$%d" % value, money_color, pickup_position, direction)
+
+
+func _on_clock_taken(seconds: float, pickup_position: Vector3, direction: Vector3) -> void:
+	_spawn("+%ds" % roundi(seconds), clock_color, pickup_position, direction)
+
+
+## One popup per pickup, with no stacking logic. Sweeping three checkpoints in half a second leaves
+## three separate labels standing in space, reading as a trail of income along the line you took.
+func _spawn(text: String, color: Color, pickup_position: Vector3, direction: Vector3) -> void:
 	var label := Label3D.new()
-	label.text = "$%d" % value
-	label.modulate = money_color
+	label.text = text
+	label.modulate = color
 	label.font_size = font_size
 	label.pixel_size = pixel_size
 	# Required, not decoration: the popup is beside you as you pass it, and text read edge-on is
@@ -69,7 +87,7 @@ func _on_coin_taken(value: int, coin_position: Vector3, direction: Vector3) -> v
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	add_child(label)
 
-	var spawn: Vector3 = coin_position + direction * lead_distance
+	var spawn: Vector3 = pickup_position + direction * lead_distance
 	label.global_position = spawn
 
 	# One tween owning the whole life, parented to the label so a popup freed for any other reason

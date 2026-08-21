@@ -10,7 +10,7 @@
 [ext_resource type="Script" uid="uid://wbsa1w3drfsf" path="res://scripts/run_hud.gd" id="7_run_hud"]
 [ext_resource type="Script" uid="uid://n3krn4s0chb4" path="res://scripts/pace_ghost.gd" id="8_pace_ghost"]
 [ext_resource type="PackedScene" uid="uid://dhb86lw6o4g5n" path="res://cars/FBX/SportsCar.fbx" id="9_ghost_model"]
-[ext_resource type="Script" uid="uid://c28f467qgtyl" path="res://scripts/coin_field.gd" id="10_coin_field"]
+[ext_resource type="Script" path="res://scripts/clock_field.gd" id="10_clock_field"]
 [ext_resource type="Script" uid="uid://bvpo7ch2wibjf" path="res://scripts/purse_link.gd" id="11_purse"]
 [ext_resource type="Script" uid="uid://cu83wenc2s5sg" path="res://scripts/pickup_popups.gd" id="12_pickup_popups"]
 [ext_resource type="Script" uid="uid://bvqf8ytsnbmk3" path="res://scripts/purse_hud.gd" id="13_purse_hud"]
@@ -123,11 +123,11 @@ offset_bottom = 64.0
 theme_override_colors/font_color = Color(0, 0, 0, 1)
 text = "On-road"
 
-[node name="CoinField" type="Node" parent="." unique_id=417553902]
-script = ExtResource("10_coin_field")
+[node name="ClockField" type="Node" parent="." unique_id=417553902]
+script = ExtResource("10_clock_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../RunDirector")
-coins_path = NodePath("../Circuit/Coins")
+clocks_path = NodePath("../Circuit/Clocks")
 
 [node name="BoostGhostField" type="Node" parent="." unique_id=417553907]
 script = ExtResource("15_boost_ghost_field")
@@ -136,9 +136,7 @@ director_path = NodePath("../RunDirector")
 road_container_path = NodePath("../Circuit/RoadManager/RoadContainer")
 start_line_path = NodePath("../Circuit/StartLine")
 ghosts_path = NodePath("../Circuit/BoostGhosts")
-coin_field_path = NodePath("../CoinField")
 placement_jitter = 0.504
-coin_snap_radius = 0.0
 pickup_radius_fraction = 2.0
 ghost_color = Color(0, 0.5176471, 0.34509805, 0.5921569)
 
@@ -157,11 +155,12 @@ line_width = 0.05
 
 [node name="PurseLink" type="Node" parent="." unique_id=417553903]
 script = ExtResource("11_purse")
-coin_field_path = NodePath("../CoinField")
+director_path = NodePath("../RunDirector")
 
 [node name="PickupPopups" type="Node3D" parent="." unique_id=417553904]
 script = ExtResource("12_pickup_popups")
-coin_field_path = NodePath("../CoinField")
+director_path = NodePath("../RunDirector")
+clock_field_path = NodePath("../ClockField")
 
 [node name="RunDirector" type="Node" parent="." unique_id=299497301]
 script = ExtResource("5_run_director")
@@ -169,7 +168,7 @@ kart_path = NodePath("../Kart")
 chase_camera_path = NodePath("../ChaseCamera")
 start_line_path = NodePath("../Circuit/StartLine")
 checkpoints_path = NodePath("../Circuit/Checkpoints")
-coin_field_path = NodePath("../CoinField")
+clock_field_path = NodePath("../ClockField")
 restart_countdown_seconds = 1.0
 
 [node name="PaceGhost" type="Node3D" parent="." unique_id=871962825]

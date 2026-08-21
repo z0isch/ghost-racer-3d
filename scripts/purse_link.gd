@@ -1,26 +1,28 @@
 class_name PurseLink
 extends Node
 
-## Connects a scene's CoinField to the Purse autoload.
+## Connects a scene's RunDirector to the Purse autoload.
 ##
-## CoinField stays ignorant of who consumes its pickups (CONTEXT.md, **Coin field**) — it cannot
-## itself reach across to an autoload without that ignorance costing something, so a scene that
-## wants its coins to pay places one of these instead.
+## The director cannot reach an autoload without its own ignorance costing something, so a scene
+## that wants its checkpoints to pay places one of these.
+##
+## Nothing connects the clock field to the purse. That absence is the point — a clock pays in
+## seconds and never in money — and this is the one node that could have made that mistake.
 
-@export var coin_field_path: NodePath
+@export var director_path: NodePath
 
 
 func _ready() -> void:
-	var coin_field: CoinField = get_node_or_null(coin_field_path) as CoinField
-	if coin_field == null:
-		push_warning("PurseLink: no CoinField — nothing can be earned.")
+	var director: RunDirector = get_node_or_null(director_path) as RunDirector
+	if director == null:
+		push_warning("PurseLink: no RunDirector — nothing can be earned.")
 		return
 
-	# unbind(2) drops coin_taken's position and direction arguments, which the purse has no use
-	# for. Godot does not drop surplus arguments by itself: connected bare, every pickup would fail
-	# at emit time.
-	coin_field.coin_taken.connect(_on_coin_taken.unbind(2))
+	# unbind(2) drops checkpoint_paid's position and direction arguments, which the purse has no
+	# use for. Godot does not drop surplus arguments by itself: connected bare, every pickup would
+	# fail at emit time.
+	director.checkpoint_paid.connect(_on_checkpoint_paid.unbind(2))
 
 
-func _on_coin_taken(value: int) -> void:
+func _on_checkpoint_paid(value: int) -> void:
 	Purse.add(value)

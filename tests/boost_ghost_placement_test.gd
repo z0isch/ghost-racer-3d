@@ -7,9 +7,9 @@ extends TestCase
 ## on a duplicate sample, an off-by-one at the margins, a yaw that spins the wrong way at pi, a
 ## jitter that lets one ghost stray into a neighbour's slot.
 ##
-## place_along returns racing-line poses only: fanning a pose out perpendicular to the road, or
-## onto a nearby coin, is BoostGhostField._lateral_placements's job and needs the scene tree this
-## suite cannot touch. That behaviour is exercised by the field's own runtime behaviour, not here.
+## place_along returns racing-line poses only: fanning a pose out perpendicular to the road is
+## BoostGhostField._lateral_placements's job and needs the scene tree this suite cannot touch. That
+## behaviour is exercised by the field's own runtime behaviour, not here.
 ##
 ## The randomised cases assert the bounds the draw must respect rather than the values it produced,
 ## and roll many times: a case that pinned a seed's exact output would fail on any change to the

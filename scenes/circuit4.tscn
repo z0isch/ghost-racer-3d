@@ -1,10 +1,11 @@
-[gd_scene load_steps=30 format=3 uid="uid://btxxge1lwpyql"]
+[gd_scene load_steps=32 format=3 uid="uid://btxxge1lwpyql"]
 
-[ext_resource type="Script" uid="uid://du123v1x0mws5" path="res://scripts/track/coin_spin.gd" id="1_gen_coin_spin"]
 [ext_resource type="Script" uid="uid://bxp3i4cnonh8y" path="res://addons/road-generator/nodes/road_manager.gd" id="1_vohcs"]
 [ext_resource type="Script" uid="uid://cph7euje06kel" path="res://addons/road-generator/nodes/road_container.gd" id="2_ovxl3"]
 [ext_resource type="Material" uid="uid://dpashsuk5lr4x" path="res://addons/road-generator/resources/road_texture.material" id="3_nwwaj"]
 [ext_resource type="Script" uid="uid://difs1qg4mpcpw" path="res://addons/road-generator/nodes/road_point.gd" id="4_brddy"]
+
+[ext_resource type="Script" uid="uid://ctf4wdq60mlyk" path="res://scripts/track/clock_spin.gd" id="1_gen_clock_spin"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_to4vs"]
 albedo_color = Color(0.46229059, 0.46229064, 0.4622904, 1)
@@ -130,6 +131,16 @@ size = Vector3(8.8, 0.4, 0.4)
 
 [sub_resource type="StandardMaterial3D" id="Material_gate"]
 albedo_color = Color(0.15, 0.45, 0.9, 1)
+
+[sub_resource type="StandardMaterial3D" id="Material_clock"]
+albedo_color = Color(0.4, 0.75, 1.0, 1)
+
+[sub_resource type="TorusMesh" id="TorusMesh_clock"]
+material = SubResource("Material_clock")
+inner_radius = 0.22
+outer_radius = 0.4
+ring_sides = 12
+rings = 24
 
 [node name="Circuit2" type="Node3D" unique_id=1961655717]
 
@@ -402,4 +413,60 @@ surface_material_override/0 = SubResource("Material_gate")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.2, 0)
 mesh = SubResource("BoxMesh_gate_bar")
 surface_material_override/0 = SubResource("Material_gate")
+
+[node name="Clocks" type="Node3D" parent="."]
+
+[node name="Clock00" type="Marker3D" parent="Clocks"]
+transform = Transform3D(-2.0231004e-08, 0, 1, 0, 1, 0, -1, 0, -2.0231004e-08, -11.573822, 0.4, 3.3547394e-08)
+metadata/seconds = 10.0
+
+[node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock00"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+mesh = SubResource("TorusMesh_clock")
+script = ExtResource("1_gen_clock_spin")
+
+[node name="Clock01" type="Marker3D" parent="Clocks"]
+transform = Transform3D(0.78555614, 0, 0.6187904, 0, 1, 0, -0.6187904, 0, 0.78555614, -38.3657, 0.4, -7.9279413)
+metadata/seconds = 10.0
+
+[node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock01"]
+transform = Transform3D(0.7986355, 0.60181504, 0, 0, 0, -1, -0.60181504, 0.7986355, 0, 0, 0, 0)
+mesh = SubResource("TorusMesh_clock")
+script = ExtResource("1_gen_clock_spin")
+
+[node name="Clock02" type="Marker3D" parent="Clocks"]
+transform = Transform3D(0.6730183, 0, -0.7396258, 0, 1, 0, 0.7396258, 0, 0.6730183, -36.222515, 0.4, -34.37242)
+metadata/seconds = 10.0
+
+[node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock02"]
+transform = Transform3D(0.27563736, 0.9612617, 0, 0, 0, -1, -0.9612617, 0.27563736, 0, 0, 0, 0)
+mesh = SubResource("TorusMesh_clock")
+script = ExtResource("1_gen_clock_spin")
+
+[node name="Clock03" type="Marker3D" parent="Clocks"]
+transform = Transform3D(4.371139e-08, 0, -1, 0, 1, 0, 1, 0, 4.371139e-08, -8.426201, 0.4, -40)
+metadata/seconds = 10.0
+
+[node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock03"]
+transform = Transform3D(-0.35836795, 0.9335804, 0, 0, 0, -1, -0.9335804, -0.35836795, 0, 0, 0, 0)
+mesh = SubResource("TorusMesh_clock")
+script = ExtResource("1_gen_clock_spin")
+
+[node name="Clock04" type="Marker3D" parent="Clocks"]
+transform = Transform3D(-0.78554684, 0, -0.6188022, 0, 1, 0, 0.6188022, 0, -0.78554684, 18.36569, 0.4, -32.072075)
+metadata/seconds = 10.0
+
+[node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock04"]
+transform = Transform3D(-0.8480481, 0.52991927, 0, 0, 0, -1, -0.52991927, -0.8480481, 0, 0, 0, 0)
+mesh = SubResource("TorusMesh_clock")
+script = ExtResource("1_gen_clock_spin")
+
+[node name="Clock05" type="Marker3D" parent="Clocks"]
+transform = Transform3D(-0.67300695, 0, 0.7396362, 0, 1, 0, -0.7396362, 0, -0.67300695, 16.222517, 0.4, -5.6275673)
+metadata/seconds = 10.0
+
+[node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock05"]
+transform = Transform3D(-0.9961947, -0.087155744, 0, 0, 0, -1, 0.087155744, -0.9961947, 0, 0, 0, 0)
+mesh = SubResource("TorusMesh_clock")
+script = ExtResource("1_gen_clock_spin")
 
