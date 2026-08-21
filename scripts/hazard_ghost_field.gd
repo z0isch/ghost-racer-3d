@@ -10,8 +10,15 @@ extends Node
 ## The slow-down lives on the field, not on the ghost, for BoostGhostField's reason: every hazard
 ## on a circuit costs the same, so there is one multiplier here rather than per-ghost metadata.
 ##
-## Placed at runtime along the lap director's ghost line exactly as boost ghosts are: the line only
-## changes when a lap takes the record, and a re-place first frees whatever stood there before.
+## Placed at runtime along the run director's ghost line ([method _field_range] — one wrap of it,
+## or all of it if no wrap was completed), at every countdown and whenever the line changes; a re-place
+## first frees whatever stood there before. A *wrap* only restores the field here rather than
+## re-placing it — see [method _on_wrapped], which is where hazards and boost ghosts part company.
+##
+## Each hazard trails a short ribbon down the line ahead of itself ([method _update_ribbons]),
+## rather than the field painting the whole wrap red: under Runs the same wrap is driven over and
+## over, so a wrap-long ribbon is permanent scenery, where a per-hazard one is a warning about
+## traffic that is actually coming.
 
 ## One ghost, the instant it is taken. Position only, for BoostGhostField's reason.
 signal hazard_hit(position: Vector3)
@@ -85,21 +92,30 @@ var save_loadout: Callable = Callable()
 ## ghosts sharing a model and a line, so colour alone tells them apart (CONTEXT.md, **Pace ghost**).
 @export var ghost_color: Color = Color(0.95, 0.1, 0.1, 0.55)
 
-## Whether the path preview ribbon is drawn at all. A setter, for ghost_count's reason: one door,
-## rather than the mesh instance's own visible flag becoming a second place this can be toggled.
+## Whether the hazard ribbons are drawn at all. A setter, for ghost_count's reason: one door,
+## rather than each segment's own visible flag becoming a second place this can be toggled.
 @export var line_visible: bool = true:
 	set(value):
 		line_visible = value
-		if _line_mesh_instance != null:
-			_line_mesh_instance.visible = value
-## Metres wide the ribbon is painted, square across the line.
+		_update_ribbons()
+## Metres wide a ribbon is painted, square across the line.
 @export var line_width: float = 0.6
-## Lifted this far above the recorded line, so the ribbon doesn't z-fight the road it was recorded
+## Lifted this far above the recorded line, so a ribbon doesn't z-fight the road it was recorded
 ## driving on.
 @export var line_height_offset: float = 0.05
-## Deliberately its own colour rather than a read of [member ghost_color]: the ribbon is the whole
-## line every hazard on the circuit will eventually reach, not any one hazard, so it is tuned apart.
+## Deliberately its own colour rather than a read of [member ghost_color]: a ribbon is the stretch
+## of line one hazard is about to cover, not the hazard itself, so it is tuned apart. Its alpha is
+## the ribbon's overall strength; the fade along the ribbon's own length is the mesh's.
 @export var line_color: Color = Color(0.95, 0.1, 0.1, 0.2)
+## Metres of line a hazard trails ahead of itself — *down* the line, toward the driver, since a
+## hazard drives the wrap backward. This is the whole warning: where the oncoming traffic is and
+## which way it is coming. A Run is many wraps long now, so the alternative — the wrap painted red
+## end to end — is permanent scenery that says nothing about where a hazard actually is.
+@export var line_lead_length: float = 40.0
+## Metres from the kart a hazard's ribbon is drawn within. Past it the ribbon is hidden: traffic
+## half a circuit away is not a warning, and every hazard showing one at once is the wrap-long
+## ribbon again in pieces.
+@export var line_visible_distance: float = 120.0
 
 var _kart: Kart
 var _director: RunDirector
@@ -115,7 +131,10 @@ var _elapsed: float = 0.0
 var _pickup_radius: float = 0.0
 # Seeded randomly on creation by Godot and never re-seeded, for BoostGhostField._rng's reason.
 var _rng := RandomNumberGenerator.new()
-var _line_mesh_instance: MeshInstance3D
+## Both vertices of the ribbon at every sample of the wrap's slice, in the slice's own order,
+## rebuilt only when the line is. A hazard's ribbon is a slice of this rather than geometry of its
+## own: the line does not move, so all that changes per frame is which stretch of it is shown.
+var _ribbon_vertices: PackedVector3Array = PackedVector3Array()
 
 
 func _ready() -> void:
@@ -131,12 +150,6 @@ func _ready() -> void:
 
 	if _ghosts_root == null:
 		push_warning("HazardGhostField: no HazardGhosts node — nothing to spawn traffic into.")
-		return
-
-	_line_mesh_instance = MeshInstance3D.new()
-	_line_mesh_instance.visible = line_visible
-	_line_mesh_instance.material_override = _build_line_material()
-	_ghosts_root.add_child(_line_mesh_instance)
 
 
 ## Deferred for ClockField's reason: the director runs at the head of the physics frame and the kart
@@ -212,6 +225,31 @@ static func place_along(
 	return result
 
 
+## The index of the sample [param distance] metres along the line falls on, capped so the sample
+## after it always exists. Shared by the pose walk and the ribbon slice, so a hazard and its own
+## ribbon can never disagree about where on the line it is.
+static func _sample_index_at(cumulative: PackedFloat32Array, distance: float) -> int:
+	var index: int = 0
+	while index < cumulative.size() - 2 and cumulative[index + 1] < distance:
+		index += 1
+	return index
+
+
+## [param from_index] walked back down the line until it reaches [param distance], or the line's
+## start. Backward from a known index rather than [method _sample_index_at]'s scan from zero, since
+## the ribbon's two ends are only [member line_lead_length] metres apart while the line itself can
+## be minutes of recording long, and this runs per hazard per physics frame.
+static func _sample_index_back_from(
+	cumulative: PackedFloat32Array,
+	from_index: int,
+	distance: float,
+) -> int:
+	var index: int = from_index
+	while index > 0 and cumulative[index] > distance:
+		index -= 1
+	return index
+
+
 ## The pose a hazard driving backward along the line shows at arclength [param distance]:
 ## BoostGhostField._pose_at's walk, with pi added to the yaw so the ghost faces the direction it is
 ## actually travelling rather than the lap's own forward.
@@ -221,9 +259,7 @@ static func _pose_at(
 	cumulative: PackedFloat32Array,
 	distance: float,
 ) -> Transform3D:
-	var index: int = 0
-	while index < cumulative.size() - 2 and cumulative[index + 1] < distance:
-		index += 1
+	var index: int = _sample_index_at(cumulative, distance)
 
 	var segment_length: float = cumulative[index + 1] - cumulative[index]
 	var weight: float = 0.0
@@ -235,19 +271,27 @@ static func _pose_at(
 	return Transform3D(Basis(Vector3.UP, yaw), position)
 
 
-## The sample range of one wrap of the ghost line: the first wrap recorded in it, or the whole line
-## if the recording holds no complete wrap. The hazards are a per-wrap field, so the ribbon and the
-## cumulative table are one wrap's worth and no more (CONTEXT.md's **Wrap**).
+## The stretch of ghost line this field stands on: the first **wrap** recorded in it where the
+## recording holds one, and the whole recording where it does not. Deliberately not named for the
+## wrap, because in the second case it is not one — the hazards are a per-wrap field, but a Run
+## whose budget ran out partway round still recorded a line, and traffic on the piece of it that
+## exists beats no traffic at all.
 ##
-## Vector2i(0, 0) means "no complete wrap recorded" — a line shorter than one full pass of the
-## checkpoints, or no line at all — and must place no ghosts and draw no ribbon, exactly as an empty
-## ghost line does today: it is not a warning.
-func _wrap_range() -> Vector2i:
+## Where a whole wrap is available it is the one taken, so the field does not ribbon a long Run's
+## path over itself and spread ghost_count hazards across every pass of it (CONTEXT.md's **Wrap**).
+##
+## Vector2i(0, 0) means there is no line to stand on at all — a circuit nobody has driven — and
+## places no ghosts and draws no ribbons. That is not a warning; it is a circuit's first Run.
+func _field_range() -> Vector2i:
+	var samples: int = _director.ghost_line_positions.size()
+	if samples < 2:
+		return Vector2i(0, 0)
+
 	var per_wrap: int = _director.checkpoint_count
 	var crossings: PackedInt32Array = _director.ghost_line_checkpoints
-	if per_wrap <= 0 or crossings.size() < per_wrap:
-		return Vector2i(0, 0)
-	return Vector2i(0, crossings[per_wrap - 1])
+	if per_wrap > 0 and crossings.size() >= per_wrap:
+		return Vector2i(0, crossings[per_wrap - 1])
+	return Vector2i(0, samples - 1)
 
 
 ## Frees the standing field and places a fresh one on the director's current ghost line. An empty
@@ -256,13 +300,16 @@ func _wrap_range() -> Vector2i:
 func _place_ghosts() -> void:
 	for hazard: Hazard in _ghosts:
 		hazard.node.queue_free()
+		# Freed alongside its hazard rather than with it: a ribbon is a sibling of the wrapper, not
+		# a child ([method _spawn_ghost]), so nothing else would take it down.
+		hazard.ribbon.queue_free()
 	_ghosts.clear()
 
 	if _ghosts_root == null or _director == null:
 		return
 
 	_build_cumulative()
-	_rebuild_line_mesh()
+	_build_ribbon_vertices()
 	if _total_length <= 0.0:
 		return
 
@@ -278,7 +325,7 @@ func _place_ghosts() -> void:
 		_ghosts.append(_spawn_ghost(distance))
 
 
-## Cumulative arc length at each ghost-line sample of one wrap's slice ([method _wrap_range]),
+## Cumulative arc length at each ghost-line sample of the field's slice ([method _field_range]),
 ## rebuilt whenever the line itself changes (a re-place). Kept rather than recomputed every frame:
 ## _advance_ghosts walks it every physics tick for every hazard, and the line stands unchanged for
 ## many wraps at a time.
@@ -286,7 +333,7 @@ func _build_cumulative() -> void:
 	_cumulative = PackedFloat32Array()
 	_total_length = 0.0
 
-	var positions: PackedVector3Array = _wrap_positions()
+	var positions: PackedVector3Array = _field_positions()
 	if positions.size() < 2:
 		return
 
@@ -296,39 +343,34 @@ func _build_cumulative() -> void:
 	_total_length = _cumulative[_cumulative.size() - 1]
 
 
-## The ghost line's positions, sliced to one wrap's worth by [method _wrap_range]. Both [method
-## _build_cumulative] and [method _rebuild_line_mesh] walk exactly this slice, so the ribbon and the
-## hazards it carries always agree on which stretch of the recording they belong to.
-func _wrap_positions() -> PackedVector3Array:
-	var range: Vector2i = _wrap_range()
+## The ghost line's positions, sliced by [method _field_range]. Both [method _build_cumulative] and
+## [method _build_ribbon_vertices] walk exactly this slice, so the ribbons and the hazards that
+## trail them always agree on which stretch of the recording they belong to.
+func _field_positions() -> PackedVector3Array:
+	var range: Vector2i = _field_range()
 	if range.y <= range.x:
 		return PackedVector3Array()
 	return _director.ghost_line_positions.slice(range.x, range.y + 1)
 
 
-func _wrap_yaws() -> PackedFloat32Array:
-	var range: Vector2i = _wrap_range()
+func _field_yaws() -> PackedFloat32Array:
+	var range: Vector2i = _field_range()
 	if range.y <= range.x:
 		return PackedFloat32Array()
 	return _director.ghost_line_yaws.slice(range.x, range.y + 1)
 
 
-## Redraws the path-preview ribbon from one wrap's worth of the ghost line, not just the hazards
-## placed on it: the line is what every hazard drives, and stays true even at ghost_count == 0.
-## Called wherever the line itself is rebuilt, alongside [method _build_cumulative].
-func _rebuild_line_mesh() -> void:
-	if _line_mesh_instance == null:
-		return
+## Builds [member _ribbon_vertices] for the field's slice of the ghost line: two vertices per
+## sample, square across it. Called wherever the line itself is rebuilt, alongside [method
+## _build_cumulative], and then only ever sliced — no hazard draws the whole wrap.
+func _build_ribbon_vertices() -> void:
+	_ribbon_vertices = PackedVector3Array()
 
-	var positions: PackedVector3Array = _wrap_positions()
-	var yaws: PackedFloat32Array = _wrap_yaws()
+	var positions: PackedVector3Array = _field_positions()
+	var yaws: PackedFloat32Array = _field_yaws()
 	if positions.size() < 2:
-		_line_mesh_instance.mesh = null
 		return
 
-	# A quad strip, not a PRIMITIVE_LINE_STRIP: line primitives render at a fixed 1 px under the GL
-	# Compatibility renderer this project targets, which [member line_width] could not affect at all.
-	var vertices := PackedVector3Array()
 	var half_width: float = line_width * 0.5
 	var lift: Vector3 = Vector3.UP * line_height_offset
 	for i in positions.size():
@@ -336,17 +378,63 @@ func _rebuild_line_mesh() -> void:
 		# ribbon leans with the line through a corner instead of staying world-axis-aligned.
 		var right: Vector3 = Basis(Vector3.UP, yaws[i]).x
 		var centre: Vector3 = positions[i] + lift
-		vertices.append(centre + right * half_width)
-		vertices.append(centre - right * half_width)
+		_ribbon_vertices.append(centre + right * half_width)
+		_ribbon_vertices.append(centre - right * half_width)
 
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
 
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLE_STRIP, arrays)
-	mesh.surface_set_material(0, _line_mesh_instance.material_override)
-	_line_mesh_instance.mesh = mesh
+## Redraws every hazard's ribbon: the stretch of line between it and the driver, solid at its own
+## nose and faded out [member line_lead_length] metres down the line, hidden once the hazard is
+## taken or further off than [member line_visible_distance].
+##
+## Runs at physics rate off the back of [method _advance_ghosts] rather than at display rate with
+## the alpha pulse, because it follows the hazards' own motion and a ribbon a frame behind its car
+## reads as a gap between the two.
+func _update_ribbons() -> void:
+	for hazard: Hazard in _ghosts:
+		if hazard.ribbon == null:
+			continue
+		if not line_visible or hazard.taken or _ribbon_vertices.size() < 4:
+			hazard.ribbon.visible = false
+			continue
+		if (_kart != null
+				and _kart.global_position.distance_to(hazard.origin) > line_visible_distance):
+			hazard.ribbon.visible = false
+			continue
+
+		# Down the line from the hazard rather than up it: a hazard drives the wrap backward, so
+		# the stretch it is about to cover is the one at lower arclength — the one pointed at you.
+		# Clamped at the slice's start rather than continued across the seam: the slice's two ends
+		# are metres and a gap apart at best — the start line and the last checkpoint — and wherever
+		# the Timeout fell at worst, so a strip joining them paints a band no hazard ever drives.
+		var high: int = _sample_index_at(_cumulative, hazard.distance)
+		var low: int = _sample_index_back_from(
+			_cumulative, high, hazard.distance - line_lead_length)
+		if high - low < 1:
+			hazard.ribbon.visible = false
+			continue
+
+		var colors := PackedColorArray()
+		var span: float = float(high - low)
+		for i in range(low, high + 1):
+			# Alpha only; the hue and the overall strength are line_color's, applied once by the
+			# material and multiplied in. Solid at the hazard and gone at the far end, so a ribbon
+			# reads as something arriving rather than as a lane painted on the road.
+			var fade: float = float(i - low) / span
+			colors.append(Color(1.0, 1.0, 1.0, fade))
+			colors.append(Color(1.0, 1.0, 1.0, fade))
+
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		# A quad strip, not a PRIMITIVE_LINE_STRIP: line primitives render at a fixed 1 px under the
+		# GL Compatibility renderer this project targets, which [member line_width] could not affect.
+		arrays[Mesh.ARRAY_VERTEX] = _ribbon_vertices.slice(low * 2, (high + 1) * 2)
+		arrays[Mesh.ARRAY_COLOR] = colors
+
+		var mesh := ArrayMesh.new()
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLE_STRIP, arrays)
+		mesh.surface_set_material(0, hazard.ribbon.material_override)
+		hazard.ribbon.mesh = mesh
+		hazard.ribbon.visible = true
 
 
 func _build_line_material() -> StandardMaterial3D:
@@ -354,6 +442,9 @@ func _build_line_material() -> StandardMaterial3D:
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = line_color
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# The fade along a ribbon's length is the mesh's own vertex alpha ([method _update_ribbons]);
+	# line_color supplies the hue and the overall strength, and the two multiply together.
+	material.vertex_color_use_as_albedo = true
 	# Both faces: the ribbon is walked in the line's own direction, so a kart looking back along it
 	# would otherwise see the strip vanish from the back.
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -363,7 +454,7 @@ func _build_line_material() -> StandardMaterial3D:
 func _spawn_ghost(distance: float) -> Hazard:
 	var wrapper := Node3D.new()
 	_ghosts_root.add_child(wrapper)
-	wrapper.global_transform = _pose_at(_wrap_positions(), _wrap_yaws(), _cumulative, distance)
+	wrapper.global_transform = _pose_at(_field_positions(), _field_yaws(), _cumulative, distance)
 
 	var model: Node3D = GHOST_MODEL.instantiate() as Node3D
 	wrapper.add_child(model)
@@ -379,19 +470,27 @@ func _spawn_ghost(distance: float) -> Hazard:
 	hazard.origin = wrapper.global_position
 	hazard.speed = _rng.randf_range(min_speed, max_speed)
 	hazard.material = _build_ghost_material()
+	# A sibling of the wrapper, not a child of it: the ribbon's vertices are the ghost line's own,
+	# already in the space _ghosts_root stands in, and parenting them under a wrapper that moves
+	# every frame would carry them along with it.
+	hazard.ribbon = MeshInstance3D.new()
+	hazard.ribbon.visible = false
+	hazard.ribbon.material_override = _build_line_material()
+	_ghosts_root.add_child(hazard.ribbon)
 	_apply_material(model, hazard.material)
 	return hazard
 
 
-## Steps every untaken hazard backward along the wrap's slice of the line by its own speed,
-## wrapping past the start of that wrap back to its end — continuous oncoming traffic rather than a
-## single pass.
+## Steps every untaken hazard backward along the field's slice of the line by its own speed, past
+## the start of that slice and back round to its end — continuous oncoming traffic rather than a
+## single pass. The seam is the slice's own two ends, which touch only loosely (see [method
+## _update_ribbons]), so traffic re-enters near where it left rather than exactly at it.
 func _advance_ghosts(delta: float) -> void:
 	if _total_length <= 0.0:
 		return
 
-	var positions: PackedVector3Array = _wrap_positions()
-	var yaws: PackedFloat32Array = _wrap_yaws()
+	var positions: PackedVector3Array = _field_positions()
+	var yaws: PackedFloat32Array = _field_yaws()
 
 	for hazard: Hazard in _ghosts:
 		if hazard.taken:
@@ -401,6 +500,8 @@ func _advance_ghosts(delta: float) -> void:
 		var pose: Transform3D = _pose_at(positions, yaws, _cumulative, hazard.distance)
 		hazard.node.global_transform = pose
 		hazard.origin = pose.origin
+
+	_update_ribbons()
 
 
 func _sweep_ghosts() -> void:
@@ -433,6 +534,10 @@ func _sweep_ghosts() -> void:
 			continue
 		hazard.taken = true
 		hazard.node.visible = false
+		# Here rather than left to the next [method _update_ribbons]: the sweep is deferred and the
+		# ribbons were already updated this frame, so waiting would leave a warning hanging in the
+		# air for a frame after the thing it warned about was hit.
+		hazard.ribbon.visible = false
 		_kart.apply_hazard_slow(hit_slow_multiplier)
 		hazard_hit.emit(hazard.origin)
 
@@ -444,11 +549,24 @@ func _on_countdown_started() -> void:
 	_place_ghosts()
 
 
-## Re-places the whole field at every wrap too — CONTEXT.md's **Boost ghost**, "the wrap is what
-## the countdown used to be" — without touching [member _has_last_kart_position]: a wrap is not a
-## teleport, so clearing it here would drop one frame of the kart's own swept sweep test.
+## Restores the standing field at every wrap — every hazard hit during the wrap comes back, since
+## "hit once is hit for the rest of the wrap" and the wrap is now over — but deliberately does
+## *not* re-place it, unlike the boost field on the same signal.
+##
+## A boost ghost is consumed and then stands still, so nothing but a re-place can bring it back or
+## move it. A hazard drives ([method _advance_ghosts]), recirculating the whole wrap under its own
+## speed, so it re-rolls itself continuously and has nothing to gain from being freed and respawned.
+## What that would cost is real: oncoming cars popping out of existence and a fresh field appearing
+## in front of a driver already at speed — the countdown could do that unseen from a standing start,
+## a wrap boundary crossed at pace cannot — and [member start_margin] re-applied at the line every
+## single wrap, cutting a hole in the traffic there that recurs for the length of the Run.
+##
+## [member _has_last_kart_position] is untouched for the reason it always was: a wrap is not a
+## teleport, so clearing it here would drop one frame of the kart's own swept test.
 func _on_wrapped() -> void:
-	_place_ghosts()
+	for hazard: Hazard in _ghosts:
+		hazard.taken = false
+		hazard.node.visible = true
 
 
 func _build_ghost_material() -> StandardMaterial3D:
@@ -475,4 +593,8 @@ class Hazard extends RefCounted:
 	var speed: float = 0.0 # m/s, picked once at spawn from [min_speed, max_speed]
 	var origin: Vector3 = Vector3.ZERO
 	var material: StandardMaterial3D = null
+	## This hazard's own stretch of ribbon, a sibling of [member node] rather than a child; see
+	## HazardGhostField._spawn_ghost. Its mesh is rebuilt every physics frame from a slice of the
+	## field's prebuilt vertices.
+	var ribbon: MeshInstance3D = null
 	var taken: bool = false

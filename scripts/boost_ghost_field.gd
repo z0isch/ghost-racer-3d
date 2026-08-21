@@ -7,8 +7,10 @@ extends Node
 ## one bump and one bleed here rather than per-ghost metadata.
 ##
 ## Modelled on ClockField deliberately, down to the lifecycle: a ghost is taken once and stays taken
-## for the rest of the wrap, exactly as a clock is, and the whole field is restored — and re-rolled —
-## at every wrap. Purely spatial: it emits [signal ghost_taken] and knows nothing about who listens —
+## for the rest of the Run, exactly as a clock is, and the whole field is restored — and re-rolled —
+## only at every countdown, never at a wrap.
+##
+## Purely spatial: it emits [signal ghost_taken] and knows nothing about who listens —
 ## not the camera's FOV punch, not the kart's speed.
 ##
 ## Unlike ClockField's clocks, the ghosts are not authored into the circuit: they are placed at
@@ -157,7 +159,6 @@ func _ready() -> void:
 
 	if _director != null:
 		_director.countdown_started.connect(_on_countdown_started)
-		_director.wrapped.connect(_on_wrapped)
 
 	if _ghosts_root == null:
 		push_warning("BoostGhostField: no BoostGhosts node — nothing to boost off.")
@@ -550,14 +551,6 @@ func _take_ghost(ghost: Ghost) -> void:
 ## rearranging the circuit while the player is still reading the Results screen.
 func _on_countdown_started() -> void:
 	_has_last_kart_position = false
-	_place_ghosts()
-
-
-## Re-places the whole field at every wrap too, so a long Run is not one live wrap followed by an
-## empty circuit — CONTEXT.md's **Boost ghost**, "the wrap is what the countdown used to be".
-## [member _has_last_kart_position] is deliberately left alone: a wrap is not a teleport, and
-## clearing it here would drop one frame of the kart's own swept test.
-func _on_wrapped() -> void:
 	_place_ghosts()
 
 

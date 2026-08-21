@@ -10,7 +10,7 @@
 [ext_resource type="Script" uid="uid://wbsa1w3drfsf" path="res://scripts/run_hud.gd" id="7_run_hud"]
 [ext_resource type="Script" uid="uid://n3krn4s0chb4" path="res://scripts/pace_ghost.gd" id="8_pace_ghost"]
 [ext_resource type="PackedScene" uid="uid://dhb86lw6o4g5n" path="res://cars/FBX/SportsCar.fbx" id="9_ghost_model"]
-[ext_resource type="Script" path="res://scripts/clock_field.gd" id="10_clock_field"]
+[ext_resource type="Script" uid="uid://c3sh5kv6rkute" path="res://scripts/clock_field.gd" id="10_clock_field"]
 [ext_resource type="Script" uid="uid://bvpo7ch2wibjf" path="res://scripts/purse_link.gd" id="11_purse"]
 [ext_resource type="Script" uid="uid://cu83wenc2s5sg" path="res://scripts/pickup_popups.gd" id="12_pickup_popups"]
 [ext_resource type="Script" uid="uid://bvqf8ytsnbmk3" path="res://scripts/purse_hud.gd" id="13_purse_hud"]
@@ -161,6 +161,10 @@ director_path = NodePath("../RunDirector")
 script = ExtResource("12_pickup_popups")
 director_path = NodePath("../RunDirector")
 clock_field_path = NodePath("../ClockField")
+lead_distance = 5.0
+rise = 5.0
+lifetime = 1.5
+font_size = 256
 
 [node name="RunDirector" type="Node" parent="." unique_id=299497301]
 script = ExtResource("5_run_director")
