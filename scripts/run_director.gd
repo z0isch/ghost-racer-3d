@@ -229,7 +229,7 @@ var ghost_line_yaws: PackedFloat32Array:
 	get: return _ghost_line_yaws
 
 ## The record Run's checkpoint-crossing sample indices, matching [member GhostLine.checkpoint_samples].
-## Read by HazardGhostField to slice one wrap's worth of line and by IncomeRunner to pay the ladder.
+## Read by IncomeRunner to pay the ladder.
 var ghost_line_checkpoints: PackedInt32Array:
 	get: return _ghost_line_checkpoints
 

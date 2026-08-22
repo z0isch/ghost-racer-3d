@@ -24,9 +24,8 @@ extends Resource
 ## in order — the whole Run's worth, running straight through every wrap. Written by RunDirector,
 ## which is the only thing that knows the moment.
 ##
-## Two consumers, for two different reasons: HazardGhostField slices one wrap's worth of line out
-## of it to place a field along, and IncomeRunner pays the checkpoint ladder at these indices
-## rather than sweeping anything (CONTEXT.md's **Income**).
+## One consumer: IncomeRunner pays the checkpoint ladder at these indices rather than sweeping
+## anything (CONTEXT.md's **Income**).
 @export var checkpoint_samples: PackedInt32Array = PackedInt32Array()
 
 ## How many checkpoints the circuit had when this line was recorded, so a wrap boundary is

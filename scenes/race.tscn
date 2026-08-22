@@ -144,13 +144,15 @@ ghost_color = Color(0, 0.5176471, 0.34509805, 0.5921569)
 script = ExtResource("18_hazard_ghost_field")
 kart_path = NodePath("../Kart")
 director_path = NodePath("../RunDirector")
+road_container_path = NodePath("../Circuit/RoadManager/RoadContainer")
+start_line_path = NodePath("../Circuit/StartLine")
 ghosts_path = NodePath("../Circuit/HazardGhosts")
 start_margin = 15.0
 placement_jitter = 0.0
 min_speed = 0.0
 max_speed = 14.0
 hit_slow_multiplier = 0.75
-pickup_radius_fraction = 3.0
+pickup_radius_fraction = 1.5
 line_width = 0.25
 line_color = Color(0.9490196, 0.101960786, 0.101960786, 0.4509804)
 

@@ -3,20 +3,21 @@ extends Node
 
 ## Owner of the hazard ghosts: where they are, which are currently taken, and the swept test that
 ## takes them. Modelled on BoostGhostField, with two differences that follow from being oncoming
-## traffic rather than a pickup: a hazard ghost stands exactly on the ghost line (no lateral
-## jitter — "the line you set" is the line, not beside it) and it moves, backward along that line,
-## rather than standing still.
+## traffic rather than a pickup: a hazard ghost stands on its own lane, a continuous offset measured
+## across the road's own centreline, drawn once at spawn and kept for its whole life, and it moves,
+## backward along that lane, rather than standing still.
 ##
 ## The slow-down lives on the field, not on the ghost, for BoostGhostField's reason: every hazard
 ## on a circuit costs the same, so there is one multiplier here rather than per-ghost metadata.
 ##
-## Placed at runtime along the run director's ghost line ([method _field_range] — one wrap of it,
-## or all of it if no wrap was completed), at every countdown and whenever the line changes; a re-place
-## first frees whatever stood there before. A *wrap* does nothing at all to the field — unlike the
-## boost ghosts, hazards are neither restored nor re-placed there: cleared is cleared for the rest
-## of the Run, and the traffic still standing keeps driving straight through the wrap boundary.
+## Placed at runtime along the circuit's own road centreline ([method _build_centreline], via
+## [RoadCentreline]) — a genuine closed loop, unlike the driver's own recorded lap, so a circuit
+## nobody has driven yet still has traffic. Re-placed at every countdown; a re-place first frees
+## whatever stood there before. A *wrap* does nothing at all to the field — unlike the boost ghosts,
+## hazards are neither restored nor re-placed there: cleared is cleared for the rest of the Run, and
+## the traffic still standing keeps driving straight through the wrap boundary.
 ##
-## Each hazard trails a short ribbon down the line ahead of itself ([method _update_ribbons]),
+## Each hazard trails a short ribbon down its own lane ahead of itself ([method _update_ribbons]),
 ## rather than the field painting the whole wrap red: under Runs the same wrap is driven over and
 ## over, so a wrap-long ribbon is permanent scenery, where a per-hazard one is a warning about
 ## traffic that is actually coming.
@@ -40,6 +41,12 @@ const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 
 @export var kart_path: NodePath
 @export var director_path: NodePath
+## The circuit's RoadContainer, whose RoadSegments' curves are walked into the centreline the lanes
+## are measured from. Mirrors BoostGhostField's export of the same name.
+@export var road_container_path: NodePath
+## The same start-line Marker3D the RunDirector teleports the kart onto, for BoostGhostField's
+## identical reason: the loop has no inherent start, and this is where start_margin is measured from.
+@export var start_line_path: NodePath
 ## The circuit's HazardGhosts node: an empty runtime spawn parent. The field owns what stands under
 ## it; nothing is authored there.
 @export var ghosts_path: NodePath
@@ -131,20 +138,20 @@ var _kart: Kart
 var _director: RunDirector
 var _ghosts_root: Node3D
 var _ghosts: Array[Hazard] = []
-var _cumulative: PackedFloat32Array = PackedFloat32Array()
-var _total_length: float = 0.0
 var _last_kart_position: Vector3 = Vector3.ZERO
 var _has_last_kart_position: bool = false
 var _elapsed: float = 0.0
+var _road_container: RoadContainer
+var _start_line: Node3D
+## The road's own centreline, walked once at the first re-place ([method _build_centreline]) and
+## reused at every one after, for BoostGhostField._centreline_positions's identical reason.
+var _centreline_positions: PackedVector3Array = PackedVector3Array()
+var _centreline_yaws: PackedFloat32Array = PackedFloat32Array()
 ## pickup_radius_fraction resolved against the kart's sphere_radius, for
 ## BoostGhostField._pickup_radius's identical reason.
 var _pickup_radius: float = 0.0
 # Seeded randomly on creation by Godot and never re-seeded, for BoostGhostField._rng's reason.
 var _rng := RandomNumberGenerator.new()
-## Both vertices of the ribbon at every sample of the wrap's slice, in the slice's own order,
-## rebuilt only when the line is. A hazard's ribbon is a slice of this rather than geometry of its
-## own: the line does not move, so all that changes per frame is which stretch of it is shown.
-var _ribbon_vertices: PackedVector3Array = PackedVector3Array()
 
 
 func _ready() -> void:
@@ -160,6 +167,16 @@ func _ready() -> void:
 
 	if _ghosts_root == null:
 		push_warning("HazardGhostField: no HazardGhosts node — nothing to spawn traffic into.")
+
+	_road_container = get_node_or_null(road_container_path) as RoadContainer
+	_start_line = get_node_or_null(start_line_path) as Node3D
+	if _road_container == null:
+		push_warning("HazardGhostField: no RoadContainer — nothing to spawn traffic along.")
+
+	# Deferred, for BoostGhostField._ready's identical reason: the RoadSegments the centreline is
+	# walked from are built by the RoadManager's own _ready, so the first countdown_started has
+	# already fired by the time any road exists.
+	_place_ghosts.call_deferred()
 
 
 ## Deferred for ClockField's reason: the director runs at the head of the physics frame and the kart
@@ -208,8 +225,10 @@ func _process(delta: float) -> void:
 
 ## Starting arclength distances for [param count] hazard ghosts along a line of [param total_length]
 ## metres, one per equal slot of the span left by [param margin_start] — BoostGhostField.place_along's
-## stratification, minus the pose resolution and the lateral offset: a hazard has no side to stand
-## on, only a place in the line to start driving from.
+## stratification, minus the pose resolution: called once against the centreline's own length, with
+## each hazard's chosen distance later converted into its own lane's arclength ([method
+## _spawn_ghost]), so the arclength stratification and [member start_margin] stay comparable between
+## lanes.
 static func place_along(
 	total_length: float,
 	count: int,
@@ -280,32 +299,68 @@ static func _pose_at(
 	return Transform3D(Basis(Vector3.UP, yaw), position)
 
 
-## The stretch of ghost line this field stands on: the first **wrap** recorded in it where the
-## recording holds one, and the whole recording where it does not. Deliberately not named for the
-## wrap, because in the second case it is not one — the hazards are a per-wrap field, but a Run
-## whose budget ran out partway round still recorded a line, and traffic on the piece of it that
-## exists beats no traffic at all.
+## One lane offset per hazard, in metres, signed across the road: a continuous position rather than
+## one of a handful of fixed lanes, so a field never reads as cars parked on a grid.
 ##
-## Where a whole wrap is available it is the one taken, so the field does not ribbon a long Run's
-## path over itself and spread ghost_count hazards across every pass of it (CONTEXT.md's **Wrap**).
+## Stratified rather than independently drawn, for deal_lanes' old reason — independent uniform
+## draws put two of three hazards nearly on top of each other more often than not. The road is cut
+## into [param count] equal bands (never more than the [method lane_capacity] that fit side by
+## side), the bands are dealt out shuffled and without replacement, and each hazard then takes a
+## uniform position *within* its own band. Spread stays even; the exact offset does not repeat.
 ##
-## Vector2i(0, 0) means there is no line to stand on at all — a circuit nobody has driven — and
-## places no ghosts and draws no ribbons. That is not a warning; it is a circuit's first Run.
-func _field_range() -> Vector2i:
-	var samples: int = _director.ghost_line_positions.size()
-	if samples < 2:
-		return Vector2i(0, 0)
+## The jitter inside a band is the band's width less a car's, so a car never overhangs its own band
+## and two hazards in neighbouring bands never overlap. A road packed to capacity has no slack left
+## and collapses back to the evenly-spaced grid, which is the only layout that fits.
+##
+## Consequence, carried over from the lane version: pickup_radius_fraction still does two jobs — it
+## sets the hit radius and, through the car width, the band layout.
+static func deal_offsets(count: int, road_width: float, car_width: float,
+		rng: RandomNumberGenerator) -> Array[float]:
+	var result: Array[float] = []
+	if count <= 0:
+		return result
 
-	var per_wrap: int = _director.checkpoint_count
-	var crossings: PackedInt32Array = _director.ghost_line_checkpoints
-	if per_wrap > 0 and crossings.size() >= per_wrap:
-		return Vector2i(0, crossings[per_wrap - 1])
-	return Vector2i(0, samples - 1)
+	var capacity: int = lane_capacity(road_width, car_width)
+	if capacity <= 1:
+		for _i in count:
+			result.append(0.0)
+		return result
+
+	var bands: int = mini(count, capacity)
+	var band_width: float = road_width / bands
+	var jitter: float = maxf(band_width - car_width, 0.0)
+
+	# Dealt from a shuffled pool, reshuffled whenever it runs out: no band is used twice while
+	# count <= bands, and past it the uses stay within one of each other.
+	var pool: Array[int] = []
+	for _i in count:
+		if pool.is_empty():
+			for band in bands:
+				pool.append(band)
+		var index: int = rng.randi_range(0, pool.size() - 1)
+		var band: int = pool[index]
+		pool.remove_at(index)
+
+		var centre: float = -road_width * 0.5 + band_width * (band + 0.5)
+		result.append(centre + rng.randf_range(-jitter * 0.5, jitter * 0.5))
+
+	return result
 
 
-## Frees the standing field and places a fresh one on the director's current ghost line. An empty
-## ghost line yields no ghosts and is not a warning, for BoostGhostField's reason: it is a circuit's
-## first Run.
+## How many cars fit across the road side by side without overlapping, at least one. Derived from
+## car width rather than exported so the bands are always exactly as separated as the cars are wide:
+## an exported count could be set to 7 on an 8 m road and nothing in the code would object to seven
+## overlapping cars reading as a wall.
+static func lane_capacity(road_width: float, car_width: float) -> int:
+	if road_width <= 0.0 or car_width <= 0.0:
+		return 1
+	return maxi(floori(road_width / car_width), 1)
+
+
+## Frees the standing field and places a fresh one on the road's centreline. An empty centreline —
+## no RoadContainer wired up, or the walk in [method _build_centreline] failed — yields no ghosts
+## rather than a warning here, for BoostGhostField's reason: that warning already fired once, in
+## [method _ready].
 func _place_ghosts() -> void:
 	for hazard: Hazard in _ghosts:
 		hazard.node.queue_free()
@@ -317,82 +372,98 @@ func _place_ghosts() -> void:
 	if _ghosts_root == null or _director == null:
 		return
 
-	_build_cumulative()
-	_build_ribbon_vertices()
-	if _total_length <= 0.0:
+	_build_centreline()
+	var centreline_cumulative: PackedFloat32Array = _cumulative_lengths(_centreline_positions)
+	var centreline_length: float = centreline_cumulative[centreline_cumulative.size() - 1]
+	if centreline_length <= 0.0:
 		return
 
+	var road_width: float = RoadCentreline.width(_road_container)
+	var car_width: float = 2.0 * _pickup_radius
+	var offsets: Array[float] = deal_offsets(ghost_count, road_width, car_width, _rng)
+
 	var distances: Array[float] = place_along(
-		_total_length,
+		centreline_length,
 		ghost_count,
 		start_margin,
 		_rng,
 		placement_jitter,
 	)
-	for distance: float in distances:
-		_ghosts.append(_spawn_ghost(distance))
+	for i in distances.size():
+		_ghosts.append(_spawn_ghost(offsets[i], distances[i], centreline_length))
 
 
-## Cumulative arc length at each ghost-line sample of the field's slice ([method _field_range]),
-## rebuilt whenever the line itself changes (a re-place). Kept rather than recomputed every frame:
-## _advance_ghosts walks it every physics tick for every hazard, and the line stands unchanged for
-## many wraps at a time.
-func _build_cumulative() -> void:
-	_cumulative = PackedFloat32Array()
-	_total_length = 0.0
-
-	var positions: PackedVector3Array = _field_positions()
-	if positions.size() < 2:
+## Walks [member _road_container]'s RoadPoints into the circuit's centreline positions/yaws and
+## caches them into [member _centreline_positions]/[member _centreline_yaws], for
+## BoostGhostField._build_centreline's identical reason and identical shape — a no-op once the walk
+## has succeeded once, since the road doesn't change shape mid-session.
+func _build_centreline() -> void:
+	if not _centreline_positions.is_empty() or _road_container == null:
 		return
 
-	_cumulative.append(0.0)
+	var loop: PackedVector3Array = RoadCentreline.walk_loop(_road_container)
+	if loop.size() < 2:
+		return
+
+	if _start_line != null:
+		loop = RoadCentreline.cut_and_orient(loop, _start_line)
+
+	_centreline_positions = loop
+	_centreline_yaws = RoadCentreline.yaws_from_positions(loop)
+
+
+## Cumulative arc length at each sample of [param positions]. Shared by the centreline (once, to
+## place hazards) and by every hazard's own lane polyline (once each, at spawn) — [method
+## _advance_ghosts] and [method _update_ribbons] walk a hazard's own [member Hazard.lane_cumulative]
+## every physics tick, so it is built once here rather than recomputed per frame.
+static func _cumulative_lengths(positions: PackedVector3Array) -> PackedFloat32Array:
+	var cumulative: PackedFloat32Array = PackedFloat32Array()
+	cumulative.append(0.0)
 	for i in range(1, positions.size()):
-		_cumulative.append(_cumulative[i - 1] + positions[i - 1].distance_to(positions[i]))
-	_total_length = _cumulative[_cumulative.size() - 1]
+		cumulative.append(cumulative[i - 1] + positions[i - 1].distance_to(positions[i]))
+	return cumulative
 
 
-## The ghost line's positions, sliced by [method _field_range]. Both [method _build_cumulative] and
-## [method _build_ribbon_vertices] walk exactly this slice, so the ribbons and the hazards that
-## trail them always agree on which stretch of the recording they belong to.
-func _field_positions() -> PackedVector3Array:
-	var range: Vector2i = _field_range()
-	if range.y <= range.x:
-		return PackedVector3Array()
-	return _director.ghost_line_positions.slice(range.x, range.y + 1)
+## [member _centreline_positions] pushed sideways by [param offset] metres along each sample's own
+## right vector ([method Basis(Vector3.UP, yaw).x]), so a hazard's lane leans with the road through a
+## corner instead of staying world-axis-aligned — the same construction [method _build_ribbon_vertices]
+## uses for the ribbon's own two edges.
+func _offset_positions(offset: float) -> PackedVector3Array:
+	var result: PackedVector3Array = PackedVector3Array()
+	result.resize(_centreline_positions.size())
+	for i in _centreline_positions.size():
+		var right: Vector3 = Basis(Vector3.UP, _centreline_yaws[i]).x
+		result[i] = _centreline_positions[i] + right * offset
+	return result
 
 
-func _field_yaws() -> PackedFloat32Array:
-	var range: Vector2i = _field_range()
-	if range.y <= range.x:
-		return PackedFloat32Array()
-	return _director.ghost_line_yaws.slice(range.x, range.y + 1)
-
-
-## Builds [member _ribbon_vertices] for the field's slice of the ghost line: two vertices per
-## sample, square across it. Called wherever the line itself is rebuilt, alongside [method
-## _build_cumulative], and then only ever sliced — no hazard draws the whole wrap.
-func _build_ribbon_vertices() -> void:
-	_ribbon_vertices = PackedVector3Array()
-
-	var positions: PackedVector3Array = _field_positions()
-	var yaws: PackedFloat32Array = _field_yaws()
+## Two vertices per sample of [param positions], square across it via [param yaws]' own right
+## vector — one hazard's own ribbon geometry, built once at spawn and sliced (with the seam wrapped)
+## by [method _update_ribbons] every physics tick rather than rebuilt.
+func _build_ribbon_vertices(
+	positions: PackedVector3Array, yaws: PackedFloat32Array
+) -> PackedVector3Array:
+	var vertices: PackedVector3Array = PackedVector3Array()
 	if positions.size() < 2:
-		return
+		return vertices
 
 	var half_width: float = line_width * 0.5
 	var lift: Vector3 = Vector3.UP * line_height_offset
 	for i in positions.size():
-		# The sample's own right vector, for BoostGhostField.place_along's identical reason: the
-		# ribbon leans with the line through a corner instead of staying world-axis-aligned.
 		var right: Vector3 = Basis(Vector3.UP, yaws[i]).x
 		var centre: Vector3 = positions[i] + lift
-		_ribbon_vertices.append(centre + right * half_width)
-		_ribbon_vertices.append(centre - right * half_width)
+		vertices.append(centre + right * half_width)
+		vertices.append(centre - right * half_width)
+	return vertices
 
 
-## Redraws every hazard's ribbon: the stretch of line between it and the driver, solid at its own
-## nose and faded out [member line_lead_length] metres down the line, hidden once the hazard is
-## taken or further off than [member line_visible_distance].
+## Redraws every hazard's ribbon: the stretch of its own lane between it and the driver, solid at
+## its own nose and faded out [member line_lead_length] metres down the lane, hidden once the hazard
+## is taken or further off than [member line_visible_distance].
+##
+## The lane is a genuine closed loop, so the lead may run past the start of it and continue from its
+## end — [param low_distance] wraps via [method fposmod] rather than clamping at the seam the way a
+## slice of a one-off recording had to.
 ##
 ## Runs at physics rate off the back of [method _advance_ghosts] rather than at display rate with
 ## the alpha pulse, because it follows the hazards' own motion and a ribbon a frame behind its car
@@ -401,7 +472,7 @@ func _update_ribbons() -> void:
 	for hazard: Hazard in _ghosts:
 		if hazard.ribbon == null:
 			continue
-		if not line_visible or hazard.taken or _ribbon_vertices.size() < 4:
+		if not line_visible or hazard.taken or hazard.ribbon_vertices.size() < 4:
 			hazard.ribbon.visible = false
 			continue
 		if (_kart != null
@@ -409,25 +480,39 @@ func _update_ribbons() -> void:
 			hazard.ribbon.visible = false
 			continue
 
-		# Down the line from the hazard rather than up it: a hazard drives the wrap backward, so
-		# the stretch it is about to cover is the one at lower arclength — the one pointed at you.
-		# Clamped at the slice's start rather than continued across the seam: the slice's two ends
-		# are metres and a gap apart at best — the start line and the last checkpoint — and wherever
-		# the Timeout fell at worst, so a strip joining them paints a band no hazard ever drives.
-		var high: int = _sample_index_at(_cumulative, hazard.distance)
-		var low: int = _sample_index_back_from(
-			_cumulative, high, hazard.distance - line_lead_length)
-		if high - low < 1:
+		var span: float = minf(line_lead_length, hazard.lane_length)
+		if span <= 0.0:
 			hazard.ribbon.visible = false
 			continue
 
+		var low_distance: float = fposmod(hazard.distance - span, hazard.lane_length)
+		var high: int = _sample_index_at(hazard.lane_cumulative, hazard.distance)
+		var low: int = _sample_index_at(hazard.lane_cumulative, low_distance)
+
+		var sample_count: int = high - low + 1 if low <= high \
+			else (hazard.lane_positions.size() - low) + (high + 1)
+		if sample_count < 2:
+			hazard.ribbon.visible = false
+			continue
+
+		var vertices: PackedVector3Array
+		if low <= high:
+			vertices = hazard.ribbon_vertices.slice(low * 2, (high + 1) * 2)
+		else:
+			# Wraps past the seam: the tail of the lane's own vertex array, then its head.
+			var tail: PackedVector3Array = hazard.ribbon_vertices.slice(
+				low * 2, hazard.lane_positions.size() * 2)
+			var head: PackedVector3Array = hazard.ribbon_vertices.slice(0, (high + 1) * 2)
+			vertices = tail + head
+
 		var colors := PackedColorArray()
-		var span: float = float(high - low)
-		for i in range(low, high + 1):
+		var span_samples: float = float(sample_count - 1)
+		for i in sample_count:
 			# Alpha only; the hue and the overall strength are line_color's, applied once by the
-			# material and multiplied in. Solid at the hazard and gone at the far end, so a ribbon
-			# reads as something arriving rather than as a lane painted on the road.
-			var fade: float = float(i - low) / span
+			# material and multiplied in. Solid at the hazard (the last sample here) and gone at the
+			# far end (the first), so a ribbon reads as something arriving rather than as a lane
+			# painted on the road.
+			var fade: float = float(i) / span_samples
 			colors.append(Color(1.0, 1.0, 1.0, fade))
 			colors.append(Color(1.0, 1.0, 1.0, fade))
 
@@ -435,7 +520,7 @@ func _update_ribbons() -> void:
 		arrays.resize(Mesh.ARRAY_MAX)
 		# A quad strip, not a PRIMITIVE_LINE_STRIP: line primitives render at a fixed 1 px under the
 		# GL Compatibility renderer this project targets, which [member line_width] could not affect.
-		arrays[Mesh.ARRAY_VERTEX] = _ribbon_vertices.slice(low * 2, (high + 1) * 2)
+		arrays[Mesh.ARRAY_VERTEX] = vertices
 		arrays[Mesh.ARRAY_COLOR] = colors
 
 		var mesh := ArrayMesh.new()
@@ -459,10 +544,28 @@ func _build_line_material() -> StandardMaterial3D:
 	return material
 
 
-func _spawn_ghost(distance: float) -> Hazard:
+## Builds one hazard standing in its own lane: [param offset] metres across the road from the
+## centreline, starting at the point [param centreline_distance] metres along [param
+## centreline_length] converts to along that lane's own (generally different) length.
+##
+## Yaws are re-derived from the offset polyline rather than copied off the centreline
+## ([RoadCentreline.yaws_from_positions]): an outer lane through a corner turns through the same
+## angle over a longer arc, and copying would leave a hazard's nose pointing subtly off its own
+## path.
+func _spawn_ghost(offset: float, centreline_distance: float, centreline_length: float) -> Hazard:
+	var lane_positions: PackedVector3Array = _offset_positions(offset)
+	var lane_yaws: PackedFloat32Array = RoadCentreline.yaws_from_positions(lane_positions)
+	var lane_cumulative: PackedFloat32Array = _cumulative_lengths(lane_positions)
+	var lane_length: float = lane_cumulative[lane_cumulative.size() - 1]
+	# An outer-lane hazard's lap is longer than an inner-lane one's, so two hazards spawned with
+	# identical speeds drift out of phase over a Run — the chosen trade (see spec's Known
+	# consequences): the alternative keeps hazards in phase but makes min_speed/max_speed mean a
+	# different true speed per lane.
+	var distance: float = centreline_distance * (lane_length / centreline_length)
+
 	var wrapper := Node3D.new()
 	_ghosts_root.add_child(wrapper)
-	wrapper.global_transform = _pose_at(_field_positions(), _field_yaws(), _cumulative, distance)
+	wrapper.global_transform = _pose_at(lane_positions, lane_yaws, lane_cumulative, distance)
 
 	var model: Node3D = GHOST_MODEL.instantiate() as Node3D
 	wrapper.add_child(model)
@@ -475,12 +578,17 @@ func _spawn_ghost(distance: float) -> Hazard:
 	var hazard := Hazard.new()
 	hazard.node = wrapper
 	hazard.distance = distance
+	hazard.lane_positions = lane_positions
+	hazard.lane_yaws = lane_yaws
+	hazard.lane_cumulative = lane_cumulative
+	hazard.lane_length = lane_length
+	hazard.ribbon_vertices = _build_ribbon_vertices(lane_positions, lane_yaws)
 	hazard.origin = wrapper.global_position
 	hazard.speed = _rng.randf_range(min_speed, max_speed)
 	hazard.material = _build_ghost_material()
-	# A sibling of the wrapper, not a child of it: the ribbon's vertices are the ghost line's own,
-	# already in the space _ghosts_root stands in, and parenting them under a wrapper that moves
-	# every frame would carry them along with it.
+	# A sibling of the wrapper, not a child of it: the ribbon's vertices are the lane's own, already
+	# in the space _ghosts_root stands in, and parenting them under a wrapper that moves every frame
+	# would carry them along with it.
 	hazard.ribbon = MeshInstance3D.new()
 	hazard.ribbon.visible = false
 	hazard.ribbon.material_override = _build_line_material()
@@ -489,23 +597,18 @@ func _spawn_ghost(distance: float) -> Hazard:
 	return hazard
 
 
-## Steps every untaken hazard backward along the field's slice of the line by its own speed, past
-## the start of that slice and back round to its end — continuous oncoming traffic rather than a
-## single pass. The seam is the slice's own two ends, which touch only loosely (see [method
-## _update_ribbons]), so traffic re-enters near where it left rather than exactly at it.
+## Steps every untaken hazard backward along its own lane by its own speed, past the start of the
+## lane and back round to its end — continuous oncoming traffic rather than a single pass, stepped
+## against each hazard's own [member Hazard.lane_cumulative] rather than a shared one ([member
+## Hazard.lane_length]'s doc), so min_speed/max_speed mean true metres per second in every lane.
 func _advance_ghosts(delta: float) -> void:
-	if _total_length <= 0.0:
-		return
-
-	var positions: PackedVector3Array = _field_positions()
-	var yaws: PackedFloat32Array = _field_yaws()
-
 	for hazard: Hazard in _ghosts:
-		if hazard.taken:
+		if hazard.taken or hazard.lane_length <= 0.0:
 			continue
 		var step: float = hazard.speed * delta
-		hazard.distance = fposmod(hazard.distance - step, _total_length)
-		var pose: Transform3D = _pose_at(positions, yaws, _cumulative, hazard.distance)
+		hazard.distance = fposmod(hazard.distance - step, hazard.lane_length)
+		var pose: Transform3D = _pose_at(
+			hazard.lane_positions, hazard.lane_yaws, hazard.lane_cumulative, hazard.distance)
 		hazard.node.global_transform = pose
 		hazard.origin = pose.origin
 
@@ -580,12 +683,28 @@ func _apply_material(node: Node, material: StandardMaterial3D) -> void:
 ## One hazard, resolved at spawn. RefCounted for ClockField.Clock's reason.
 class Hazard extends RefCounted:
 	var node: Node3D = null # the wrapper; visibility toggles here
-	var distance: float = 0.0 # arclength along the ghost line, decreasing as it drives
+	var distance: float = 0.0 # arclength along this hazard's own lane, decreasing as it drives
 	var speed: float = 0.0 # m/s, picked once at spawn from [min_speed, max_speed]
 	var origin: Vector3 = Vector3.ZERO
 	var material: StandardMaterial3D = null
+	## The centreline offset into this hazard's own lane, drawn once at spawn and kept for its
+	## whole life — "one part of the track, driven the whole circuit".
+	var lane_positions: PackedVector3Array = PackedVector3Array()
+	## Re-derived from [member lane_positions], not copied from the centreline: an outer lane
+	## through a corner turns through the same angle over a longer arc, and copying would leave a
+	## hazard's nose pointing subtly off its own path.
+	var lane_yaws: PackedFloat32Array = PackedFloat32Array()
+	## Arclength along [member lane_positions], stepped by [method HazardGhostField._advance_ghosts]
+	## instead of a shared centreline cumulative, so min_speed/max_speed mean true metres per second
+	## in every lane regardless of how long that lane's own lap is.
+	var lane_cumulative: PackedFloat32Array = PackedFloat32Array()
+	var lane_length: float = 0.0 # lane_cumulative's last entry
+	## Two vertices per sample of [member lane_positions], square across the lane. This hazard's
+	## ribbon is a slice of this rather than geometry of its own: the lane does not move, so all
+	## that changes per frame is which stretch of it is shown.
+	var ribbon_vertices: PackedVector3Array = PackedVector3Array()
 	## This hazard's own stretch of ribbon, a sibling of [member node] rather than a child; see
-	## HazardGhostField._spawn_ghost. Its mesh is rebuilt every physics frame from a slice of the
-	## field's prebuilt vertices.
+	## HazardGhostField._spawn_ghost. Its mesh is rebuilt every physics frame from a slice of
+	## [member ribbon_vertices].
 	var ribbon: MeshInstance3D = null
 	var taken: bool = false
