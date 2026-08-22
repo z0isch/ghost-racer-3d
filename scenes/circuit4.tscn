@@ -398,7 +398,7 @@ surface_material_override/0 = SubResource("Material_gate")
 
 [node name="Clock00" type="Marker3D" parent="Clocks" unique_id=2128066702]
 transform = Transform3D(0.20734303, 0, 0.9782683, 0, 1, 0, -0.9782683, 0, 0.20734303, -26.10599, 0.4, -0.61165994)
-metadata/seconds = 2.0
+metadata/seconds = 5.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock00" unique_id=601945470]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
@@ -407,7 +407,7 @@ script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock01" type="Marker3D" parent="Clocks" unique_id=1437369206]
 transform = Transform3D(0.094888754, 0, -0.9954879, 0, 1, 0, 0.9954879, 0, 0.094888754, -22.995726, 0.4, -39.86065)
-metadata/seconds = 2.0
+metadata/seconds = 5.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock01" unique_id=2113300847]
 transform = Transform3D(0.7986355, 0.60181504, 0, 0, 0, -1, -0.60181504, 0.7986355, 0, 0, 0, 0)
@@ -416,7 +416,7 @@ script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock02" type="Marker3D" parent="Clocks" unique_id=229685690]
 transform = Transform3D(-0.9969016, 0, 0.07865954, 0, 1, 0, -0.07865954, 0, -0.9969016, 22.438093, 0.4, -18.427837)
-metadata/seconds = 2.0
+metadata/seconds = 5.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock02" unique_id=1051302733]
 transform = Transform3D(0.27563736, 0.9612617, 0, 0, 0, -1, -0.9612617, 0.27563736, 0, 0, 0, 0)

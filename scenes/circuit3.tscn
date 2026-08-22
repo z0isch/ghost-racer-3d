@@ -437,7 +437,7 @@ surface_material_override/0 = SubResource("Material_gate")
 
 [node name="Clock00" type="Marker3D" parent="Clocks" unique_id=1985860647]
 transform = Transform3D(0.9833417, 0, -0.18176667, 0, 1, 0, 0.18176667, 0, 0.9833417, -3.9415033, 0.4, -34.766014)
-metadata/seconds = 2.0
+metadata/seconds = 5.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock00" unique_id=1582936370]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
@@ -446,7 +446,7 @@ script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock01" type="Marker3D" parent="Clocks" unique_id=246758005]
 transform = Transform3D(0.5042052, 0, -0.86358386, 0, 1, 0, 0.86358386, 0, 0.5042052, -19.845753, 0.4, -68.545746)
-metadata/seconds = 2.0
+metadata/seconds = 5.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock01" unique_id=374456169]
 transform = Transform3D(0.7986355, 0.60181504, 0, 0, 0, -1, -0.60181504, 0.7986355, 0, 0, 0, 0)
@@ -455,7 +455,7 @@ script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock02" type="Marker3D" parent="Clocks" unique_id=201626547]
 transform = Transform3D(-0.98209435, 0, 0.18838973, 0, 1, 0, -0.18838973, 0, -0.98209435, 16.988796, 1.9492551, -49.497696)
-metadata/seconds = 2.0
+metadata/seconds = 5.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock02" unique_id=326825899]
 transform = Transform3D(0.27563736, 0.9612617, 0, 0, 0, -1, -0.9612617, 0.27563736, 0, 0, 0, 0)
@@ -464,7 +464,7 @@ script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock03" type="Marker3D" parent="Clocks" unique_id=960790556]
 transform = Transform3D(-0.9307044, 0, -0.36577216, 0, 1, 0, 0.36577216, 0, -0.9307044, 0.95635045, 6.209799, -9.496041)
-metadata/seconds = 2.0
+metadata/seconds = 5.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock03" unique_id=170406318]
 transform = Transform3D(-0.35836795, 0.9335804, 0, 0, 0, -1, -0.9335804, -0.35836795, 0, 0, 0, 0)
@@ -473,7 +473,7 @@ script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock04" type="Marker3D" parent="Clocks" unique_id=1339020]
 transform = Transform3D(0.98688436, 0, 0.1614292, 0, 1, 0, -0.1614292, 0, 0.98688436, 21.930437, 0.4, -11.991939)
-metadata/seconds = 2.0
+metadata/seconds = 5.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock04" unique_id=1134472366]
 transform = Transform3D(-0.8480481, 0.52991927, 0, 0, 0, -1, -0.52991927, -0.8480481, 0, 0, 0, 0)
