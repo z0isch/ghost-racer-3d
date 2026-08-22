@@ -35,6 +35,15 @@ signal clock_taken(seconds: float, position: Vector3, direction: Vector3)
 ## exactly the bug this feature exists to prevent.
 @export var live_clock_count: int = 0
 
+## The circuit's own loadout, for BoostGhostField.loadout's identical reason: the dev keys
+## ([method _physics_process]) raise or lower its clock_count directly rather than only this
+## field's own copy of it. Set by race.gd alongside [member live_clock_count] itself. Left null,
+## the dev keys fall back to editing [member live_clock_count] alone.
+var loadout: CircuitLoadout = null
+## Persists [member loadout] after a dev-key change, for BoostGhostField.save_loadout's identical
+## reason. Set by race.gd, bound to the resolved Circuit.
+var save_loadout: Callable = Callable()
+
 ## Generously larger than the 0.6 m disc. The pickup is a horizontal test on banked and cresting
 ## road, where a clock's apparent position and its marker origin differ by up to a third of a metre;
 ## a radius smaller than the clock looks reads as theft.
@@ -71,10 +80,37 @@ func _ready() -> void:
 ## Sweeps the segment the kart travelled this frame against every untaken clock. Deferred because
 ## the director runs at the head of the physics frame (process_physics_priority = -100) and the
 ## kart moves after it: the position the kart finishes the frame at only exists after the flush.
+##
+## The dev inputs live here, not gated on phase, for BoostGhostField._physics_process's identical
+## reason: the field owns the count, so pressing the dev keys before any Run has completed must
+## still raise the count the next Run opens with.
 func _physics_process(_delta: float) -> void:
-	if _kart == null or _director == null or _director.phase != RunDirector.RunPhase.RACING:
+	if _kart != null and _director != null and _director.phase == RunDirector.RunPhase.RACING:
+		_sweep_clocks.call_deferred()
+
+	if Input.is_action_just_pressed("dev_clock_more"):
+		_adjust_live_clock_count(1)
+	if Input.is_action_just_pressed("dev_clock_fewer"):
+		_adjust_live_clock_count(-1)
+
+
+## Raises or lowers [member live_clock_count] by [param delta], for
+## BoostGhostField._adjust_ghost_count's identical reason and identical shape — the loadout's
+## clock_count is the thing raised when a loadout is wired up, then [method _resolve_clocks] is
+## re-run so the change is visible immediately rather than waiting for the next countdown, and the
+## change is saved via [member save_loadout]. Without a loadout, [member live_clock_count] alone
+## is edited.
+func _adjust_live_clock_count(delta: int) -> void:
+	if loadout == null:
+		live_clock_count += delta
+		_resolve_clocks()
 		return
-	_sweep_clocks.call_deferred()
+
+	loadout.clock_count += delta
+	live_clock_count = loadout.clock_count
+	_resolve_clocks()
+	if save_loadout.is_valid():
+		save_loadout.call()
 
 
 ## Horizontal distance from a swept segment to a clock. Static and free of node access: it is the
@@ -127,6 +163,10 @@ static func sweep_direction(previous: Vector3, position: Vector3, kart_basis: Ba
 ## be swept by [method _sweep_clocks] or resurrected by [method _on_countdown_started].
 ## [member live_clock_count] is clamped to the number of markers actually authored: buying past a
 ## circuit's total is impossible by construction rather than by silent overflow.
+##
+## Explicitly re-shows every included marker rather than assuming it already is: called again from
+## [method _adjust_live_clock_count], where a marker just bought back in was left hidden by an
+## earlier, smaller live_clock_count.
 func _resolve_clocks() -> void:
 	var root: Node3D = get_node_or_null(clocks_path) as Node3D
 	if root == null:
@@ -146,6 +186,7 @@ func _resolve_clocks() -> void:
 		if i >= live_count:
 			marker.visible = false
 			continue
+		marker.visible = true
 		var clock := Clock.new()
 		clock.node = marker
 		clock.origin = marker.global_position

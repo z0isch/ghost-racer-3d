@@ -76,6 +76,8 @@ func _enter_tree() -> void:
 
 	var clock_field: ClockField = get_node_or_null(clock_field_path) as ClockField
 	if clock_field != null:
+		clock_field.loadout = loadout
+		clock_field.save_loadout = save_loadout
 		clock_field.live_clock_count = loadout.clock_count
 
 	var boost_field: BoostGhostField = get_node_or_null(boost_ghost_field_path) as BoostGhostField
