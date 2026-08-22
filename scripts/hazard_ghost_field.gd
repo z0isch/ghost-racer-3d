@@ -3,9 +3,9 @@ extends Node
 
 ## Owner of the hazard ghosts: where they are, which are currently taken, and the swept test that
 ## takes them. Modelled on BoostGhostField, with two differences that follow from being oncoming
-## traffic rather than a pickup: a hazard ghost stands on its own lane, a continuous offset measured
-## across the road's own centreline, drawn once at spawn and kept for its whole life, and it moves,
-## backward along that lane, rather than standing still.
+## traffic rather than a pickup: a hazard ghost stands on its own lane, a two-harmonic sine wander
+## across the road's own centreline arclength, drawn once at spawn and kept for its whole life, and
+## it moves, backward along that lane, rather than standing still.
 ##
 ## The slow-down lives on the field, not on the ghost, for BoostGhostField's reason: every hazard
 ## on a circuit costs the same, so there is one multiplier here rather than per-ghost metadata.
@@ -38,6 +38,18 @@ const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 ## of [member pickup_radius_fraction], for BoostGhostField.MODEL_SCALE_PER_FRACTION's identical
 ## reason and identical derivation.
 const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
+
+## 175-350 m wavelength on a ~700 m lap: the broad drift across the road, roughly one visible per
+## straight.
+const WANDER_SLOW_HARMONIC_MIN: int = 2
+const WANDER_SLOW_HARMONIC_MAX: int = 4
+## 50-90 m wavelength: a lane-change-scale twitch, roughly one per corner.
+const WANDER_FAST_HARMONIC_MIN: int = 9
+const WANDER_FAST_HARMONIC_MAX: int = 13
+## The fast harmonic carries ~4x the gradient per metre of amplitude, so 25% of the width costs
+## about half the gradient budget. A 50/50 split would put the cap in play on almost every circuit
+## and make the degradation path below the normal case rather than the edge case.
+const WANDER_SLOW_SHARE: float = 0.75
 
 @export var kart_path: NodePath
 @export var director_path: NodePath
@@ -83,6 +95,18 @@ var save_loadout: Callable = Callable()
 ## repeating pace.
 @export var min_speed: float = 4.0
 @export var max_speed: float = 8.0
+
+## How much of the road a lane may wander across, as a fraction of the width a car can legally
+## occupy. 0.0 is a constant-offset lane — a perfect parallel of the centreline, this field's
+## behaviour before wandering lanes — which makes it a direct in-editor A/B against the change.
+@export_range(0.0, 1.0) var lane_wander: float = 1.0
+
+## Metres of lateral movement per metre of arclength a lane may ask for. Sized against the ~1.1 s of
+## real warning a ribbon gives at closing speed, not against its 40 m of length: raising it makes
+## traffic swerve into you faster than the ribbon can warn about. It is also the only thing keeping
+## the lane layout honest now that nothing counts cars across the road — the old lane_capacity
+## comment's "seven overlapping cars reading as a wall" trap lives here instead.
+@export var max_lane_gradient: float = 0.06
 
 ## Fraction the kart's forward speed is scrubbed by on a hit. 1.0 stops the kart dead; 0.0 does
 ## nothing. Kept separate from the ghost's own driving speed: how hard a hit costs you is a
@@ -299,62 +323,94 @@ static func _pose_at(
 	return Transform3D(Basis(Vector3.UP, yaw), position)
 
 
-## One lane offset per hazard, in metres, signed across the road: a continuous position rather than
-## one of a handful of fixed lanes, so a field never reads as cars parked on a grid.
+## One hazard's drawn lane wander: two sine harmonics over the centreline's own arclength.
+## Transient — consumed by _offset_positions at spawn and deliberately not stored on Hazard, since
+## the lane polyline it produces is precomputed and the wander is never re-evaluated afterward.
+class Wander extends RefCounted:
+	var slow_amplitude: float = 0.0
+	var slow_harmonic: int = 0
+	var slow_phase: float = 0.0
+	var fast_amplitude: float = 0.0
+	var fast_harmonic: int = 0
+	var fast_phase: float = 0.0
+
+
+## Draws one hazard's wander, fitted to the road and capped for readability. [param half_band] is
+## the metres either side of the centreline a car may occupy with all four wheels on tarmac, already
+## scaled by lane_wander; [param loop_length] is the centreline's own arclength; [param slow_phase]
+## comes from deal_phases so no two hazards drift in sync.
 ##
-## Stratified rather than independently drawn, for deal_lanes' old reason — independent uniform
-## draws put two of three hazards nearly on top of each other more often than not. The road is cut
-## into [param count] equal bands (never more than the [method lane_capacity] that fit side by
-## side), the bands are dealt out shuffled and without replacement, and each hazard then takes a
-## uniform position *within* its own band. Spread stays even; the exact offset does not repeat.
+## Amplitudes are scaled to fit, never clamped — a clamped sine spends real stretches flat against
+## the limit, which reintroduces the parallel-to-the-road straight line this exists to remove, just
+## at the kerb instead of the centre. When the gradient cap binds, only the fast harmonic shrinks:
+## it carries most of the slope and least of the visible width, so the budget goes to the effect you
+## can actually see, and a short circuit degrades to a pure slow drift rather than a shrunken version
+## of everything.
 ##
-## The jitter inside a band is the band's width less a car's, so a car never overhangs its own band
-## and two hazards in neighbouring bands never overlap. A road packed to capacity has no slack left
-## and collapses back to the evenly-spaced grid, which is the only layout that fits.
+## Returns an all-zero Wander — a constant, centreline-following lane, this field's behaviour before
+## wandering lanes — where half_band <= 0.0 or loop_length <= 0.0.
+static func draw_wander(half_band: float, loop_length: float, max_gradient: float,
+		slow_phase: float, rng: RandomNumberGenerator) -> Wander:
+	var wander := Wander.new()
+	if half_band <= 0.0 or loop_length <= 0.0:
+		return wander
+
+	wander.slow_harmonic = rng.randi_range(WANDER_SLOW_HARMONIC_MIN, WANDER_SLOW_HARMONIC_MAX)
+	wander.fast_harmonic = rng.randi_range(WANDER_FAST_HARMONIC_MIN, WANDER_FAST_HARMONIC_MAX)
+	wander.slow_phase = slow_phase
+	wander.fast_phase = rng.randf_range(0.0, TAU)
+
+	var budget: float = max_gradient * loop_length / TAU
+	var a_slow: float = half_band * WANDER_SLOW_SHARE
+	var a_fast: float = half_band * (1.0 - WANDER_SLOW_SHARE)
+
+	# Only bites if the slow harmonic alone already exceeds the budget.
+	a_fast = clampf((budget - a_slow * wander.slow_harmonic) / wander.fast_harmonic, 0.0, a_fast)
+	a_slow = minf(a_slow, budget / wander.slow_harmonic)
+
+	wander.slow_amplitude = a_slow
+	wander.fast_amplitude = a_fast
+	return wander
+
+
+## [param wander] evaluated at [param s] metres along the centreline. Periodic over
+## [param loop_length] in both value and slope by construction (integer harmonics), so a lane built
+## from this closes on itself with no seam.
+static func wander_offset_at(wander: Wander, s: float, loop_length: float) -> float:
+	if loop_length <= 0.0:
+		return 0.0
+	return (wander.slow_amplitude
+			* sin(TAU * wander.slow_harmonic * s / loop_length + wander.slow_phase)
+		+ wander.fast_amplitude
+			* sin(TAU * wander.fast_harmonic * s / loop_length + wander.fast_phase))
+
+
+## One slow-harmonic phase per hazard, stratified around the circle: [0, TAU) is cut into [param
+## count] equal bands, the bands are dealt shuffled and without replacement, and each hazard takes a
+## uniform phase within its own band. The same shuffled-pool shape deal_offsets used, for the same
+## reason — independent draws let two hazards drift in near-lockstep more often than not.
 ##
-## Consequence, carried over from the lane version: pickup_radius_fraction still does two jobs — it
-## sets the hit radius and, through the car width, the band layout.
-static func deal_offsets(count: int, road_width: float, car_width: float,
-		rng: RandomNumberGenerator) -> Array[float]:
+## The slow phase only. The fast harmonic's phase is drawn uniformly: its n already differs per
+## hazard (9..13), so two of them cannot stay in sync for more than a fraction of a lap regardless
+## of where they start. Sharing one phase across both harmonics would be worse than not stratifying
+## at all — every hazard's line would be the same shape, merely rotated around the lap.
+static func deal_phases(count: int, rng: RandomNumberGenerator) -> Array[float]:
 	var result: Array[float] = []
 	if count <= 0:
 		return result
 
-	var capacity: int = lane_capacity(road_width, car_width)
-	if capacity <= 1:
-		for _i in count:
-			result.append(0.0)
-		return result
-
-	var bands: int = mini(count, capacity)
-	var band_width: float = road_width / bands
-	var jitter: float = maxf(band_width - car_width, 0.0)
-
-	# Dealt from a shuffled pool, reshuffled whenever it runs out: no band is used twice while
-	# count <= bands, and past it the uses stay within one of each other.
+	var band_width: float = TAU / count
 	var pool: Array[int] = []
 	for _i in count:
 		if pool.is_empty():
-			for band in bands:
+			for band in count:
 				pool.append(band)
 		var index: int = rng.randi_range(0, pool.size() - 1)
 		var band: int = pool[index]
 		pool.remove_at(index)
-
-		var centre: float = -road_width * 0.5 + band_width * (band + 0.5)
-		result.append(centre + rng.randf_range(-jitter * 0.5, jitter * 0.5))
+		result.append(band * band_width + rng.randf_range(0.0, band_width))
 
 	return result
-
-
-## How many cars fit across the road side by side without overlapping, at least one. Derived from
-## car width rather than exported so the bands are always exactly as separated as the cars are wide:
-## an exported count could be set to 7 on an 8 m road and nothing in the code would object to seven
-## overlapping cars reading as a wall.
-static func lane_capacity(road_width: float, car_width: float) -> int:
-	if road_width <= 0.0 or car_width <= 0.0:
-		return 1
-	return maxi(floori(road_width / car_width), 1)
 
 
 ## Frees the standing field and places a fresh one on the road's centreline. An empty centreline —
@@ -378,9 +434,10 @@ func _place_ghosts() -> void:
 	if centreline_length <= 0.0:
 		return
 
-	var road_width: float = RoadCentreline.width(_road_container)
 	var car_width: float = 2.0 * _pickup_radius
-	var offsets: Array[float] = deal_offsets(ghost_count, road_width, car_width, _rng)
+	var half_band: float = maxf(
+		(RoadCentreline.width(_road_container) - car_width) * 0.5, 0.0) * lane_wander
+	var phases: Array[float] = deal_phases(ghost_count, _rng)
 
 	var distances: Array[float] = place_along(
 		centreline_length,
@@ -390,7 +447,8 @@ func _place_ghosts() -> void:
 		placement_jitter,
 	)
 	for i in distances.size():
-		_ghosts.append(_spawn_ghost(offsets[i], distances[i], centreline_length))
+		_ghosts.append(_spawn_ghost(
+			half_band, phases[i], distances[i], centreline_length, centreline_cumulative))
 
 
 ## Walks [member _road_container]'s RoadPoints into the circuit's centreline positions/yaws and
@@ -424,15 +482,18 @@ static func _cumulative_lengths(positions: PackedVector3Array) -> PackedFloat32A
 	return cumulative
 
 
-## [member _centreline_positions] pushed sideways by [param offset] metres along each sample's own
-## right vector ([method Basis(Vector3.UP, yaw).x]), so a hazard's lane leans with the road through a
-## corner instead of staying world-axis-aligned — the same construction [method _build_ribbon_vertices]
-## uses for the ribbon's own two edges.
-func _offset_positions(offset: float) -> PackedVector3Array:
+## [member _centreline_positions] pushed sideways by [param wander] evaluated at each sample's own
+## centreline arclength ([param cumulative]), along that sample's own right vector ([method
+## Basis(Vector3.UP, yaw).x]) — so a hazard's lane leans with the road through a corner instead of
+## staying world-axis-aligned, the same construction [method _build_ribbon_vertices] uses for the
+## ribbon's own two edges.
+func _offset_positions(wander: Wander, cumulative: PackedFloat32Array) -> PackedVector3Array:
+	var loop_length: float = cumulative[cumulative.size() - 1]
 	var result: PackedVector3Array = PackedVector3Array()
 	result.resize(_centreline_positions.size())
 	for i in _centreline_positions.size():
 		var right: Vector3 = Basis(Vector3.UP, _centreline_yaws[i]).x
+		var offset: float = wander_offset_at(wander, cumulative[i], loop_length)
 		result[i] = _centreline_positions[i] + right * offset
 	return result
 
@@ -544,16 +605,20 @@ func _build_line_material() -> StandardMaterial3D:
 	return material
 
 
-## Builds one hazard standing in its own lane: [param offset] metres across the road from the
-## centreline, starting at the point [param centreline_distance] metres along [param
+## Builds one hazard standing in its own lane: a wander drawn from [param half_band] and [param
+## slow_phase] ([method draw_wander]) pushes the centreline sideways as a function of its own
+## arclength, and the hazard starts at the point [param centreline_distance] metres along [param
 ## centreline_length] converts to along that lane's own (generally different) length.
 ##
 ## Yaws are re-derived from the offset polyline rather than copied off the centreline
 ## ([RoadCentreline.yaws_from_positions]): an outer lane through a corner turns through the same
 ## angle over a longer arc, and copying would leave a hazard's nose pointing subtly off its own
 ## path.
-func _spawn_ghost(offset: float, centreline_distance: float, centreline_length: float) -> Hazard:
-	var lane_positions: PackedVector3Array = _offset_positions(offset)
+func _spawn_ghost(half_band: float, slow_phase: float, centreline_distance: float,
+		centreline_length: float, centreline_cumulative: PackedFloat32Array) -> Hazard:
+	var wander: Wander = draw_wander(
+		half_band, centreline_length, max_lane_gradient, slow_phase, _rng)
+	var lane_positions: PackedVector3Array = _offset_positions(wander, centreline_cumulative)
 	var lane_yaws: PackedFloat32Array = RoadCentreline.yaws_from_positions(lane_positions)
 	var lane_cumulative: PackedFloat32Array = _cumulative_lengths(lane_positions)
 	var lane_length: float = lane_cumulative[lane_cumulative.size() - 1]
@@ -687,8 +752,9 @@ class Hazard extends RefCounted:
 	var speed: float = 0.0 # m/s, picked once at spawn from [min_speed, max_speed]
 	var origin: Vector3 = Vector3.ZERO
 	var material: StandardMaterial3D = null
-	## The centreline offset into this hazard's own lane, drawn once at spawn and kept for its
-	## whole life — "one part of the track, driven the whole circuit".
+	## This hazard's own lane, drawn once at spawn from a wander across the centreline and kept for
+	## its whole life — never re-evaluated afterward, even though the wander it came from is a
+	## function of arclength rather than a constant offset.
 	var lane_positions: PackedVector3Array = PackedVector3Array()
 	## Re-derived from [member lane_positions], not copied from the centreline: an outer lane
 	## through a corner turns through the same angle over a longer arc, and copying would leave a

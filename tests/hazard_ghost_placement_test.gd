@@ -152,102 +152,124 @@ func test_backward_lookup_never_passes_the_index_it_started_from() -> void:
 		"a distance already behind the starting index moves nothing")
 
 
-func test_lane_capacity_counts_the_cars_that_fit_side_by_side() -> void:
-	check(HazardGhostField.lane_capacity(8.0, 3.0) == 2, "a 3 m car on an 8 m road fits 2 abreast")
-	check(HazardGhostField.lane_capacity(8.0, 2.0) == 4, "a 2 m car on an 8 m road fits 4 abreast")
-	check(HazardGhostField.lane_capacity(8.0, 1.5) == 5, "a 1.5 m car on an 8 m road fits 5 abreast")
+## A loop length whose gradient budget sits strictly between "the slow harmonic alone, at its
+## widest range (n=4), still fits" and "the slow harmonic plus even the loosest fast harmonic
+## (n_slow=2, n_fast=9) fits" — so the cap-binding test reliably shrinks only the fast harmonic,
+## regardless of which harmonics the rng draws.
+const CAP_BINDING_LOOP_LENGTH: float = 1100.0
+const HALF_BAND: float = 3.25
+const MAX_GRADIENT: float = 0.06
+const LOOP_LENGTH: float = 700.0
 
 
-func test_lane_capacity_degenerate_widths_give_one() -> void:
-	check(HazardGhostField.lane_capacity(4.0, 8.0) == 1, "a car wider than the road still gets a lane")
-	check(HazardGhostField.lane_capacity(0.0, 2.0) == 1, "zero road width gives a single lane")
-	check(HazardGhostField.lane_capacity(8.0, 0.0) == 1, "zero car width gives a single lane")
-
-
-func test_deal_offsets_never_hang_a_car_past_the_road_edge() -> void:
+func test_wander_offset_is_seamless_across_the_loop() -> void:
 	var rng := RandomNumberGenerator.new()
 	for roll in ROLLS:
-		for offset in HazardGhostField.deal_offsets(5, 8.0, 1.7, rng):
-			check(absf(offset) + 1.7 * 0.5 <= 8.0 * 0.5 + 1e-4,
-				"no offset's outer edge passes the road edge")
+		var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
+			HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
+		check_near(
+			HazardGhostField.wander_offset_at(wander, 0.0, LOOP_LENGTH),
+			HazardGhostField.wander_offset_at(wander, LOOP_LENGTH, LOOP_LENGTH),
+			1e-3,
+			"the wander's value at the seam matches its value at the loop's end")
 
 
-func test_deal_offsets_are_continuous_rather_than_a_fixed_set() -> void:
+func test_wander_offset_stays_within_the_half_band() -> void:
 	var rng := RandomNumberGenerator.new()
-	var seen: Dictionary = {}
+	var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
+	var samples: int = 2000
+	for i in samples:
+		var s: float = LOOP_LENGTH * float(i) / float(samples)
+		check(absf(HazardGhostField.wander_offset_at(wander, s, LOOP_LENGTH)) <= HALF_BAND + 1e-4,
+			"the wander never asks for more than its own half_band at s=%.1f" % s)
+
+
+func test_wander_gradient_stays_at_or_under_the_cap() -> void:
+	var rng := RandomNumberGenerator.new()
+	var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
+	# Sampled at 0.1 m, well under the fast harmonic's wavelength: a coarser stride can miss a
+	# violation between samples and go quietly green.
+	var step: float = 0.1
+	var previous: float = HazardGhostField.wander_offset_at(wander, 0.0, LOOP_LENGTH)
+	var s: float = step
+	while s <= LOOP_LENGTH:
+		var current: float = HazardGhostField.wander_offset_at(wander, s, LOOP_LENGTH)
+		var gradient: float = absf(current - previous) / step
+		check(gradient <= MAX_GRADIENT + 1e-3,
+			"lateral movement per metre stays at or under max_lane_gradient at s=%.1f" % s)
+		previous = current
+		s += step
+
+
+func test_wander_is_inert_at_zero_half_band() -> void:
+	var rng := RandomNumberGenerator.new()
+	var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
+		0.0, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
 	for roll in ROLLS:
-		for offset in HazardGhostField.deal_offsets(3, 8.0, 2.0, rng):
-			seen[offset] = true
-	# Three hazards on a road that fits four: every band has slack, so repeats mean a grid.
-	check(seen.size() > ROLLS, "offsets vary continuously rather than landing on a handful of lanes")
+		var s: float = rng.randf_range(0.0, LOOP_LENGTH)
+		check(HazardGhostField.wander_offset_at(wander, s, LOOP_LENGTH) == 0.0,
+			"a zero half_band reproduces the pre-change constant lane exactly")
 
 
-func test_deal_offsets_keep_two_hazards_a_car_apart() -> void:
+func test_wander_cap_binds_the_fast_harmonic_only() -> void:
 	var rng := RandomNumberGenerator.new()
-	for roll in ROLLS:
-		var offsets: Array[float] = HazardGhostField.deal_offsets(3, 8.0, 2.0, rng)
-		offsets.sort()
-		for i in range(1, offsets.size()):
-			check(offsets[i] - offsets[i - 1] >= 2.0 - 1e-4,
-				"neighbouring hazards never overlap, however the jitter falls")
+	var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
+		HALF_BAND, CAP_BINDING_LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
+	var expected_slow: float = HALF_BAND * 0.75
+	check_near(wander.slow_amplitude, expected_slow, 1e-4,
+		"the slow harmonic keeps its full share of the half_band when the cap binds")
+	check(wander.fast_amplitude < HALF_BAND * 0.25 - 1e-4,
+		"only the fast harmonic's amplitude shrinks to fit the gradient budget")
 
 
-func test_deal_offsets_stay_spread_across_the_road() -> void:
-	var rng := RandomNumberGenerator.new()
-	for roll in ROLLS:
-		var offsets: Array[float] = HazardGhostField.deal_offsets(3, 8.0, 2.0, rng)
-		offsets.sort()
-		# Three of the road's three bands are dealt without replacement, so one hazard sits in each
-		# third: the outer two straddle the centre however the jitter falls.
-		check(offsets[0] < 0.0 and offsets[2] > 0.0, "hazards spread across the road, not clumped")
-
-
-func test_deal_offsets_a_road_packed_to_capacity_falls_back_to_the_even_grid() -> void:
-	var rng := RandomNumberGenerator.new()
-	var offsets: Array[float] = HazardGhostField.deal_offsets(4, 8.0, 2.0, rng)
-	offsets.sort()
-	var expected: Array[float] = [-3.0, -1.0, 1.0, 3.0]
-	for i in offsets.size():
-		check_near(offsets[i], expected[i], 1e-4,
-			"a full road has no slack left and packs cars evenly")
-
-
-func test_deal_offsets_stay_balanced_past_capacity() -> void:
-	var rng := RandomNumberGenerator.new()
-	for roll in ROLLS:
-		# Two bands on a road that fits two 3 m cars: eight hazards means four uses of each.
-		var offsets: Array[float] = HazardGhostField.deal_offsets(8, 8.0, 3.0, rng)
-		var left: int = 0
-		for offset in offsets:
-			if offset < 0.0:
-				left += 1
-		check(left == 4, "band uses stay balanced once the deal wraps past capacity")
-
-
-func test_deal_offsets_a_car_wider_than_the_road_centres_every_hazard() -> void:
-	var rng := RandomNumberGenerator.new()
-	var offsets: Array[float] = HazardGhostField.deal_offsets(3, 4.0, 8.0, rng)
-	check(offsets.size() == 3, "one offset per hazard even with nowhere to put them")
-	for offset in offsets:
-		check(offset == 0.0, "too-wide car drives dead centre")
-
-
-func test_deal_offsets_two_seeds_produce_different_deals() -> void:
+func test_wander_is_deterministic_per_seed() -> void:
 	var first_rng := RandomNumberGenerator.new()
 	first_rng.seed = 1
 	var second_rng := RandomNumberGenerator.new()
-	second_rng.seed = 2
+	second_rng.seed = 1
+	var third_rng := RandomNumberGenerator.new()
+	third_rng.seed = 2
 
-	var first: Array[float] = HazardGhostField.deal_offsets(10, 8.0, 2.0, first_rng)
-	var second: Array[float] = HazardGhostField.deal_offsets(10, 8.0, 2.0, second_rng)
+	var first: HazardGhostField.Wander = HazardGhostField.draw_wander(
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, 1.0, first_rng)
+	var second: HazardGhostField.Wander = HazardGhostField.draw_wander(
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, 1.0, second_rng)
+	var third: HazardGhostField.Wander = HazardGhostField.draw_wander(
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, 1.0, third_rng)
 
-	var moved: bool = false
-	for i in first.size():
-		if not is_equal_approx(first[i], second[i]):
-			moved = true
-	check(moved, "two different rng seeds produce different deals")
+	check(first.slow_harmonic == second.slow_harmonic
+			and first.fast_harmonic == second.fast_harmonic
+			and is_equal_approx(first.fast_phase, second.fast_phase),
+		"the same rng seed draws the same wander")
+	check(first.slow_harmonic != third.slow_harmonic
+			or first.fast_harmonic != third.fast_harmonic
+			or not is_equal_approx(first.fast_phase, third.fast_phase),
+		"different rng seeds draw different wanders")
 
 
-func test_deal_offsets_non_positive_count_is_empty() -> void:
+func test_wander_degenerate_inputs_give_zero_and_deal_phases_are_well_formed() -> void:
 	var rng := RandomNumberGenerator.new()
-	check(HazardGhostField.deal_offsets(0, 8.0, 2.0, rng).is_empty(), "count <= 0 gives an empty array")
+	var zero_band: HazardGhostField.Wander = HazardGhostField.draw_wander(
+		0.0, LOOP_LENGTH, MAX_GRADIENT, 0.0, rng)
+	check(zero_band.slow_amplitude == 0.0 and zero_band.fast_amplitude == 0.0,
+		"half_band <= 0.0 gives an all-zero wander")
+
+	var zero_loop: HazardGhostField.Wander = HazardGhostField.draw_wander(
+		HALF_BAND, 0.0, MAX_GRADIENT, 0.0, rng)
+	check(zero_loop.slow_amplitude == 0.0 and zero_loop.fast_amplitude == 0.0,
+		"loop_length <= 0.0 gives an all-zero wander")
+
+	check(HazardGhostField.deal_phases(0, rng).is_empty(), "count <= 0 gives an empty array")
+
+	var count: int = 5
+	var band_width: float = TAU / count
+	for roll in ROLLS:
+		var phases: Array[float] = HazardGhostField.deal_phases(count, rng)
+		var bands_seen: Dictionary = {}
+		for phase in phases:
+			check(phase >= 0.0 and phase < TAU, "every dealt phase is in [0, TAU)")
+			var band: int = floori(phase / band_width)
+			check(not bands_seen.has(band), "no two of count phases fall in the same band")
+			bands_seen[band] = true
