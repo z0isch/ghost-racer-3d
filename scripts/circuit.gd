@@ -34,4 +34,4 @@ extends Resource
 ## checkpoint — completing a full circuit pays a time bonus exactly as a clock pickup does. Per
 ## circuit rather than a global constant, since a short circuit's wrap is a much smaller fraction of
 ## a Run than a long one's. 0.0 means a wrap banks nothing, exactly as before this existed.
-@export var wrap_bonus_seconds: float = 5.0
+@export var wrap_bonus_seconds: float = 7.0
