@@ -155,7 +155,7 @@ max_speed = 16.0
 max_lane_gradient = 0.3
 hit_slow_multiplier = 0.75
 pickup_radius_fraction = 3.0
-line_width = 0.25
+line_width = 0.2
 line_color = Color(0.9490196, 0.101960786, 0.101960786, 0.4509804)
 
 [node name="PurseLink" type="Node" parent="." unique_id=417553903]
