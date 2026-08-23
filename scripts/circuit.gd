@@ -26,3 +26,12 @@ extends Resource
 ## ladder**). One number for the whole circuit and deliberately not per-checkpoint: a checkpoint
 ## cannot be skipped, so its value can never be a decision. Value that varies is the clock's.
 @export var base_checkpoint_value: int = 1
+## Chance, each time a checkpoint is taken, that one hazard ghost is added on top of the standing
+## field — HazardGhostField.spawn_chance_per_checkpoint's own doc. 0.0 means a circuit's hazard
+## traffic never thickens mid-Run, exactly as before this existed.
+@export_range(0.0, 1.0) var hazard_spawn_chance_per_checkpoint: float = 0.5
+## Seconds added to the Run budget every time the checkpoint sequence wraps back to the first
+## checkpoint — completing a full circuit pays a time bonus exactly as a clock pickup does. Per
+## circuit rather than a global constant, since a short circuit's wrap is a much smaller fraction of
+## a Run than a long one's. 0.0 means a wrap banks nothing, exactly as before this existed.
+@export var wrap_bonus_seconds: float = 5.0

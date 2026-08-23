@@ -18,6 +18,7 @@
 [ext_resource type="Shader" uid="uid://cnkc6102dunqd" path="res://shaders/moebius.gdshader" id="16_moebius_shader"]
 [ext_resource type="Script" uid="uid://c6lyjon7i14mm" path="res://scripts/moebius_effect.gd" id="17_moebius_effect"]
 [ext_resource type="Script" uid="uid://b2m0rjc2vkdi1" path="res://scripts/hazard_ghost_field.gd" id="18_hazard_ghost_field"]
+[ext_resource type="Script" uid="uid://da76lipm4pj0o" path="res://scripts/wrap_hud.gd" id="19_wrap_hud"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_moebius"]
 sky_top_color = Color(0.22114116, 0.5285429, 0.5401196, 1)
@@ -136,7 +137,7 @@ director_path = NodePath("../RunDirector")
 road_container_path = NodePath("../Circuit/RoadManager/RoadContainer")
 start_line_path = NodePath("../Circuit/StartLine")
 ghosts_path = NodePath("../Circuit/BoostGhosts")
-placement_jitter = 0.504
+placement_jitter = 0.669
 pickup_radius_fraction = 2.0
 ghost_color = Color(0, 0.5176471, 0.34509805, 0.5921569)
 
@@ -147,14 +148,13 @@ director_path = NodePath("../RunDirector")
 road_container_path = NodePath("../Circuit/RoadManager/RoadContainer")
 start_line_path = NodePath("../Circuit/StartLine")
 ghosts_path = NodePath("../Circuit/HazardGhosts")
-start_margin = 15.0
+kart_clearance = 20.0
 placement_jitter = 0.5
 min_speed = 1.0
-max_speed = 14.0
+max_speed = 10.0
 max_lane_gradient = 0.3
 hit_slow_multiplier = 0.75
-jump_time_bonus = 1.0
-pickup_radius_fraction = 3.0
+pickup_radius_fraction = 2.0
 line_width = 0.25
 line_color = Color(0.9490196, 0.101960786, 0.101960786, 0.4509804)
 
@@ -398,6 +398,33 @@ theme_override_constants/outline_size = 16
 theme_override_font_sizes/font_size = 200
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="WrapHud" type="CanvasLayer" parent="." unique_id=903471201]
+script = ExtResource("19_wrap_hud")
+director_path = NodePath("../RunDirector")
+
+[node name="LineLabel" type="RichTextLabel" parent="WrapHud" unique_id=903471203]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -400.0
+offset_top = -172.0
+offset_right = 400.0
+offset_bottom = 36.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/default_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/line_separation = -8
+theme_override_constants/outline_size = 12
+theme_override_font_sizes/normal_font_size = 38
+bbcode_enabled = true
+scroll_active = false
+autowrap_mode = 0
 
 [node name="PurseHud" type="CanvasLayer" parent="." unique_id=417553905]
 script = ExtResource("13_purse_hud")

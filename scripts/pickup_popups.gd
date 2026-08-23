@@ -20,6 +20,7 @@ extends Node3D
 ## all. That is what lets this one node serve both a race's pickups and the open world's.
 
 ## checkpoint_paid → "$12", money green.
+## wrap_bonus_paid → "+10s", clock_color — a wrap bonus is a time award, not a checkpoint payout.
 @export var director_path: NodePath
 ## clock_taken → "+10s", pointedly not green.
 @export var clock_field_path: NodePath
@@ -63,6 +64,7 @@ func _ready() -> void:
 	var director: RunDirector = get_node_or_null(director_path) as RunDirector
 	if director != null:
 		director.checkpoint_paid.connect(_on_checkpoint_paid)
+		director.wrap_bonus_paid.connect(_on_clock_taken)
 	else:
 		push_warning("PickupPopups: no RunDirector — no checkpoint feedback.")
 
@@ -75,6 +77,9 @@ func _ready() -> void:
 	var hazard_field: HazardGhostField = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
 	if hazard_field != null:
 		hazard_field.hazard_jumped.connect(_on_hazard_jumped)
+		# On trial alongside HazardGhostField.hit_time_bonus's own payout: same colour as the hop's
+		# popup, since both are a bonus paid out by a different route, just with independent amounts.
+		hazard_field.hazard_hit.connect(_on_hazard_jumped)
 
 
 func _on_checkpoint_paid(value: int, pickup_position: Vector3, direction: Vector3) -> void:

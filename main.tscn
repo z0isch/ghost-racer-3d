@@ -82,7 +82,7 @@ shadow_enabled = true
 directional_shadow_max_distance = 120.0
 
 [node name="Kart" parent="." unique_id=658236697 instance=ExtResource("1_kart")]
-transform = Transform3D(-4.371139e-08, 0.25881898, -0.96592563, 0, 0.9659256, 0.25881898, 1, 1.1313337e-08, -4.2221952e-08, 44.217, 0, -22.459)
+transform = Transform3D(-4.371139e-08, 0.25881898, -0.96592563, 0, 0.9659256, 0.25881898, 1, 1.1313337e-08, -4.2221952e-08, 19.072361, 0, -16.205124)
 tuning = ExtResource("3_4c57u")
 
 [node name="ChaseCamera" type="Camera3D" parent="." unique_id=1992052791]

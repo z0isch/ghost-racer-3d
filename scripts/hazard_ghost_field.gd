@@ -22,8 +22,11 @@ extends Node
 ## over, so a wrap-long ribbon is permanent scenery, where a per-hazard one is a warning about
 ## traffic that is actually coming.
 
-## One ghost, the instant it is hit head-on. Position only, for BoostGhostField's reason.
-signal hazard_hit(position: Vector3)
+## One ghost, the instant it is hit head-on. Carries [member jump_time_bonus] too, on the same
+## trial basis as the hit itself pays out the bonus (see that member's doc): whichever way a
+## hazard is cleared, RunDirector banks the same seconds, and position/direction match
+## hazard_jumped's own shape for PickupPopups's reason below.
+signal hazard_hit(seconds: float, position: Vector3, direction: Vector3)
 ## One ghost, the instant it is cleared by a hop instead. Carries the seconds the jump is worth, so
 ## RunDirector can bank them the same way it banks a clock, and position/direction in ClockField.
 ## clock_taken's own shape, so PickupPopups can spawn a popup for this pickup exactly as it does
@@ -57,7 +60,7 @@ const WANDER_SLOW_SHARE: float = 0.75
 ## are measured from. Mirrors BoostGhostField's export of the same name.
 @export var road_container_path: NodePath
 ## The same start-line Marker3D the RunDirector teleports the kart onto, for BoostGhostField's
-## identical reason: the loop has no inherent start, and this is where start_margin is measured from.
+## identical reason: the loop has no inherent start, and this is where arclength 0.0 is measured from.
 @export var start_line_path: NodePath
 ## The circuit's HazardGhosts node: an empty runtime spawn parent. The field owns what stands under
 ## it; nothing is authored there.
@@ -71,6 +74,18 @@ const WANDER_SLOW_SHARE: float = 0.75
 		ghost_count = maxi(value, 0)
 		_place_ghosts()
 
+## Chance, each time [signal RunDirector.checkpoint_paid] fires, that one hazard is added on top
+## of the standing field — a circuit's own traffic can thicken as a Run goes on, rather than
+## staying fixed at [member ghost_count] for the whole Run. Per-circuit, set by race.gd from
+## [member Circuit.hazard_spawn_chance_per_checkpoint], the same way [member ghost_count] is
+## seeded from the loadout. 0.0 reproduces this field's behaviour before checkpoint spawning
+## existed.
+##
+## Not reset by [signal RunDirector.wrapped], for the class doc's reason: nothing about standing
+## hazards resets on a wrap. Cleared only when [method _place_ghosts] next runs, at the following
+## countdown.
+@export_range(0.0, 1.0) var spawn_chance_per_checkpoint: float = 0.0
+
 ## The circuit's own loadout, for BoostGhostField.loadout's identical reason: the dev keys ([method
 ## _physics_process]) raise or lower its hazard_ghost_count directly. Set by race.gd alongside
 ## [member ghost_count] itself. Left null, the dev keys fall back to editing [member ghost_count]
@@ -80,11 +95,12 @@ var loadout: CircuitLoadout = null
 ## reason. Set by race.gd, bound to the resolved Circuit.
 var save_loadout: Callable = Callable()
 
-## Metres of ghost line left clear at the start, for BoostGhostField.start_margin's identical
-## reason: a hazard is never handed before the driver has picked up speed off the line. Nothing
-## clears the end, for the same reason BoostGhostField clears none either: a Run wraps rather than
-## finishing at a gate.
-@export var start_margin: float = 10.0
+## Metres of ghost line kept clear either side of the kart's own current position, for
+## BoostGhostField.kart_clearance's identical reason: a hazard is never handed right off the kart's
+## nose (nor right behind it), including at the moment a Run starts when the kart sits at arclength
+## 0.0. Applies to [method _spawn_extra_ghosts] too, not just the field's initial placement — traffic
+## thickening off a checkpoint is no less a surprise than traffic at the start would be.
+@export var kart_clearance: float = 10.0
 
 ## Fraction of its own slot a hazard may wander across at spawn, for BoostGhostField's reason. It
 ## still drives the whole line afterward — this only varies where in its lap the traffic starts out.
@@ -112,10 +128,17 @@ var save_loadout: Callable = Callable()
 ## nothing. Kept separate from the ghost's own driving speed: how hard a hit costs you is a
 ## different dial than how fast the traffic comes at you.
 @export var hit_slow_multiplier: float = 0.5
-## Seconds added to the Run when a hazard is cleared by a hop instead of hit, via [signal
-## hazard_jumped]. Tunable independently of a clock's own seconds — a dodge is a smaller, riskier
-## trick than driving over an authored clock, so this defaults lower.
+## Seconds added to the Run when a hazard is cleared by a hop ([signal hazard_jumped]). Tunable
+## independently of a clock's own seconds — a dodge is a smaller, riskier trick than driving over
+## an authored clock, so this defaults lower.
 @export var jump_time_bonus: float = 0.0
+## Seconds added to the Run when a hazard is cleared by driving straight through it ([signal
+## hazard_hit]). Its own knob, separate from [member jump_time_bonus]: paying out on the hit too,
+## not just the hop, is a trial, and it turns every hazard into free time rather than a threat to
+## dodge — whether that reads as generous or as removing the hazard's whole point is the thing
+## being tested, and having its own dial makes that easy to tune down or zero without touching the
+## hop's own payout.
+@export var hit_time_bonus: float = 0.0
 ## Fraction of the kart's own collision radius ([member Kart.sphere_radius]) a hazard reaches out
 ## to, for BoostGhostField.pickup_radius_fraction's identical reason and identical default.
 @export var pickup_radius_fraction: float = 4.0
@@ -171,6 +194,12 @@ var _start_line: Node3D
 ## reused at every one after, for BoostGhostField._centreline_positions's identical reason.
 var _centreline_positions: PackedVector3Array = PackedVector3Array()
 var _centreline_yaws: PackedFloat32Array = PackedFloat32Array()
+## Cumulative arc length of [member _centreline_positions] and its own last entry, cached
+## alongside it in [method _build_centreline] rather than recomputed by both [method _place_ghosts]
+## and [method _spawn_extra_ghosts] — the latter runs off a checkpoint crossing, not once per
+## countdown, so recomputing per call would redo the same walk every checkpoint of a Run.
+var _centreline_cumulative: PackedFloat32Array = PackedFloat32Array()
+var _centreline_length: float = 0.0
 ## pickup_radius_fraction resolved against the kart's sphere_radius, for
 ## BoostGhostField._pickup_radius's identical reason.
 var _pickup_radius: float = 0.0
@@ -188,6 +217,9 @@ func _ready() -> void:
 	if _director != null:
 		# countdown_started only: a wrap deliberately leaves the field alone (see class doc).
 		_director.countdown_started.connect(_on_countdown_started)
+		# unbind(3) drops checkpoint_paid's value/position/direction: a checkpoint crossing spawns
+		# more traffic regardless of what it paid or where it was taken.
+		_director.checkpoint_paid.connect(_on_checkpoint_paid.unbind(3))
 
 	if _ghosts_root == null:
 		push_warning("HazardGhostField: no HazardGhosts node — nothing to spawn traffic into.")
@@ -248,15 +280,19 @@ func _process(delta: float) -> void:
 
 
 ## Starting arclength distances for [param count] hazard ghosts along a line of [param total_length]
-## metres, one per equal slot of the span left by [param margin_start] — BoostGhostField.place_along's
-## stratification, minus the pose resolution: called once against the centreline's own length, with
-## each hazard's chosen distance later converted into its own lane's arclength ([method
-## _spawn_ghost]), so the arclength stratification and [member start_margin] stay comparable between
-## lanes.
+## metres, one per equal slot of the span left once [param kart_clearance] metres either side of
+## [param kart_distance] are excluded — BoostGhostField.place_along's stratification and wraparound
+## exclusion, minus the pose resolution: called once against the centreline's own length, with each
+## hazard's chosen distance later converted into its own lane's arclength ([method _spawn_ghost]), so
+## the arclength stratification and [member kart_clearance] stay comparable between lanes.
+##
+## Parameter named clearance rather than kart_clearance (which the exported [member kart_clearance]
+## already claims on this class), for BoostGhostField.place_along's identical reason.
 static func place_along(
 	total_length: float,
 	count: int,
-	margin_start: float,
+	kart_distance: float,
+	clearance: float,
 	rng: RandomNumberGenerator,
 	jitter: float,
 ) -> Array[float]:
@@ -264,17 +300,43 @@ static func place_along(
 	if count <= 0 or total_length <= 0.0:
 		return result
 
-	var usable: float = total_length - margin_start
+	var usable: float = total_length - 2.0 * clearance
 	if usable <= 0.0:
 		return result
 
 	var slot: float = usable / count
 	for i in count:
-		var centre: float = margin_start + (i + 0.5) * slot
-		var target: float = centre + rng.randf_range(-0.5, 0.5) * jitter * slot
+		var centre: float = kart_distance + clearance + (i + 0.5) * slot
+		var target: float = fposmod(centre + rng.randf_range(-0.5, 0.5) * jitter * slot, total_length)
 		result.append(target)
 
 	return result
+
+
+## The arclength on [member _centreline_cumulative] nearest [param point], for [member
+## kart_clearance]'s exclusion band. BoostGhostField._kart_arclength's identical squared-distance
+## search, duplicated for the same reason it is there: RoadCentreline carries no cumulative array to
+## resolve its own nearest index into an arclength.
+static func _kart_arclength(
+	positions: PackedVector3Array, cumulative: PackedFloat32Array, point: Vector3
+) -> float:
+	var best_index: int = 0
+	var best_distance: float = INF
+	for i in positions.size():
+		var distance: float = positions[i].distance_squared_to(point)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = i
+	return cumulative[best_index]
+
+
+## The shorter arclength gap between [param a] and [param b] on a closed loop of [param
+## total_length] metres — the distance [method _spawn_extra_ghosts] checks a candidate placement
+## against, since a hazard exactly opposite the kart across the seam is exactly as far from it as one
+## the same distance away without wrapping.
+static func _circular_distance(a: float, b: float, total_length: float) -> float:
+	var diff: float = absf(fposmod(a - b, total_length))
+	return minf(diff, total_length - diff)
 
 
 ## The index of the sample [param distance] metres along the line falls on, capped so the sample
@@ -429,26 +491,81 @@ func _place_ghosts() -> void:
 		return
 
 	_build_centreline()
-	var centreline_cumulative: PackedFloat32Array = _cumulative_lengths(_centreline_positions)
-	var centreline_length: float = centreline_cumulative[centreline_cumulative.size() - 1]
-	if centreline_length <= 0.0:
+	if _centreline_length <= 0.0:
 		return
 
-	var car_width: float = 2.0 * _pickup_radius
-	var half_band: float = maxf(
-		(RoadCentreline.width(_road_container) - car_width) * 0.5, 0.0) * lane_wander
+	var half_band: float = _half_band()
 	var phases: Array[float] = deal_phases(ghost_count, _rng)
+	var kart_distance: float = _current_kart_distance()
 
 	var distances: Array[float] = place_along(
-		centreline_length,
+		_centreline_length,
 		ghost_count,
-		start_margin,
+		kart_distance,
+		kart_clearance,
 		_rng,
 		placement_jitter,
 	)
 	for i in distances.size():
 		_ghosts.append(_spawn_ghost(
-			half_band, phases[i], distances[i], centreline_length, centreline_cumulative))
+			half_band, phases[i], distances[i], _centreline_length, _centreline_cumulative))
+
+
+## The kart's own current arclength along the centreline, or 0.0 (the start line) with no kart wired
+## up or no centreline built yet — [method _place_ghosts]'s and [method _spawn_extra_ghosts]'s
+## shared resolution of [member kart_clearance]'s exclusion band.
+func _current_kart_distance() -> float:
+	if _kart == null or _centreline_cumulative.is_empty():
+		return 0.0
+	return _kart_arclength(_centreline_positions, _centreline_cumulative, _kart.global_position)
+
+
+## Hazards this half_band's own share of the road can support without two overlapping — the same
+## expression [method _place_ghosts] used inline before [member spawn_chance_per_checkpoint] gave it a
+## second caller.
+func _half_band() -> float:
+	var car_width: float = 2.0 * _pickup_radius
+	return maxf((RoadCentreline.width(_road_container) - car_width) * 0.5, 0.0) * lane_wander
+
+
+## Adds [param count] hazards to the standing field without disturbing it, for [signal
+## RunDirector.checkpoint_paid] — unlike [method _place_ghosts] this never frees what is already
+## out on the road. Each new hazard's start distance and slow-harmonic phase are drawn uniformly
+## rather than through [method place_along]'s stratified slots or [method deal_phases]'ing
+## dealt-without-replacement bands: both of those stratify a fixed-size field placed all at once,
+## and this is neither — the field it is joining already has hazards out there driving, with no
+## span or band count left to stratify around them.
+##
+## The distance draw is still rejection-sampled against [member kart_clearance]: a checkpoint can
+## fire with the kart anywhere on the lap, and traffic thickening is no less a surprise appearing
+## right on top of the driver than it would be at the start. A capped retry count rather than an
+## unbounded loop, since a clearance wider than the whole lap would otherwise spin forever; the last
+## draw is kept regardless, on the same logic [method place_along] uses to hand back nothing rather
+## than raise an error when a margin can't be honoured.
+func _spawn_extra_ghosts(count: int) -> void:
+	if count <= 0 or _ghosts_root == null or _centreline_length <= 0.0:
+		return
+
+	const MAX_DRAWS: int = 20
+	var half_band: float = _half_band()
+	var kart_distance: float = _current_kart_distance()
+	for _i in count:
+		var distance: float = _rng.randf_range(0.0, _centreline_length)
+		for _draw in MAX_DRAWS - 1:
+			if _circular_distance(distance, kart_distance, _centreline_length) >= kart_clearance:
+				break
+			distance = _rng.randf_range(0.0, _centreline_length)
+		var phase: float = _rng.randf_range(0.0, TAU)
+		_ghosts.append(_spawn_ghost(
+			half_band, phase, distance, _centreline_length, _centreline_cumulative))
+
+
+## [signal RunDirector.checkpoint_paid] handler: see [member spawn_chance_per_checkpoint]. One roll
+## per checkpoint, for one hazard at most — a checkpoint either thickens the field by one car or it
+## doesn't, rather than a Poisson-ish number of them.
+func _on_checkpoint_paid() -> void:
+	if _rng.randf() < spawn_chance_per_checkpoint:
+		_spawn_extra_ghosts(1)
 
 
 ## Walks [member _road_container]'s RoadPoints into the circuit's centreline positions/yaws and
@@ -468,6 +585,8 @@ func _build_centreline() -> void:
 
 	_centreline_positions = loop
 	_centreline_yaws = RoadCentreline.yaws_from_positions(loop)
+	_centreline_cumulative = _cumulative_lengths(loop)
+	_centreline_length = _centreline_cumulative[_centreline_cumulative.size() - 1]
 
 
 ## Cumulative arc length at each sample of [param positions]. Shared by the centreline (once, to
@@ -718,7 +837,7 @@ func _sweep_ghosts() -> void:
 			hazard_jumped.emit(jump_time_bonus, hazard.origin, direction)
 		else:
 			_kart.apply_hazard_slow(hit_slow_multiplier)
-			hazard_hit.emit(hazard.origin)
+			hazard_hit.emit(hit_time_bonus, hazard.origin, direction)
 
 
 ## Re-places the whole field at every countdown, for BoostGhostField._on_countdown_started's

@@ -7,8 +7,9 @@ extends Node
 ## one bump and one bleed here rather than per-ghost metadata.
 ##
 ## Modelled on ClockField deliberately, down to the lifecycle: a ghost is taken once and stays taken
-## for the rest of the Run, exactly as a clock is, and the whole field is restored — and re-rolled —
-## only at every countdown, never at a wrap.
+## until the field is next re-placed, exactly as a clock is, and the whole field is re-rolled at
+## every countdown and every wrap — a boost taken on one lap is offered again, at fresh positions,
+## on the next rather than the field thinning out to nothing over a long Run.
 ##
 ## Purely spatial: it emits [signal ghost_taken] and knows nothing about who listens —
 ## not the camera's FOV punch, not the kart's speed.
@@ -48,8 +49,8 @@ const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 @export var road_container_path: NodePath
 ## The same start-line Marker3D the [RunDirector] teleports the kart onto. The centreline is a
 ## closed loop with no inherent start; this is where it is cut and which direction it is walked, so
-## [member start_margin] clears the same stretch of road the driver actually starts on rather than
-## an arbitrary RoadPoint.
+## arclength distances (and [member kart_clearance]'s own exclusion band, measured from wherever the
+## kart actually is) mean the same thing lap to lap rather than drifting with an arbitrary RoadPoint.
 @export var start_line_path: NodePath
 ## The circuit's BoostGhosts node: an empty runtime spawn parent. The field owns what stands under
 ## it; nothing is authored there.
@@ -76,10 +77,11 @@ var loadout: CircuitLoadout = null
 ## resolved Circuit.
 var save_loadout: Callable = Callable()
 
-## Metres of centreline left clear at the start, so a ghost is never handed before the driver has
-## picked up speed off the line. Nothing clears the end: a Run wraps rather than finishing at a
-## gate ([CONTEXT.md]'s **Wrap**), so there is no "just before the end" to protect.
-@export var start_margin: float = 10.0
+## Metres of centreline kept clear either side of the kart's own current position, so a ghost is
+## never handed right off the kart's nose (nor right behind it) — including the moment a Run starts,
+## when the kart sits on the start line and this reproduces the field's old fixed start-of-lap
+## margin. Symmetric rather than forward-only: the excluded band wraps both ways around the loop.
+@export var kart_clearance: float = 10.0
 
 ## Fraction of its own slot a ghost may wander across. 0.0 pins every ghost to its slot's midpoint,
 ## which is a fixed field for as long as the road stands; 1.0 lets a ghost reach the slot edge it
@@ -132,6 +134,10 @@ var _elapsed: float = 0.0
 ## _place_ghosts] places nothing rather than falling back to some other line.
 var _centreline_positions: PackedVector3Array = PackedVector3Array()
 var _centreline_yaws: PackedFloat32Array = PackedFloat32Array()
+## Cumulative arc length of [member _centreline_positions], cached alongside it so [member
+## kart_clearance]'s exclusion band can be measured from the kart's own current arclength ([method
+## _kart_arclength]) without re-walking the line at every re-place.
+var _centreline_cumulative: PackedFloat32Array = PackedFloat32Array()
 var _road_container: RoadContainer
 var _start_line: Node3D
 ## pickup_radius_fraction resolved against the kart's sphere_radius. Resolved once in _ready
@@ -152,6 +158,7 @@ func _ready() -> void:
 
 	if _director != null:
 		_director.countdown_started.connect(_on_countdown_started)
+		_director.wrapped.connect(_on_wrapped)
 
 	if _ghosts_root == null:
 		push_warning("BoostGhostField: no BoostGhosts node — nothing to boost off.")
@@ -215,27 +222,34 @@ func _process(delta: float) -> void:
 
 
 ## Poses for [param count] boost ghosts along [param positions]/[param yaws], one per equal slot of
-## the span left by [param margin_start]. Empty for a count of zero or a line too short to hold the
-## margin.
+## the loop's span left once [param kart_clearance] metres either side of [param kart_distance] (the
+## kart's own current arclength along the same line) are excluded. Empty for a count of zero or a
+## line too short to hold the excluded band.
 ##
 ## Stratified rather than uniformly random: a ghost is drawn inside its own slot, never across the
 ## whole line, so a field re-rolled at every countdown can neither clump three ghosts into one
 ## corner nor leave a quarter of the lap bare. [param jitter] is the fraction of its slot a ghost
 ## may cross; at 0.0 every ghost sits exactly on its slot's midpoint.
 ##
+## The excluded band wraps rather than clamping at the line's own ends: the line is a full lap cut
+## open at the start line, so "behind" the kart's arclength position is the tail end of the same
+## lap, not off the line entirely. [param kart_distance] of 0.0 reproduces the field's old
+## behaviour at the moment a Run starts, when the kart sits at that same cut point.
+##
 ## Purely a walk along the given line: it knows nothing about the road's actual width, so it
 ## returns the line pose only. Fanning a ghost out to either side of that pose needs [method
 ## _lateral_placements], not this static function; a TestCase is a RefCounted that cannot touch the
 ## scene tree, and this is the seam the geometry suite tests.
 ##
-## Parameter named margin_start rather than start_margin (which the exported [member start_margin]
+## Parameter named clearance rather than kart_clearance (which the exported [member kart_clearance]
 ## already claims on this class): GDScript's shadowed_variable check fires on a static function
 ## parameter reusing an instance member's name, even though the two never interact.
 static func place_along(
 	positions: PackedVector3Array,
 	yaws: PackedFloat32Array,
 	count: int,
-	margin_start: float,
+	kart_distance: float,
+	clearance: float,
 	rng: RandomNumberGenerator,
 	jitter: float,
 ) -> Array[Transform3D]:
@@ -251,7 +265,7 @@ static func place_along(
 		cumulative.append(cumulative[i - 1] + positions[i - 1].distance_to(positions[i]))
 
 	var total: float = cumulative[cumulative.size() - 1]
-	var usable: float = total - margin_start
+	var usable: float = total - 2.0 * clearance
 	if usable <= 0.0:
 		return result
 
@@ -259,11 +273,29 @@ static func place_along(
 	# ghosts hard against the margins they were just told to respect.
 	var slot: float = usable / count
 	for i in count:
-		var centre: float = margin_start + (i + 0.5) * slot
-		var target: float = centre + rng.randf_range(-0.5, 0.5) * jitter * slot
+		var centre: float = kart_distance + clearance + (i + 0.5) * slot
+		var target: float = fposmod(
+			centre + rng.randf_range(-0.5, 0.5) * jitter * slot, total)
 		result.append(_pose_at(positions, yaws, cumulative, target))
 
 	return result
+
+
+## The nearest centreline sample to [param point], returned as that sample's own arclength — where
+## along the line the kart currently is, for [member kart_clearance]'s exclusion band.
+## RoadCentreline._nearest_index's identical squared-distance search, duplicated here since
+## RoadCentreline carries no cumulative array of its own to resolve the index into an arclength.
+static func _kart_arclength(
+	positions: PackedVector3Array, cumulative: PackedFloat32Array, point: Vector3
+) -> float:
+	var best_index: int = 0
+	var best_distance: float = INF
+	for i in positions.size():
+		var distance: float = positions[i].distance_squared_to(point)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = i
+	return cumulative[best_index]
 
 
 static func _pose_at(
@@ -303,11 +335,17 @@ func _place_ghosts() -> void:
 
 	_build_centreline()
 
+	var kart_distance: float = 0.0
+	if _kart != null and not _centreline_cumulative.is_empty():
+		kart_distance = _kart_arclength(
+			_centreline_positions, _centreline_cumulative, _kart.global_position)
+
 	var poses: Array[Transform3D] = place_along(
 		_centreline_positions,
 		_centreline_yaws,
 		ghost_count,
-		start_margin,
+		kart_distance,
+		kart_clearance,
 		_rng,
 		placement_jitter,
 	)
@@ -327,8 +365,8 @@ func _place_ghosts() -> void:
 ##
 ## [member _start_line], when set, is where the loop is cut into an open line and which direction it
 ## is walked: without it the loop is cut at an arbitrary RoadPoint and walked in that RoadPoint's
-## own "next" direction, which still yields a driveable centreline but no longer lines up
-## [member start_margin] with where the driver actually starts.
+## own "next" direction, which still yields a driveable centreline but no longer lines up arclength
+## 0.0 with where the driver actually starts.
 func _build_centreline() -> void:
 	if not _centreline_positions.is_empty() or _road_container == null:
 		return
@@ -342,6 +380,12 @@ func _build_centreline() -> void:
 
 	_centreline_positions = loop
 	_centreline_yaws = RoadCentreline.yaws_from_positions(loop)
+
+	_centreline_cumulative = PackedFloat32Array()
+	_centreline_cumulative.append(0.0)
+	for i in range(1, loop.size()):
+		_centreline_cumulative.append(
+			_centreline_cumulative[i - 1] + loop[i - 1].distance_to(loop[i]))
 
 
 ## Fans [param pose] out into [member lateral_ghost_count] ghosts perpendicular to the road: the
@@ -440,6 +484,15 @@ func _take_ghost(ghost: Ghost) -> void:
 ## rearranging the circuit while the player is still reading the Results screen.
 func _on_countdown_started() -> void:
 	_has_last_kart_position = false
+	_place_ghosts()
+
+
+## Re-places the whole field at every wrap too ([signal RunDirector.wrapped]), the same as
+## ClockField: a boost taken on one lap is offered again on the next, at freshly rolled positions,
+## rather than the field thinning out over a long Run. No teleport happens on a wrap, so unlike
+## [method _on_countdown_started] this leaves [member _has_last_kart_position] alone — the swept
+## segment carries straight through the wrap.
+func _on_wrapped() -> void:
 	_place_ghosts()
 
 

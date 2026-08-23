@@ -18,7 +18,7 @@ extends TestCase
 ## Every case is called statically, with no BoostGhostField instance: a TestCase is a RefCounted
 ## that must not touch the scene tree.
 
-const START_MARGIN: float = 10.0
+const KART_CLEARANCE: float = 10.0
 ## Enough rolls that a bound broken in one draw out of a handful still shows up every run.
 const ROLLS: int = 200
 
@@ -44,14 +44,16 @@ func _straight_line(length: int, yaw: float = 0.0) -> Line:
 	return line
 
 
-## Defaults to the unjittered field: every case that predates the randomisation still asserts exact
-## slot midpoints, so the skeleton the jitter perturbs stays pinned.
+## Defaults to the unjittered field with the kart sitting at arclength 0.0 (the start line): every
+## case that predates the randomisation still asserts exact slot midpoints, so the skeleton the
+## jitter perturbs stays pinned.
 func _place(positions: PackedVector3Array, yaws: PackedFloat32Array, count: int,
-		start_margin: float = START_MARGIN,
+		kart_clearance: float = KART_CLEARANCE,
 		jitter: float = 0.0,
-		rng: RandomNumberGenerator = RandomNumberGenerator.new()) -> Array[Transform3D]:
+		rng: RandomNumberGenerator = RandomNumberGenerator.new(),
+		kart_distance: float = 0.0) -> Array[Transform3D]:
 	return BoostGhostField.place_along(
-		positions, yaws, count, start_margin, rng, jitter
+		positions, yaws, count, kart_distance, kart_clearance, rng, jitter
 	)
 
 
@@ -65,14 +67,16 @@ func test_count_one_sits_dead_centre_of_the_usable_span() -> void:
 	var poses: Array[Transform3D] = _place(line.positions, line.yaws, 1)
 
 	check(poses.size() == 1, "exactly one ghost placed")
-	# Usable span is [10, 90], 80 m long; its centre is 50.
-	check(absf(poses[0].origin.x - 50.0) < 1e-4, "a single ghost centres the usable span")
+	# The kart sits at arclength 0.0; a 10 m clearance either side of it excludes [80, 90] and
+	# [0, 10], leaving a usable span of [10, 80] whose centre is 45.
+	check(absf(poses[0].origin.x - 45.0) < 1e-4, "a single ghost centres the usable span")
 
 
-func test_margin_past_the_line_length_is_empty() -> void:
-	var line: Line = _straight_line(5) # shorter than the 10 m margin leaves usable
+func test_clearance_past_the_line_length_is_empty() -> void:
+	var line: Line = _straight_line(5) # shorter than twice the 10 m clearance leaves usable
 	var poses: Array[Transform3D] = _place(line.positions, line.yaws, 3)
-	check(poses.is_empty(), "a margin that consumes the whole line places nothing, not negative spacing")
+	check(poses.is_empty(),
+		"a clearance band that consumes the whole line places nothing, not negative spacing")
 
 
 func test_an_empty_line_is_empty() -> void:
@@ -112,11 +116,23 @@ func test_a_straight_line_of_known_length_places_exact_midpoint_distances() -> v
 	var poses: Array[Transform3D] = _place(line.positions, line.yaws, 4)
 
 	check(poses.size() == 4, "four ghosts requested, four placed")
-	# Usable span [10, 90], 80 m long, quarters of 20 m, midpoints at 10 + 10, 30, 50, 70.
-	var expected: Array[float] = [20.0, 40.0, 60.0, 80.0]
+	# Usable span [10, 80], 70 m long, quarters of 17.5 m, midpoints at 10 + 8.75, 26.25, 43.75, 61.25.
+	var expected: Array[float] = [18.75, 36.25, 53.75, 71.25]
 	for i in expected.size():
 		check_near(poses[i].origin.x, expected[i], 1e-4,
 			"ghost %d sits at its exact midpoint distance along the line" % i)
+
+
+func test_kart_distance_shifts_the_excluded_band_off_the_line_start() -> void:
+	# The kart parked 30 m along the line excludes [20, 40]; the usable span becomes [40, 90] wrapped
+	# with [0, 20] — i.e. [40, 90] then [0, 20] — 70 m long either way, one slot, centred at 75.
+	var line: Line = _straight_line(90)
+	var poses: Array[Transform3D] = _place(
+		line.positions, line.yaws, 1, KART_CLEARANCE, 0.0, RandomNumberGenerator.new(), 30.0)
+
+	check(poses.size() == 1, "exactly one ghost placed")
+	check_near(poses[0].origin.x, 75.0, 1e-4,
+		"the excluded band follows the kart's own arclength, not the line's start")
 
 
 func test_yaw_wraps_the_short_way_across_pi() -> void:
@@ -136,18 +152,18 @@ func test_yaw_wraps_the_short_way_across_pi() -> void:
 
 func test_full_jitter_never_leaves_a_ghost_s_own_slot() -> void:
 	# The stratification claim, and the reason the field can re-roll every lap without clumping: at
-	# the loosest setting a ghost may reach its slot's edge and no further. Usable span [10, 90],
-	# four 20 m slots, so ghost i lives in [10 + 20i, 30 + 20i].
+	# the loosest setting a ghost may reach its slot's edge and no further. Usable span [10, 80],
+	# four 17.5 m slots, so ghost i lives in [10 + 17.5i, 27.5 + 17.5i].
 	var line: Line = _straight_line(90)
 	var rng := RandomNumberGenerator.new()
 
 	for roll in ROLLS:
-		var poses: Array[Transform3D] = _place(line.positions, line.yaws, 4, START_MARGIN,
+		var poses: Array[Transform3D] = _place(line.positions, line.yaws, 4, KART_CLEARANCE,
 			1.0, rng)
 		check(poses.size() == 4, "four ghosts requested, four placed")
 		for i in poses.size():
-			var low: float = 10.0 + 20.0 * i
-			check(poses[i].origin.x >= low - 1e-4 and poses[i].origin.x <= low + 20.0 + 1e-4,
+			var low: float = 10.0 + 17.5 * i
+			check(poses[i].origin.x >= low - 1e-4 and poses[i].origin.x <= low + 17.5 + 1e-4,
 				"ghost %d stays inside its own slot" % i)
 
 
@@ -157,9 +173,9 @@ func test_jitter_moves_the_field_between_rolls() -> void:
 	var line: Line = _straight_line(90)
 	var rng := RandomNumberGenerator.new()
 
-	var first: Array[Transform3D] = _place(line.positions, line.yaws, 5, START_MARGIN,
+	var first: Array[Transform3D] = _place(line.positions, line.yaws, 5, KART_CLEARANCE,
 		0.8, rng)
-	var second: Array[Transform3D] = _place(line.positions, line.yaws, 5, START_MARGIN,
+	var second: Array[Transform3D] = _place(line.positions, line.yaws, 5, KART_CLEARANCE,
 		0.8, rng)
 
 	var moved: bool = false
@@ -175,9 +191,9 @@ func test_zero_jitter_reproduces_the_fixed_field() -> void:
 	var line: Line = _straight_line(90)
 	var rng := RandomNumberGenerator.new()
 
-	var expected: Array[float] = [20.0, 40.0, 60.0, 80.0]
+	var expected: Array[float] = [18.75, 36.25, 53.75, 71.25]
 	for roll in ROLLS:
-		var poses: Array[Transform3D] = _place(line.positions, line.yaws, 4, START_MARGIN,
+		var poses: Array[Transform3D] = _place(line.positions, line.yaws, 4, KART_CLEARANCE,
 			0.0, rng)
 		for i in poses.size():
 			check_near(poses[i].origin.x, expected[i], 1e-4, "ghost %d is pinned to its midpoint" % i)

@@ -25,9 +25,9 @@ signal run_aborted()
 signal countdown_started()
 
 ## Fired the instant the checkpoint sequence wraps back to the first checkpoint. What the countdown
-## used to be for the boost and hazard fields: they restore and re-roll on this, so a long Run is
-## not one live wrap followed by an empty circuit. The clock field pointedly does not listen — it is
-## per-Run (CONTEXT.md's **Clock field**).
+## used to be for the boost and hazard fields, and for the clock field too: they restore and re-roll
+## on this, so a long Run is not one live wrap followed by an empty circuit (CONTEXT.md's **Clock
+## field**).
 signal wrapped()
 
 ## One checkpoint payment, the instant the checkpoint is taken. The value is this Run's current
@@ -40,6 +40,32 @@ signal wrapped()
 ## unbind(2) applies here exactly as it did on ClockField.clock_taken: a one-argument handler connected bare
 ## fails at emit time and the symptom is a purse that silently stops earning.
 signal checkpoint_paid(value: int, position: Vector3, direction: Vector3)
+
+## Fired alongside [signal wrapped], the instant the wrap bonus is banked — carrying the same
+## position/direction pair checkpoint_paid does, off the checkpoint whose taking closed the wrap, so
+## a popup can report it exactly as a clock or hazard-hop bonus is. Not fired when
+## [member wrap_bonus_seconds] is 0: a bonus of nothing is nothing to report.
+signal wrap_bonus_paid(seconds: float, position: Vector3, direction: Vector3)
+
+## Fired alongside [signal wrapped], carrying what the wrap just closed took and what it banked:
+## [param wrap_time] is the seconds since the previous wrap closed (since the Run started, for the
+## first one — the start pose sits just past the start/finish gate, so the two stretches are the
+## same stretch and the figures are comparable), [param ghost_wrap_time] is the pace ghost's own
+## time on that same wrap number — the record Run's, read out of [member ghost_line_checkpoints]
+## rather than anything driven this Run — or -1.0 when the ghost has no data for it (no ghost yet,
+## or the record Run never reached that wrap), and [param bonus_seconds] is what
+## [member wrap_bonus_seconds] just banked — 0.0 when the circuit pays nothing.
+##
+## Compared against the pace ghost rather than this Run's own previous wrap deliberately: the ghost
+## is the fixed bar every other Run figure is measured against (CONTEXT.md's **Results**), and a
+## wrap-to-wrap comparison inside one Run would reward a slow first wrap with an easy "faster" on
+## the second rather than saying anything about the drive.
+##
+## Separate from [signal wrapped] rather than arguments on it: wrapped is what the ghost fields
+## restore on and they want none of this, and separate from wrap_bonus_paid because that one is
+## spatial (a popup out on the road) and does not fire at all when the bonus is nothing, where a
+## wrap always has a time to report.
+signal wrap_completed(wrap_time: float, ghost_wrap_time: float, bonus_seconds: float)
 
 enum RunPhase {
 	COUNTDOWN,
@@ -74,6 +100,10 @@ enum RunPhase {
 ## What the circuit's first checkpoint pays. Set by race.gd from Circuit.base_checkpoint_value, the
 ## same way run_duration_seconds is — the director doesn't know what a Circuit is, only the number.
 @export var base_checkpoint_value: int = 1
+
+## Seconds banked into the Run budget every wrap. Set by race.gd from Circuit.wrap_bonus_seconds, the
+## same way base_checkpoint_value is. 0.0 means a wrap banks nothing.
+@export var wrap_bonus_seconds: float = 0.0
 
 ## The checkpoint prism, in each marker's own frame: the road and nothing but the road, from 1 m
 ## below the surface to 5 m above, which is where the gate's posts and crossbar are. Exported so the
@@ -131,6 +161,24 @@ var _ladder_rung: int = 1
 
 ## Seconds added to this Run by the clocks taken so far. Cleared at Countdown with everything else.
 var _earned_seconds: float = 0.0
+
+## The run clock the live wrap started at. Measured closure to closure rather than from the first
+## checkpoint of each wrap, so the whole Run is accounted for and every figure covers the same
+## stretch of circuit.
+var _wrap_start_clock: float = 0.0
+
+## How many wraps this Run has closed — which wrap number the one just closing is, so its time can
+## be read against the pace ghost's own time on that same wrap number rather than an arbitrary one.
+## Reset only in _begin_countdown.
+var _wraps_completed: int = 0
+
+## checkpoints_per_wrap off the ghost line currently loaded — how many checkpoint crossings in
+## [member _ghost_line_checkpoints] make up one of the record Run's wraps. Not the same field as the
+## live circuit's [member _checkpoint_count]: a ghost line predates checkpoints_per_wrap or the
+## circuit has been re-authored since it was recorded, either of which would misalign a wrap-number
+## lookup silently. Falls back to _checkpoint_count when 0 (an old line or none loaded), which is
+## the "assume nothing changed" reading the rest of ghost-line loading already takes.
+var _ghost_checkpoints_per_wrap: int = 0
 
 # The kart body's pose is exactly position + Y-yaw (rotate_y is the only write to its basis; bank,
 # cant and squash live on the Visual child), so these 16 bytes are exact rather than an
@@ -258,10 +306,12 @@ func _ready() -> void:
 
 	var hazard_field: HazardGhostField = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
 	if hazard_field != null:
-		# unbind(2) drops hazard_jumped's position and direction arguments, for clock_taken's
-		# identical reason: _on_clock_taken only ever banks the seconds it's handed, whichever
-		# pickup handed them.
+		# unbind(2) drops hazard_jumped's/hazard_hit's position and direction arguments, for
+		# clock_taken's identical reason: _on_clock_taken only ever banks the seconds it's handed,
+		# whichever pickup handed them. Both are connected — see HazardGhostField.hit_time_bonus's
+		# doc for why a hit pays out its own bonus, independent of the hop's, on trial.
 		hazard_field.hazard_jumped.connect(_on_clock_taken.unbind(2))
+		hazard_field.hazard_hit.connect(_on_clock_taken.unbind(2))
 
 	# The phase must resolve before Kart's physics step reads frozen, or the GO frame is spent still
 	# frozen — a dead frame the driver feels as a hitch off the line. Checkpoint detection needs the
@@ -331,6 +381,7 @@ func complete_run() -> void:
 		_ghost_line_positions = _recording_positions.duplicate()
 		_ghost_line_yaws = _recording_yaws.duplicate()
 		_ghost_line_checkpoints = _recording_checkpoints.duplicate()
+		_ghost_checkpoints_per_wrap = _checkpoint_count
 		_save_ghost_line()
 	# Unconditional, so a losing Run's samples cannot leak into the next recording and the ghost
 	# line can stand unchanged for many Runs.
@@ -447,6 +498,14 @@ func _sweep_pending_checkpoint() -> void:
 	if _checkpoint_index >= _checkpoints.size():
 		_checkpoint_index = 0 # wrap — a Run only ends by Timeout or Abort, never here
 		wrapped.emit()
+		if wrap_bonus_seconds > 0.0:
+			_on_clock_taken(wrap_bonus_seconds)
+			wrap_bonus_paid.emit(wrap_bonus_seconds, checkpoint.origin, direction)
+		_wraps_completed += 1
+		var wrap_time: float = _run_clock - _wrap_start_clock
+		var ghost_wrap_time: float = _ghost_wrap_time(_wraps_completed)
+		wrap_completed.emit(wrap_time, ghost_wrap_time, maxf(0.0, wrap_bonus_seconds))
+		_wrap_start_clock = _run_clock
 	_update_gate_visibility()
 
 
@@ -485,6 +544,7 @@ func _load_ghost_line() -> void:
 	_ghost_line_positions = ghost_line.positions
 	_ghost_line_yaws = ghost_line.yaws
 	_ghost_line_checkpoints = ghost_line.checkpoint_samples
+	_ghost_checkpoints_per_wrap = ghost_line.checkpoints_per_wrap
 
 	# A line saved before the results screen wanted the record Run's earnings and length carries
 	# neither, and the two are reconstructed rather than the whole line being thrown away: the
@@ -500,6 +560,32 @@ func _load_ghost_line() -> void:
 		run_time = ghost_line.positions.size() / float(Engine.physics_ticks_per_second)
 	_record_totals = RunTotals.of(earnings, ghost_line.checkpoint_samples.size(), run_time,
 			ghost_line.earn_rate)
+
+
+# The pace ghost's own time on wrap [param wrap_number] (1 for the first wrap of the record Run,
+# rising by one thereafter), read out of its checkpoint-crossing samples rather than anything driven
+# this Run — the whole point of comparing against the ghost instead of this Run's own previous wrap.
+# -1.0 when there is no data for it: no ghost line loaded, or the record Run itself never reached
+# that wrap number (a short or unlucky record can still be shorter than the Run racing it).
+#
+# One sample per physics tick, exactly as _load_ghost_line's run_time reconstruction already assumes
+# — the same rate this Run's own recording is taken at — so a sample-index delta divided by the tick
+# rate is that stretch's wall-clock time.
+func _ghost_wrap_time(wrap_number: int) -> float:
+	var per_wrap: int = _ghost_checkpoints_per_wrap if _ghost_checkpoints_per_wrap > 0 else _checkpoint_count
+	if per_wrap <= 0 or wrap_number <= 0:
+		return -1.0
+	var end_index: int = wrap_number * per_wrap - 1
+	if end_index < 0 or end_index >= _ghost_line_checkpoints.size():
+		return -1.0
+	var ticks: float = float(Engine.physics_ticks_per_second)
+	if ticks <= 0.0:
+		return -1.0
+	var end_sample: int = _ghost_line_checkpoints[end_index]
+	var start_sample: int = 0
+	if wrap_number > 1:
+		start_sample = _ghost_line_checkpoints[(wrap_number - 1) * per_wrap - 1]
+	return float(end_sample - start_sample) / ticks
 
 
 # Mirrors the promotion in complete_run to disk, so the next session's _load_ghost_line picks up
@@ -531,6 +617,8 @@ func _begin_countdown(seconds: float) -> void:
 	_earned_seconds = 0.0
 	_ladder_rung = 1
 	_checkpoint_index = 0
+	_wrap_start_clock = 0.0
+	_wraps_completed = 0
 	_update_gate_visibility()
 	_has_last_kart_position = false # the teleport below invalidates the swept segment
 

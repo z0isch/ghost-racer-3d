@@ -8,6 +8,9 @@ extends Node
 ## Purely spatial, the boundary CONTEXT.md records under **Clock field**: it emits
 ## [signal clock_taken] and knows nothing about who listens — not the Run budget it extends, not
 ## the Run clock, not the earn rate. Nothing is totalled here.
+##
+## Restores whole at every countdown and at every wrap, the same moments the boost and hazard ghost
+## fields restore on: a clock taken on one lap is offered again on the next.
 
 ## One pickup, the instant it is taken. The value is the clock's own, read from the marker's
 ## metadata rather than assumed to be any particular number, in *seconds* rather than money. The
@@ -73,6 +76,7 @@ func _ready() -> void:
 
 	if _director != null:
 		_director.countdown_started.connect(_on_countdown_started)
+		_director.wrapped.connect(_on_wrapped)
 
 	_resolve_clocks()
 
@@ -229,11 +233,23 @@ func _sweep_clocks() -> void:
 
 
 ## Restores the field whole at every countdown — scene load, Run completion and abort alike — so
-## each Run is offered an identical maximum, without which two Runs' earn rates are not comparable.
-## Driven by the director's signal rather than by watching the phase: the teleport and the restore
-## are the same moment.
+## each Run opens on an identical maximum. Driven by the director's signal rather than by watching
+## the phase: the teleport and the restore are the same moment.
 func _on_countdown_started() -> void:
 	_has_last_kart_position = false
+	_respawn_clocks()
+
+
+## Restores the field whole at every wrap too ([signal RunDirector.wrapped]), the same as the boost
+## and hazard ghost fields: a clock taken on one lap is offered again on the next rather than the
+## field thinning out to nothing over a long Run. No teleport happens on a wrap, so unlike [method
+## _on_countdown_started] this leaves [member _has_last_kart_position] alone — the swept segment
+## carries straight through the wrap.
+func _on_wrapped() -> void:
+	_respawn_clocks()
+
+
+func _respawn_clocks() -> void:
 	for clock: Clock in _clocks:
 		clock.taken = false
 		clock.node.visible = true

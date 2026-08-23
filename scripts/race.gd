@@ -60,6 +60,7 @@ func _enter_tree() -> void:
 		run_director.ghost_line_path = circuit.ghost_line_path
 		run_director.run_duration_seconds = circuit.run_duration_seconds
 		run_director.base_checkpoint_value = circuit.base_checkpoint_value
+		run_director.wrap_bonus_seconds = circuit.wrap_bonus_seconds
 		# The reverse edge of the wiring this scene already does: it hands the circuit's ghost line
 		# to the director, so it is also the natural place to forward a promoted one back out to
 		# [autoload IncomeRunner], which sits inside no scene and has no connection of its own to the
@@ -91,6 +92,7 @@ func _enter_tree() -> void:
 		hazard_field.loadout = loadout
 		hazard_field.save_loadout = save_loadout
 		hazard_field.ghost_count = loadout.hazard_ghost_count
+		hazard_field.spawn_chance_per_checkpoint = circuit.hazard_spawn_chance_per_checkpoint
 
 
 func _ready() -> void:

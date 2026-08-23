@@ -16,7 +16,7 @@ extends TestCase
 ## one scanning up from zero and one back down from a known index, and a ribbon detaching from its
 ## own car is what it looks like when they disagree by one.
 
-const START_MARGIN: float = 10.0
+const KART_CLEARANCE: float = 10.0
 ## Enough rolls that a bound broken in one draw out of a handful still shows up every run.
 const ROLLS: int = 200
 const LINE_LENGTH: float = 90.0
@@ -27,10 +27,11 @@ func suite_name() -> String:
 
 
 func _place(total_length: float, count: int,
-		start_margin: float = START_MARGIN,
+		kart_clearance: float = KART_CLEARANCE,
 		jitter: float = 0.0,
-		rng: RandomNumberGenerator = RandomNumberGenerator.new()) -> Array[float]:
-	return HazardGhostField.place_along(total_length, count, start_margin, rng, jitter)
+		rng: RandomNumberGenerator = RandomNumberGenerator.new(),
+		kart_distance: float = 0.0) -> Array[float]:
+	return HazardGhostField.place_along(total_length, count, kart_distance, kart_clearance, rng, jitter)
 
 
 func test_count_zero_is_empty() -> void:
@@ -44,35 +45,47 @@ func test_zero_length_line_is_empty() -> void:
 func test_count_one_sits_dead_centre_of_the_usable_span() -> void:
 	var distances: Array[float] = _place(LINE_LENGTH, 1)
 	check(distances.size() == 1, "exactly one hazard placed")
-	# Usable span is [10, 90], 80 m long; its centre is 50.
-	check_near(distances[0], 50.0, 1e-4, "a single hazard centres the usable span")
+	# The kart sits at arclength 0.0; a 10 m clearance either side of it excludes [80, 90] and
+	# [0, 10], leaving a usable span of [10, 80] whose centre is 45.
+	check_near(distances[0], 45.0, 1e-4, "a single hazard centres the usable span")
 
 
-func test_margin_past_the_line_length_is_empty() -> void:
-	var distances: Array[float] = _place(5.0, 3) # shorter than the 10 m margin leaves usable
-	check(distances.is_empty(), "a margin that consumes the whole line places nothing, not negative spacing")
+func test_clearance_past_the_line_length_is_empty() -> void:
+	var distances: Array[float] = _place(5.0, 3) # shorter than twice the 10 m clearance leaves usable
+	check(distances.is_empty(),
+		"a clearance band that consumes the whole line places nothing, not negative spacing")
 
 
 func test_a_straight_line_of_known_length_places_exact_midpoint_distances() -> void:
 	var distances: Array[float] = _place(LINE_LENGTH, 4)
 	check(distances.size() == 4, "four hazards requested, four placed")
-	# Usable span [10, 90], 80 m long, quarters of 20 m, midpoints at 10 + 10, 30, 50, 70.
-	var expected: Array[float] = [20.0, 40.0, 60.0, 80.0]
+	# Usable span [10, 80], 70 m long, quarters of 17.5 m, midpoints at 10 + 8.75, 26.25, 43.75, 61.25.
+	var expected: Array[float] = [18.75, 36.25, 53.75, 71.25]
 	for i in expected.size():
 		check_near(distances[i], expected[i], 1e-4,
 			"hazard %d sits at its exact midpoint distance along the line" % i)
 
 
+func test_kart_distance_shifts_the_excluded_band_off_the_line_start() -> void:
+	# The kart at 30 m excludes [20, 40]; the remaining 70 m span runs [40, 90] wrapped with [0, 20],
+	# one slot, centred at 75.
+	var distances: Array[float] = _place(
+		LINE_LENGTH, 1, KART_CLEARANCE, 0.0, RandomNumberGenerator.new(), 30.0)
+	check(distances.size() == 1, "exactly one hazard placed")
+	check_near(distances[0], 75.0, 1e-4,
+		"the excluded band follows the kart's own arclength, not the line's start")
+
+
 func test_full_jitter_never_leaves_a_hazard_s_own_slot() -> void:
-	# Usable span [10, 90], four 20 m slots, so hazard i lives in [10 + 20i, 30 + 20i].
+	# Usable span [10, 80], four 17.5 m slots, so hazard i lives in [10 + 17.5i, 27.5 + 17.5i].
 	var rng := RandomNumberGenerator.new()
 
 	for roll in ROLLS:
-		var distances: Array[float] = _place(LINE_LENGTH, 4, START_MARGIN, 1.0, rng)
+		var distances: Array[float] = _place(LINE_LENGTH, 4, KART_CLEARANCE, 1.0, rng)
 		check(distances.size() == 4, "four hazards requested, four placed")
 		for i in distances.size():
-			var low: float = 10.0 + 20.0 * i
-			check(distances[i] >= low - 1e-4 and distances[i] <= low + 20.0 + 1e-4,
+			var low: float = 10.0 + 17.5 * i
+			check(distances[i] >= low - 1e-4 and distances[i] <= low + 17.5 + 1e-4,
 				"hazard %d stays inside its own slot" % i)
 
 
@@ -81,8 +94,8 @@ func test_jitter_moves_the_field_between_rolls() -> void:
 	# rebuild the identical field.
 	var rng := RandomNumberGenerator.new()
 
-	var first: Array[float] = _place(LINE_LENGTH, 5, START_MARGIN, 0.8, rng)
-	var second: Array[float] = _place(LINE_LENGTH, 5, START_MARGIN, 0.8, rng)
+	var first: Array[float] = _place(LINE_LENGTH, 5, KART_CLEARANCE, 0.8, rng)
+	var second: Array[float] = _place(LINE_LENGTH, 5, KART_CLEARANCE, 0.8, rng)
 
 	var moved: bool = false
 	for i in first.size():
@@ -93,9 +106,9 @@ func test_jitter_moves_the_field_between_rolls() -> void:
 
 func test_zero_jitter_reproduces_the_fixed_field() -> void:
 	var rng := RandomNumberGenerator.new()
-	var expected: Array[float] = [20.0, 40.0, 60.0, 80.0]
+	var expected: Array[float] = [18.75, 36.25, 53.75, 71.25]
 	for roll in ROLLS:
-		var distances: Array[float] = _place(LINE_LENGTH, 4, START_MARGIN, 0.0, rng)
+		var distances: Array[float] = _place(LINE_LENGTH, 4, KART_CLEARANCE, 0.0, rng)
 		for i in distances.size():
 			check_near(distances[i], expected[i], 1e-4, "hazard %d is pinned to its midpoint" % i)
 
