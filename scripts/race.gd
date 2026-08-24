@@ -63,6 +63,7 @@ func _enter_tree() -> void:
 		run_director.base_checkpoint_value = circuit.base_checkpoint_value
 		run_director.wrap_bonus_seconds = circuit.wrap_bonus_seconds
 		run_director.max_wraps = circuit.max_wraps
+		run_director.slipstream_bar_target = circuit.slipstream_bar_target
 		# The reverse edge of the wiring this scene already does: it hands the circuit's ghost line
 		# to the director, so it is also the natural place to forward a promoted one back out to
 		# [autoload IncomeRunner], which sits inside no scene and has no connection of its own to the

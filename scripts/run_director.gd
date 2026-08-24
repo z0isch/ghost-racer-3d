@@ -67,6 +67,13 @@ signal wrap_bonus_paid(seconds: float, position: Vector3, direction: Vector3)
 ## wrap always has a time to report.
 signal wrap_completed(wrap_time: float, ghost_wrap_time: float, bonus_seconds: float)
 
+## One segment of Condition gone, the instant a hazard takes it. [param remaining] is what is left
+## after the hit, so a listener draws the bar from the signal without re-reading the director a
+## frame later. Fired on every hit including the one that reaches 0 — the wreck is the bar emptying,
+## not a separate event, and a listener that skipped the last segment would leave one lit on the
+## screen the Run ended on.
+signal condition_lost(remaining: int)
+
 enum RunPhase {
 	COUNTDOWN,
 	RACING,
@@ -112,6 +119,17 @@ enum RunPhase {
 ## How many wraps a Run may complete before it ends. Set by race.gd from Circuit.max_wraps, the same
 ## way wrap_bonus_seconds is. 0 means unlimited — a Run only ever ends by Timeout or Abort.
 @export var max_wraps: int = 0
+
+## How many segments of Condition a Run starts with — how many hazard hits it survives. Small and
+## integral on purpose: hazards are consumed on contact and thicken over a Run, so the interesting
+## range is a handful of hits, and a hundred-point pool would only ever be drawn as three chunky
+## jumps pretending to be a smooth drain.
+@export var starting_condition: int = 3
+
+## How many slipstream ghosts caught fill the slipstream bar. Set by race.gd from
+## [member Circuit.slipstream_bar_target], the same way max_wraps is — the director doesn't know
+## what a Circuit is, only the number. 0 (or below) means no target: the bar never fills.
+@export var slipstream_bar_target: int = 10
 
 ## The checkpoint prism, in each marker's own frame: the road and nothing but the road, from 1 m
 ## below the surface to 5 m above, which is where the gate's posts and crossbar are. Exported so the
@@ -179,6 +197,21 @@ var _wrap_start_clock: float = 0.0
 ## be read against the pace ghost's own time on that same wrap number rather than an arbitrary one.
 ## Reset only in _begin_countdown.
 var _wraps_completed: int = 0
+
+## Segments of Condition left this Run. Reset to [member starting_condition] at every countdown,
+## alongside the clock and the ladder: a Run is a clean priced attempt, and Condition carried in
+## from the Run before would let the previous attempt decide whether this one is drivable.
+var _condition: int = 0
+
+## Slipstream ghosts caught this Run, the slipstream bar's numerator. Reset at every countdown for
+## _condition's reason — and because a count that survived an Abort could be farmed by aborting.
+var _slipstream_taken: int = 0
+
+## Whether the Run that just ended ended by running out of Condition. Read at the run_completed edge
+## by CountdownHud, which needs to know which headline the Run earned. A property rather than a
+## third argument on the signal: unlike is_record, this is not a value the director overwrites on
+## its way out, so a listener reading it at the edge reads exactly what ended the Run.
+var _wrecked: bool = false
 
 ## checkpoints_per_wrap off the ghost line currently loaded — how many checkpoint crossings in
 ## [member _ghost_line_checkpoints] make up one of the record Run's wraps. Not the same field as the
@@ -290,6 +323,23 @@ var ghost_line_checkpoints: PackedInt32Array:
 	get: return _ghost_line_checkpoints
 
 
+## Segments of Condition left, and what a full bar is. Polled by ResourceBarsHud each _process, as
+## the clock is by RunHud — the discrete edge the poll cannot see is [signal condition_lost].
+var condition: int:
+	get: return _condition
+
+## Slipstream ghosts caught this Run, against the circuit's own target. Two getters rather than a
+## precomputed fraction: the bar wants to draw a target of 0 as an empty bar rather than divide by
+## it, and that decision belongs to the thing drawing.
+var slipstream_taken: int:
+	get: return _slipstream_taken
+
+## True when the Run that just ended ran out of Condition rather than time. Meaningful only from the
+## [signal run_completed] edge until the next countdown clears it.
+var run_ended_wrecked: bool:
+	get: return _wrecked
+
+
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
 	_camera = get_node_or_null(chase_camera_path) as ChaseCamera
@@ -320,6 +370,11 @@ func _ready() -> void:
 		# doc for why a hit pays out its own bonus, independent of the hop's, on trial.
 		hazard_field.hazard_jumped.connect(_on_clock_taken.unbind(2))
 		hazard_field.hazard_hit.connect(_on_clock_taken.unbind(2))
+		# The second thing a hit does, and the only one that can end the Run. Connected separately
+		# rather than folded into _on_clock_taken: banking seconds is what every pickup in the game
+		# does, and Condition damage is what exactly one of them does. A hop is deliberately not
+		# connected here — clearing a hazard cleanly is the whole reward for hopping it.
+		hazard_field.hazard_hit.connect(_on_hazard_hit.unbind(3))
 
 	var slipstream_field: SlipstreamGhostField = (
 		get_node_or_null(slipstream_ghost_field_path) as SlipstreamGhostField)
@@ -327,6 +382,10 @@ func _ready() -> void:
 		# unbind(2) drops slipstream_hit's position and direction arguments, for clock_taken's
 		# identical reason.
 		slipstream_field.slipstream_hit.connect(_on_clock_taken.unbind(2))
+		# The slipstream bar's numerator, counted here rather than on the field: the count is per-Run
+		# state, and the director is the single owner of that (see this class's own doc). The field
+		# goes on paying the boost charge and the top-speed raise itself, which are not Run state.
+		slipstream_field.slipstream_hit.connect(_on_slipstream_taken.unbind(3))
 
 	# The phase must resolve before Kart's physics step reads frozen, or the GO frame is spent still
 	# frozen — a dead frame the driver feels as a hitch off the line. Checkpoint detection needs the
@@ -417,6 +476,34 @@ func complete_run() -> void:
 # phase inside their own deferred callback, so a pickup cannot reach here outside a live Run.
 func _on_clock_taken(seconds: float) -> void:
 	_earned_seconds += seconds
+
+
+# One hazard hit, costing one segment of Condition. The kart has already been slowed by the field
+# itself (HazardGhostField.hit_slow_multiplier) — that is the cue felt through the controls; this is
+# what the hit accumulates toward.
+#
+# The Run ends here, in the same deferred flush the hit arrived in, exactly as a Timeout ends one at
+# the head of a physics frame. Unlike _on_clock_taken this does need its own phase guard: the field
+# sweeps its whole list in one flush and can hit two hazards in one frame at speed, so the hit that
+# empties the bar can be followed immediately by another arriving into an already-ended Run.
+func _on_hazard_hit() -> void:
+	if _phase != RunPhase.RACING:
+		return
+	_condition = maxi(0, _condition - 1)
+	condition_lost.emit(_condition)
+	if _condition > 0:
+		return
+	# Set before complete_run, which emits run_completed: the listener composing the results screen
+	# reads run_ended_wrecked at that edge and must not see the previous Run's answer.
+	_wrecked = true
+	complete_run()
+
+
+# One slipstream ghost caught. The bar is uncapped here and clamped where it is drawn: a Run that
+# catches twice its circuit's target has genuinely caught them, and a count clamped at the source
+# would be a lie told to a future readout that wanted the real figure.
+func _on_slipstream_taken() -> void:
+	_slipstream_taken += 1
 
 
 # Resolved once. The markers are inert Marker3Ds in circuit order under a Checkpoints node;
@@ -638,6 +725,11 @@ func _begin_countdown(seconds: float) -> void:
 	_checkpoint_index = 0
 	_wrap_start_clock = 0.0
 	_wraps_completed = 0
+	_condition = starting_condition
+	_slipstream_taken = 0
+	# Cleared here rather than in complete_run: the results screen is still up and still reading it
+	# right until the next countdown starts.
+	_wrecked = false
 	_update_gate_visibility()
 	_has_last_kart_position = false # the teleport below invalidates the swept segment
 

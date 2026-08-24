@@ -7,7 +7,7 @@ A kart game of two circuits reached from an open world: drive onto a circuit's o
 ### The run
 
 **Run**:
-One fixed-duration attempt at a circuit, timed from countdown-zero to the moment the clock reaches the circuit's configured duration (a **Timeout**) or the player aborts it. Driven by looping the circuit's ordered checkpoints as many times as the time budget allows — the sequence wraps back to the first checkpoint every time the last one is taken, with no limit on how many times that happens inside a Run. The record-bearing unit, and the only one: a single pass through the checkpoints is named — a **wrap** — but nothing is scored or recorded per wrap, and the **checkpoint ladder** runs straight through every one of them. Its length is not quite fixed after all: a **clock** taken during a Run adds seconds to the budget, so a circuit's configured duration is the length of a Run nobody detoured on.
+One fixed-duration attempt at a circuit, timed from countdown-zero to the moment the clock reaches the circuit's configured duration (a **Timeout**), the kart runs out of **Condition** (a **Wreck**), or the player aborts it. Driven by looping the circuit's ordered checkpoints as many times as the time budget allows — the sequence wraps back to the first checkpoint every time the last one is taken, with no limit on how many times that happens inside a Run. The record-bearing unit, and the only one: a single pass through the checkpoints is named — a **wrap** — but nothing is scored or recorded per wrap, and the **checkpoint ladder** runs straight through every one of them. Its length is not quite fixed after all: a **clock** taken during a Run adds seconds to the budget, so a circuit's configured duration is the length of a Run nobody detoured on.
 _Avoid_: Lap — this project used to organize play around laps, one ordered pass through the checkpoints that ended the moment the last one was taken; a Run replaces that shape entirely (see `docs/adr/0001-timed-circuit-runs.md`). Also avoid: race, circuit (the circuit is the track, not an attempt at it).
 
 **Run phase**:
@@ -18,11 +18,11 @@ _Avoid_: Run state (too easily confused with the run's recorded data), mode, lap
 The phase before a Run, with the kart held motionless on the start line. Every Run is preceded by one — whether it follows a scene load, an abort, or the player explicitly starting a new Run from Results.
 
 **Racing**:
-The phase during which a Run is being driven and the clock is running. Ends only by Timeout or by Abort — never by completing the checkpoint sequence, which just wraps and keeps going.
+The phase during which a Run is being driven and the clock is running. Ends only by Timeout, by Wreck or by Abort — never by completing the checkpoint sequence, which just wraps and keeps going.
 _Avoid_: Running (reserved for the clock), driving, active.
 
 **Results**:
-The phase after a Run ends by Timeout, holding the Run's figures on screen until the player explicitly starts a new Run. A real, indefinite stop — not a held instant before an automatic return, the way the old Finished phase was.
+The phase after a Run ends by Timeout or by Wreck, holding the Run's figures on screen until the player explicitly starts a new Run. A real, indefinite stop — not a held instant before an automatic return, the way the old Finished phase was.
 What it shows is four totals — the Run's length, its earnings, its checkpoints taken and its earn rate — each beside the same figure from the Run before it, under a headline that is either the record or the exact dollars the Run fell short by. Deltas rather than totals alone, because the screen's job is to make the next Run worth starting and only a delta says whether the driver is getting better; the shortfall in dollars for the same reason, since a gap that can be closed by one more checkpoint on the ladder is an argument for another Run and "you lost" is not. Length is one of the four because a Run's length is not a constant — clocks and jumped hazards buy seconds — so without it a larger earnings figure is ambiguous between a better line and a longer Run.
 The comparison is against the **ghost line** the Run was driven against, never against the last Run driven — the ghost is the thing that was on the track, it is what the record is kept on, and it does not move when a bad Run happens. Measured against the last Run instead, two mediocre Runs in a row would show a column of green: a screen congratulating the driver for recovering from their own mistake rather than for getting anywhere. It survives a scene load and a session, exactly as the ghost line does; a circuit no Run has ever been completed on has no ghost, and there the screen shows totals with no delta column at all rather than comparing against a zero.
 A Run that takes the record is compared against the ghost it *beat*, not against itself: the ghost is replaced the instant the Run is promoted, and a screen of zeroes is the opposite of what beating your best should look like.
@@ -30,12 +30,22 @@ An **Abort** never becomes a comparison, and never disturbs one: it has no resul
 _Avoid_: Finished (the old, instant-then-loop phase this replaces), Game Over, scoreboard (nothing here ranks Runs against anything but the last one and the record).
 
 **Timeout**:
-The Run clock reaching the circuit's configured duration. Ends the Run immediately, wherever the kart happens to be between checkpoints, and keeps everything earned up to that instant: the run earnings stand, the earn rate is computed from them, and the Run may set a new record. The only way a Run ends with a result.
+The Run clock reaching the circuit's configured duration. Ends the Run immediately, wherever the kart happens to be between checkpoints, and keeps everything earned up to that instant: the run earnings stand, the earn rate is computed from them, and the Run may set a new record. One of the two ways a Run ends with a result; the other is a **Wreck**.
 _Avoid_: Time up, expiry, finish.
 
 **Abort**:
 Ending a Run before Timeout, triggered by the player's `reset` action. Unlike a Timeout, an abort discards the Run outright: no result is shown, the run earnings are thrown away, no record earn rate can be set, and the pace ghost recorded so far is discarded. The money already taken stays in the purse.
 _Avoid_: Restart, cancel, retry, timeout (a Timeout keeps its result; an abort has none).
+
+**Condition**:
+What a Run has left to absorb **hazard hit**s with: a small whole number of segments, starting full at every **Countdown** and losing one to each hazard driven into. Per-Run and nothing else — it is reset alongside the Run clock and the **checkpoint ladder**, because a Run is a clean priced attempt and Condition carried in from the Run before would let the previous attempt decide whether this one is drivable. Nothing restores it mid-Run: not a hopped hazard, not a checkpoint, not a **wrap**. Owned by the **run director**, not by the kart — the kart is a thing that drives, and what happens at zero is that a *Run* ends, which only the director may do.
+Deliberately small and integral rather than a pool of a hundred points. Hazards are consumed on contact and thicken as a Run goes on, so the interesting range is a handful of hits; a large pool would only ever be drawn as a few chunky jumps pretending to be a smooth drain.
+_Avoid_: HP, health, hit points, lives, damage (the *loss* of a segment, not the resource), durability.
+
+**Wreck**:
+A Run's Condition reaching zero. Ends the Run immediately, exactly as a **Timeout** does and with exactly the same standing: everything earned up to that instant is kept, the earn rate is computed from it, and the Run may set a new record. Not an **Abort** — the driver did not throw the Run away, they ran out of one of its two budgets, and the **checkpoint ladder** has already priced the mistake by ending the earning early.
+The one thing it does differently is on screen: **Results** holds for a beat first, kart frozen where it stopped and nothing drawn, because a Timeout is watched down to and a Wreck is a surprise. A Run that wrecks *and* takes the record is headlined as the record — the wreck was just seen, and the record is the thing that cannot be seen from it.
+_Avoid_: Death, crash (a barrier impact is a crash and costs nothing), game over, DNF, fail.
 
 ### The open world
 
@@ -54,7 +64,7 @@ _Avoid_: Portal, teleport, loading zone, gate (the start/finish gate no longer h
 ### The track
 
 **Circuit**:
-The definition of one thing you can drive: its geometry, where its ghost line persists, where its loadout persists, what it is called, and where the open world stands it. A single resource type, one instance per circuit, read by both the open world and the race scene so the two cannot disagree about what a circuit is. Its world placement is a property the open world alone applies — the race scene always instances a circuit's geometry at identity, so a ghost line recorded in the circuit's own coordinates stays valid regardless of where the world stands it. It also carries the circuit's configured **Run** duration.
+The definition of one thing you can drive: its geometry, where its ghost line persists, where its loadout persists, what it is called, and where the open world stands it. A single resource type, one instance per circuit, read by both the open world and the race scene so the two cannot disagree about what a circuit is. Its world placement is a property the open world alone applies — the race scene always instances a circuit's geometry at identity, so a ghost line recorded in the circuit's own coordinates stays valid regardless of where the world stands it. It also carries the circuit's configured **Run** duration, and the per-circuit dials that only make sense against that duration — the intervals at which hazard and slipstream traffic thicken, the **wrap bonus**, the wrap limit, and the slipstream target the **resource bars** fill toward.
 _Avoid_: Track, level, map.
 
 **Circuit loadout**:
@@ -206,7 +216,7 @@ _Avoid_: Ghost car, replay, rival, opponent.
 ### Roles
 
 **Run director**:
-The single owner of all mutable Run state — the run phase, checkpoint progress, the **checkpoint ladder**'s current rung, the Run clock, Run earnings, the record earn rate, and the ghost line itself, both the in-progress recording and the promoted line. Everything else in the game either reports to it or reads from it. (The pace ghost reads the ghost line for pure playback and the clocks live on the clock field, which the director drives through run events; authority over a lifecycle is not a requirement that every consumer's data be fields on the director.)
+The single owner of all mutable Run state — the run phase, checkpoint progress, the **checkpoint ladder**'s current rung, the Run clock, **Condition**, the slipstream ghosts caught this Run, Run earnings, the record earn rate, and the ghost line itself, both the in-progress recording and the promoted line. Everything else in the game either reports to it or reads from it. (The pace ghost reads the ghost line for pure playback and the clocks live on the clock field, which the director drives through run events; authority over a lifecycle is not a requirement that every consumer's data be fields on the director.)
 It is also the only thing that knows where a **wrap** fell, and therefore the only thing that can write the wrap indices into a promoted ghost line.
 Run earnings sit here rather than anywhere else because they are the numerator of the earn rate and the Run clock is the denominator — splitting a fraction across two owners is how the two come to disagree. Both ends of that fraction are now fed by pickups: the checkpoints raise the numerator and the clocks raise the denominator, and one owner holding both is what keeps them consistent. The purse sits elsewhere for the opposite reason: it is not run state at all.
 _Avoid_: Lap director (retired name), lap manager, race manager, game manager.
@@ -256,6 +266,12 @@ The floating green label that stands where money was just taken — **`$12`**, o
 Taken by the kart in a Run, and by an income ghost in the open world — one popup, two sources. Which way *ahead* points arrives *with* the report of the pickup rather than being looked up from the kart, because out in the world there is no kart involved at all; that is what lets one popup serve both without knowing which of them it is serving. Purely cosmetic and required to stay that way — nothing reads a popup back, and a popup that failed to appear would cost the player the feedback and nothing else. Green because the purse is green: the popup and the total it feeds are tied together by colour and by nothing else — which is exactly why a **clock**'s popup reads `+10s` and is *not* green. Green is money, and a clock is not money. Its colour is a light blue (`Color(0.4, 0.75, 1.0)`), matching the clock pickup's own mesh material — apart from the run clock's plain white and the final-seconds urgency red, both already spoken for elsewhere on screen.
 _Avoid_: Toast, floater, damage number, notification, particle.
 
+**Resource bars**:
+The two vertical bars down the left edge of the screen, drawn only while **Racing**: the outer one a green fill counting the **slipstream ghost**s caught this Run against a target the circuit authors, the inner one a red bar of one discrete segment per point of **Condition** left. They carry no text and no numbers at all. Two shapes at the edge of vision are read without looking away from the road; a figure would have to be looked at to be read, which is the one thing a bar exists to avoid. What each one means is learned by watching it move while something happens to it, which is why the colours are the world's own — green is the traffic you just drove through, red is the oncoming ghost that just hit you — even though green already means money in text elsewhere on screen. A bar at the edge and a number in the middle are never mistaken for one another.
+Condition sits **inboard** of slipstream, nearer the road: it is the bar with a consequence, so it gets the position peripheral vision is already pointed at, and the slipstream bar is the one that can afford to be glanced at. A lost segment flashes pale on its way out — the flash is what says *which* resource that hit just cost, since the speed already scrubbed out from under the driver has said everything else.
+The slipstream bar is **pure information and pays nothing**: it fills toward the circuit's target, caps there, and reaching the top is not an event. Its target is per-circuit rather than a shared constant, because slipstream traffic thickens as a Run goes on and a longer Run therefore serves far more of it — one shared number would top the bar out in the opening third of a long Run and leave it dead scenery for the rest. The count behind it is uncapped and clamped only where it is drawn: a Run that caught twice the target genuinely caught them.
+_Avoid_: Health bar, HP bar, meter, gauge, progress bar, XP bar.
+
 ### Boost
 
 **Boost ghost**:
@@ -295,7 +311,8 @@ Deliberately not the whole wrap painted red. A Run drives the same wrap over and
 _Avoid_: Racing line, path preview, trail, warning line.
 
 **Hazard hit**:
-What driving through a hazard ghost costs: forward speed scrubbed by a tunable fraction, the same shape as a barrier impact but delivered by the hazard field's own swept test rather than a physics collision. One-shot, with no duration — the same reasoning as bump/bleed's absence of an envelope, in miniature.
+What driving through a hazard ghost costs: forward speed scrubbed by a tunable fraction, the same shape as a barrier impact but delivered by the hazard field's own swept test rather than a physics collision, **and one segment of Condition**. One-shot, with no duration — the same reasoning as bump/bleed's absence of an envelope, in miniature.
+The two costs are not redundant. The speed scrub is the cue: it is felt through the controls, in the corner it happened in, and cannot be missed. The Condition segment is the consequence: it accumulates across a Run and eventually ends one. Hopping a hazard pays neither — clearing it cleanly is the whole reward for the trick.
 _Avoid_: Damage, penalty, slow effect (unqualified).
 
 Hazard ghosts pay no money. Like boost ghosts they are read from the ghost line rather than authored into the circuit, and they reach the economy only through the time they cost; unlike boost ghosts they never sit still, so the line you set is also the line you are then driven at.

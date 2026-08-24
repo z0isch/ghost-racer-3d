@@ -51,6 +51,13 @@ extends CanvasLayer
 ## long enough that four rows read as four events rather than one.
 @export var row_reveal_seconds: float = 0.16
 
+## How long the screen holds on the wreck before the results appear: kart frozen where it stopped,
+## nothing on screen, then the panel. A Timeout is expected — the clock was watched down to it, and
+## the results are the beat everyone was already waiting for — but running out of Condition is a
+## surprise, and cutting straight to a table of figures denies the driver the moment where they see
+## what just killed them. 0.0 removes the hold entirely.
+@export var wreck_hold_seconds: float = 1.2
+
 ## How long after the last row the prompt fades in. The screen finishes its sentence before it asks
 ## for the next Run.
 @export var prompt_delay_seconds: float = 0.25
@@ -68,6 +75,12 @@ var _director: RunDirector
 var _results_elapsed: float = 0.0
 var _is_record: bool = false
 var _headline_text: String = ""
+
+## Whether the Run that just ended ran out of Condition, and how long this screen therefore waits
+## before drawing anything. Latched at the run_completed edge alongside everything else on the
+## screen, so the hold cannot change under a screen already holding.
+var _wrecked: bool = false
+var _reveal_hold: float = 0.0
 
 # The results table, one entry per row, as three parallel columns. Parallel rather than one row
 # object per row because that is how it is drawn: each column is a single RichTextLabel, which is
@@ -100,7 +113,11 @@ func _ready() -> void:
 func _on_run_completed(run_time: float, is_record: bool) -> void:
 	_results_elapsed = 0.0
 	_is_record = is_record
-	_headline_text = _format_headline(is_record)
+	# Read off the director at the edge rather than carried on the signal: unlike is_record, this is
+	# not a value the director overwrites on its way out — see RunDirector.run_ended_wrecked.
+	_wrecked = _director.run_ended_wrecked
+	_reveal_hold = wreck_hold_seconds if _wrecked else 0.0
+	_headline_text = _format_headline(is_record, _wrecked)
 	_build_rows(_director, run_time)
 
 
@@ -122,9 +139,13 @@ func _process(delta: float) -> void:
 		# have cost. The countdown digit stands down entirely; the headline is the big text now.
 		RunDirector.RunPhase.RESULTS:
 			_label.text = ""
-			_results.visible = true
 			_results_elapsed += delta
-			_draw_results()
+			# The wreck hold. Nothing is drawn through it — not a dimmed panel, not a headline
+			# waiting to grow — because the point of the beat is that the screen is empty and the
+			# wreck is the only thing in it.
+			_results.visible = _results_elapsed >= _reveal_hold
+			if _results.visible:
+				_draw_results()
 		_:
 			_label.text = ""
 			_results.visible = false
@@ -135,7 +156,10 @@ func _process(delta: float) -> void:
 # already handles. Every property is written every frame, so there is no half-finished animation to
 # strand — re-entering Results simply redraws from t=0.
 func _draw_results() -> void:
-	var pop: float = clampf(_results_elapsed / headline_pop_seconds, 0.0, 1.0)
+	# Every beat below is measured from the moment the panel appears, not from the moment the Run
+	# ended: the wreck hold delays the screen, it does not eat the front of its reveal.
+	var elapsed: float = _results_elapsed - _reveal_hold
+	var pop: float = clampf(elapsed / headline_pop_seconds, 0.0, 1.0)
 	# Starts 35% oversized and shrinks in: the headline lands on the screen rather than appearing on
 	# it. ease(t, 0.25) is fast-then-slow, so most of the travel is over in the first few frames.
 	var pop_scale: float = 1.0 + 0.35 * (1.0 - ease(pop, 0.25))
@@ -143,10 +167,10 @@ func _draw_results() -> void:
 	if _is_record and pop >= 1.0:
 		# Rides 0..1 rather than -1..1, so the swell only ever adds: a record headline never reads
 		# smaller than a plain one.
-		pulse = 0.5 + 0.5 * sin((_results_elapsed - headline_pop_seconds) * TAU * record_pulse_hz)
+		pulse = 0.5 + 0.5 * sin((elapsed - headline_pop_seconds) * TAU * record_pulse_hz)
 
 	_headline.text = _headline_text
-	_headline.add_theme_color_override("font_color", record_color if _is_record else Color.WHITE)
+	_headline.add_theme_color_override("font_color", _headline_color())
 	_headline.modulate = Color(1.0, 1.0, 1.0, pop)
 	# The label spans the block's full width, so its centre is the block's: the swell stays put
 	# instead of walking the text sideways.
@@ -155,7 +179,7 @@ func _draw_results() -> void:
 
 	# +1 so the first row lands the instant the headline settles rather than one interval later.
 	var revealed: int = clampi(
-			floori((_results_elapsed - headline_pop_seconds) / row_reveal_seconds) + 1,
+			floori((elapsed - headline_pop_seconds) / row_reveal_seconds) + 1,
 			0, _row_names.size())
 	_names.text = _join_rows(_row_names, revealed)
 	# Right-aligned as a column rather than per row, so the figures line up on their last digit and
@@ -166,8 +190,8 @@ func _draw_results() -> void:
 	var prompt_at: float = headline_pop_seconds + _row_names.size() * row_reveal_seconds + prompt_delay_seconds
 	# Breathes rather than blinks: the prompt is the only thing still moving once the screen has
 	# settled, which is what points at it without pulling the eye off the numbers on the way in.
-	var breath: float = 0.72 + 0.28 * sin(_results_elapsed * TAU * 0.7)
-	_prompt.modulate = Color(1.0, 1.0, 1.0, breath if _results_elapsed >= prompt_at else 0.0)
+	var breath: float = 0.72 + 0.28 * sin(elapsed * TAU * 0.7)
+	_prompt.modulate = Color(1.0, 1.0, 1.0, breath if elapsed >= prompt_at else 0.0)
 
 
 # TIME, CASH, CP, RATE — the Run's four totals, each against the same figure from the ghost it raced.
@@ -231,10 +255,25 @@ func _delta_markup(delta: float, text: String, has_ghost: bool) -> String:
 	return "[color=#%s]%s[/color]" % [color.to_html(false), text]
 
 
-## "NEW RECORD" on a record Run. Otherwise blank — the deltas table below already says what the
-## Run did against the ghost, and a Run that did not take the record has no other headline to make.
-static func _format_headline(is_record: bool) -> String:
-	return "NEW RECORD" if is_record else ""
+# The headline's colour, which follows whichever line it ended up being: gold for the record, the
+# loss red for a wreck, white for a plain Run with nothing to say.
+func _headline_color() -> Color:
+	if _is_record:
+		return record_color
+	return loss_color if _wrecked else Color.WHITE
+
+
+## "NEW RECORD" on a record Run, "WRECKED" on a Run that ran out of Condition, otherwise blank — the
+## deltas table below already says what the Run did against the ghost, and a Run that did neither has
+## no other headline to make.
+##
+## The record outranks the wreck when a Run manages both. The wreck is not news by the time this
+## screen appears: the driver watched it happen and then sat through a second of it. The record is
+## the thing they cannot see from the wreck, and it is the thing that argues for another Run.
+static func _format_headline(is_record: bool, wrecked: bool) -> String:
+	if is_record:
+		return "NEW RECORD"
+	return "WRECKED" if wrecked else ""
 
 
 ## The Run's whole length, as m:ss.t once past a minute. Floored to the tenth, as RunHud's clock is,
