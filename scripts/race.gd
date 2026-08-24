@@ -39,6 +39,7 @@ const WORLD_SCENE_PATH: String = "res://main.tscn"
 @export var clock_field_path: NodePath = NodePath("ClockField")
 @export var boost_ghost_field_path: NodePath = NodePath("BoostGhostField")
 @export var hazard_ghost_field_path: NodePath = NodePath("HazardGhostField")
+@export var slipstream_ghost_field_path: NodePath = NodePath("SlipstreamGhostField")
 
 var _kart: Kart
 var _exiting: bool = false
@@ -61,6 +62,7 @@ func _enter_tree() -> void:
 		run_director.run_duration_seconds = circuit.run_duration_seconds
 		run_director.base_checkpoint_value = circuit.base_checkpoint_value
 		run_director.wrap_bonus_seconds = circuit.wrap_bonus_seconds
+		run_director.max_wraps = circuit.max_wraps
 		# The reverse edge of the wiring this scene already does: it hands the circuit's ghost line
 		# to the director, so it is also the natural place to forward a promoted one back out to
 		# [autoload IncomeRunner], which sits inside no scene and has no connection of its own to the
@@ -92,7 +94,15 @@ func _enter_tree() -> void:
 		hazard_field.loadout = loadout
 		hazard_field.save_loadout = save_loadout
 		hazard_field.ghost_count = loadout.hazard_ghost_count
-		hazard_field.spawn_chance_per_checkpoint = circuit.hazard_spawn_chance_per_checkpoint
+		hazard_field.spawn_interval_seconds = circuit.hazard_spawn_interval_seconds
+
+	var slipstream_field: SlipstreamGhostField = (
+		get_node_or_null(slipstream_ghost_field_path) as SlipstreamGhostField)
+	if slipstream_field != null:
+		slipstream_field.loadout = loadout
+		slipstream_field.save_loadout = save_loadout
+		slipstream_field.ghost_count = loadout.slipstream_ghost_count
+		slipstream_field.spawn_interval_seconds = circuit.slipstream_spawn_interval_seconds
 
 
 func _ready() -> void:

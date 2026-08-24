@@ -268,6 +268,8 @@ transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -5, 
 
 [node name="HazardGhosts" type="Node3D" parent="." unique_id=2147155494]
 
+[node name="SlipstreamGhosts" type="Node3D" parent="." unique_id=2147155495]
+
 [node name="Wall" type="StaticBody3D" parent="." unique_id=1603194263]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.658974, 0, -15.5378895)
 collision_layer = 2

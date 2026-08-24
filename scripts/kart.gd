@@ -266,6 +266,13 @@ func add_boost_charge(bump: float, bleed: float) -> void:
 	_model.add_boost_charge(bump, bleed)
 
 
+## A world event done to the kart by the slipstream ghost field: it decided a slipstream ghost was
+## caught, the model owns what that permanently does to the ceiling. See
+## [method KartModel.add_top_speed_bonus].
+func add_top_speed_bonus(amount: float) -> void:
+	_model.add_top_speed_bonus(amount)
+
+
 ## A world event done to the kart by the hazard ghost field: it decided a hazard was hit, the model
 ## owns what a hit costs. `multiplier` is the fraction of forward speed scrubbed, 0..1.
 func apply_hazard_slow(multiplier: float) -> void:

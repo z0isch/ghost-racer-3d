@@ -285,7 +285,7 @@ Boost ghosts pay no money. They shorten the time between checkpoints and nothing
 ### Hazard
 
 **Hazard ghost**:
-A translucent, red-tinted ghost of the car driving the ghost line **backward** — oncoming traffic on your own best line — **hit** on contact, the same swept test a clock or a boost ghost is taken by, and hit once is hit for the rest of the **Run**. Placed automatically along one wrap's worth of the ghost line — or along the whole recording, where no wrap ever closed inside it — one per equal slot of that stretch, exactly as boost ghosts are — the difference is that a hazard ghost stands *on* the line rather than a step to one side, since there is nowhere else for oncoming traffic to be, and it drives rather than stands still. Every hazard on a circuit costs the same, so the count is a known quantity. It comes from the **circuit loadout** exactly as the boost ghost count does, and starts at 0 for the same reason. A circuit may also tune a number of hazards spawned on top of that count every **checkpoint** taken — traffic that thickens as a Run goes on rather than staying fixed at the loadout's count — defaulting to 0, unlike the base count itself not player-tunable.
+A translucent, red-tinted ghost of the car driving the ghost line **backward** — oncoming traffic on your own best line — **hit** on contact, the same swept test a clock or a boost ghost is taken by, and hit once is hit for the rest of the **Run**. Placed automatically along one wrap's worth of the ghost line — or along the whole recording, where no wrap ever closed inside it — one per equal slot of that stretch, exactly as boost ghosts are — the difference is that a hazard ghost stands *on* the line rather than a step to one side, since there is nowhere else for oncoming traffic to be, and it drives rather than stands still. Every hazard on a circuit costs the same, so the count is a known quantity. It comes from the **circuit loadout** exactly as the boost ghost count does, and starts at 0 for the same reason. A circuit may also tune an interval, in seconds of Racing time, at which one more hazard is spawned on top of that count — traffic that thickens as a Run goes on rather than staying fixed at the loadout's count — defaulting to disabled (0), unlike the base count itself not player-tunable.
 **A wrap does nothing to the field at all**, and that is where it parts company with the **boost ghost**, which is both restored and re-rolled there. Neither half would be right here. Restoring it would respawn traffic the driver has already cleared, so a wrap you drove clean is handed back to you full — cleared is cleared for the rest of the Run, exactly as a clock or a boost ghost is. Re-placing it would cost more still: oncoming cars popping out of existence and a fresh field appearing in front of a driver already at speed — which a countdown can do unseen from a standing start and a wrap crossed at pace cannot — and the field's kart-clearance band re-cut around wherever the driver is every wrap, leaving a hole in the traffic there for the length of the Run. The hazards left standing simply keep driving across the boundary, which is what a wrap is: not an event, just the point the same stretch of line comes round again.
 _Avoid_: Traffic, obstacle car, enemy, oncoming car.
 
@@ -299,6 +299,19 @@ What driving through a hazard ghost costs: forward speed scrubbed by a tunable f
 _Avoid_: Damage, penalty, slow effect (unqualified).
 
 Hazard ghosts pay no money. Like boost ghosts they are read from the ghost line rather than authored into the circuit, and they reach the economy only through the time they cost; unlike boost ghosts they never sit still, so the line you set is also the line you are then driven at.
+
+### Slipstream
+
+**Slipstream ghost**:
+A translucent, green-tinted ghost of the car driving the road's own centreline **forward** — friendly traffic going the driver's own way — **caught** on contact, the same swept test a clock, boost ghost or hazard ghost is taken by, and caught once is caught for the rest of the **Run**. Placed automatically along the road's own centreline exactly as a hazard ghost is — the same per-lane wander, the same stratified starting slots, the same interval-driven thickening — but driving forward rather than backward, and costing nothing to touch: there is no dodge, only the catch. Every slipstream ghost on a circuit is worth the same, so the count is a known quantity. It comes from the **circuit loadout** exactly as the boost and hazard ghost counts do, and starts at 0 for the same reason.
+**A wrap does nothing to the field at all**, matching the **hazard ghost**'s own reason exactly: cleared is cleared for the rest of the Run, and the traffic left standing keeps driving straight through the wrap boundary.
+_Avoid_: Draft ghost, convoy, ally car, friendly hazard.
+
+**Slipstream catch**:
+What driving through a slipstream ghost pays: a **boost charge**, banked exactly as a **boost ghost**'s own charge is, plus seconds added straight to the Run — its own tunable amount, independent of the boost. One-shot, with no duration, the same shape as a **hazard hit**'s speed scrub in miniature, just paid rather than taken.
+_Avoid_: Slipstream bonus, draft bonus, tailwind.
+
+Slipstream ghosts pay no money. Like boost and hazard ghosts they are placed off the road's own centreline rather than authored into the circuit, and they reach the economy only through the boost and the seconds they pay.
 
 ### Income
 

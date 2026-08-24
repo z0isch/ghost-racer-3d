@@ -37,7 +37,7 @@ const CLOCK_SPIN_PHASE_DEG := 37.0 ## per-clock yaw offset so the field does not
 const CLOCK_SPIN_SCRIPT := "res://scripts/track/clock_spin.gd"
 ## Seconds a single clock adds to the Run's time budget. A balance number, not a maths constant —
 ## the spec leaves it open and this is the ship-and-tune default.
-const CLOCK_SECONDS := 10.0
+const CLOCK_SECONDS := 2.0
 
 const CHECKPOINTS_NODE := "Checkpoints"
 const CLOCKS_NODE := "Clocks"
@@ -159,7 +159,7 @@ func _run(opts: Dictionary) -> int:
 		push_warning(
 			"place_features: %d clock(s) could not be moved %.1f m clear of every gate — "
 			% [crowded, clearance]
-			+ "the loop is too short for %d gates and %d clocks at that clearance."
+			+"the loop is too short for %d gates and %d clocks at that clearance."
 			% [checkpoint_count, clock_count]
 		)
 
@@ -232,7 +232,7 @@ func _build_loop(scene_root: Node3D) -> Array[Span]:
 			# reachable, so the gates would be written beside the circuit rather than into it.
 			printerr(
 				"place_features: this scene has no road of its own. The road is inside the "
-				+ "instanced scene %s — run the tool against that file instead." % _instanced_scenes[0]
+				+"instanced scene %s — run the tool against that file instead." % _instanced_scenes[0]
 			)
 		else:
 			printerr("place_features: no RoadPoints found — is there a RoadManager in this scene?")
@@ -262,7 +262,7 @@ func _build_loop(scene_root: Node3D) -> Array[Span]:
 		if edge == null or edge.curve == null:
 			printerr(
 				"place_features: %s has no edge_C curve. Open the scene in the editor with " % current.name
-				+ "RoadContainer.create_edge_curves on and save it, so the centreline is in the file."
+				+"RoadContainer.create_edge_curves on and save it, so the centreline is in the file."
 			)
 			return empty
 
@@ -283,7 +283,7 @@ func _build_loop(scene_root: Node3D) -> Array[Span]:
 			printerr(
 				"place_features: %s's edge_C ends %.2f m from %s, not on it — the centreline "
 				% [current.name, tail.distance_to(expected), next_point.name]
-				+ "is stale. Re-save the scene from the editor to rebuild it."
+				+"is stale. Re-save the scene from the editor to rebuild it."
 			)
 			return empty
 
@@ -376,7 +376,7 @@ func _sample_road(spans: Array[Span], loop_length: float, s: float) -> Transform
 	var forward: Vector3 = (span.to_root.basis * (ahead - behind)).normalized()
 
 	var up: Vector3 = span.start_up.lerp(span.end_up, t).normalized()
-	var z_axis: Vector3 = -forward
+	var z_axis: Vector3 = - forward
 	var x_axis: Vector3 = up.cross(z_axis).normalized()
 	var y_axis: Vector3 = z_axis.cross(x_axis).normalized()
 	return Transform3D(Basis(x_axis, y_axis, z_axis), origin)
@@ -458,9 +458,9 @@ func _checkpoint_block(index: int, frame: Transform3D, half_width: float) -> Str
 func _mesh_child(name: String, parent: String, origin: Vector3, mesh_id: String, material_id: String) -> String:
 	return (
 		"[node name=\"%s\" type=\"MeshInstance3D\" parent=\"%s\"]\n" % [name, parent]
-		+ "transform = %s\n" % var_to_str(Transform3D(Basis.IDENTITY, origin))
-		+ "mesh = SubResource(\"%s\")\n" % mesh_id
-		+ "surface_material_override/0 = SubResource(\"%s\")\n\n" % material_id
+		+"transform = %s\n" % var_to_str(Transform3D(Basis.IDENTITY, origin))
+		+"mesh = SubResource(\"%s\")\n" % mesh_id
+		+"surface_material_override/0 = SubResource(\"%s\")\n\n" % material_id
 	)
 
 
@@ -475,11 +475,11 @@ func _clock_origin(frame: Transform3D, lateral: float) -> Vector3:
 ## with the banking would lay the clock on its side. It costs nothing, the pickup test being a
 ## horizontal distance to this origin that consults no basis.
 func _clock_block(index: int, frame: Transform3D, lateral: float) -> String:
-	var forward: Vector3 = -frame.basis.z
+	var forward: Vector3 = - frame.basis.z
 	var level_forward: Vector3 = Vector3(forward.x, 0.0, forward.z).normalized()
 	if level_forward.length_squared() < 0.5:
 		level_forward = Vector3.FORWARD # a vertical tangent has no yaw to keep; any is as good
-	var z_axis: Vector3 = -level_forward
+	var z_axis: Vector3 = - level_forward
 	var basis := Basis(Vector3.UP.cross(z_axis).normalized(), Vector3.UP, z_axis)
 
 	# The ring stands on edge, face square to the road. R_y(phase) * R_x(90): the X rotation lays
@@ -493,16 +493,16 @@ func _clock_block(index: int, frame: Transform3D, lateral: float) -> String:
 
 	return (
 		"[node name=\"Clock%02d\" type=\"Marker3D\" parent=\"%s\"]\n" % [index, CLOCKS_NODE]
-		+ "transform = %s\n" % var_to_str(Transform3D(basis, _clock_origin(frame, lateral)))
+		+"transform = %s\n" % var_to_str(Transform3D(basis, _clock_origin(frame, lateral)))
 		# Seconds rides on the marker so ClockField needs no second table. A flat default: what a
 		# clock is worth is a balance decision this tool does not make.
-		+ "metadata/seconds = %s\n\n" % CLOCK_SECONDS
-		+ "[node name=\"Mesh\" type=\"MeshInstance3D\" parent=\"%s/Clock%02d\"]\n" % [CLOCKS_NODE, index]
-		+ "transform = %s\n" % var_to_str(Transform3D(mesh_basis, Vector3.ZERO))
-		+ "mesh = SubResource(\"TorusMesh_clock\")\n"
+		+"metadata/seconds = %s\n\n" % CLOCK_SECONDS
+		+"[node name=\"Mesh\" type=\"MeshInstance3D\" parent=\"%s/Clock%02d\"]\n" % [CLOCKS_NODE, index]
+		+"transform = %s\n" % var_to_str(Transform3D(mesh_basis, Vector3.ZERO))
+		+"mesh = SubResource(\"TorusMesh_clock\")\n"
 		# A placeholder resolved to the scene's real ext_resource id in _rewrite_scene, which is not
 		# known until the file is parsed. The token carries @ so it cannot collide with a real id.
-		+ "script = ExtResource(\"%s\")\n\n" % CLOCK_SCRIPT_TOKEN
+		+"script = ExtResource(\"%s\")\n\n" % CLOCK_SCRIPT_TOKEN
 	)
 
 
@@ -573,9 +573,9 @@ func _rewrite_scene(
 		generated_subs += (
 			"[sub_resource type=\"BoxMesh\" id=\"%s\"]\nsize = Vector3(%s, %s, %s)\n\n"
 			% [ids["BoxMesh_gate_post"], GATE_POST_THICKNESS, GATE_HEIGHT, GATE_POST_THICKNESS]
-			+ "[sub_resource type=\"BoxMesh\" id=\"%s\"]\nsize = Vector3(%s, %s, %s)\n\n"
+			+"[sub_resource type=\"BoxMesh\" id=\"%s\"]\nsize = Vector3(%s, %s, %s)\n\n"
 			% [ids["BoxMesh_gate_bar"], bar_length, GATE_BAR_THICKNESS, GATE_BAR_THICKNESS]
-			+ "[sub_resource type=\"StandardMaterial3D\" id=\"%s\"]\nalbedo_color = Color(0.15, 0.45, 0.9, 1)\n\n"
+			+"[sub_resource type=\"StandardMaterial3D\" id=\"%s\"]\nalbedo_color = Color(0.15, 0.45, 0.9, 1)\n\n"
 			% ids["Material_gate"]
 		)
 		checkpoint_text = checkpoint_text.replace(
@@ -589,9 +589,9 @@ func _rewrite_scene(
 		generated_subs += (
 			"[sub_resource type=\"StandardMaterial3D\" id=\"%s\"]\nalbedo_color = Color(0.4, 0.75, 1.0, 1)\n\n"
 			% ids["Material_clock"]
-			+ "[sub_resource type=\"TorusMesh\" id=\"%s\"]\n" % ids["TorusMesh_clock"]
-			+ "material = SubResource(\"%s\")\n" % ids["Material_clock"]
-			+ "inner_radius = %s\nouter_radius = %s\nring_sides = 12\nrings = 24\n\n"
+			+"[sub_resource type=\"TorusMesh\" id=\"%s\"]\n" % ids["TorusMesh_clock"]
+			+"material = SubResource(\"%s\")\n" % ids["Material_clock"]
+			+"inner_radius = %s\nouter_radius = %s\nring_sides = 12\nrings = 24\n\n"
 			% [CLOCK_INNER_RADIUS, CLOCK_OUTER_RADIUS]
 		)
 		clock_text = clock_text.replace(
@@ -745,8 +745,8 @@ const USAGE := """usage: place_features --scene <path> --checkpoints <n> --clock
 func _parse_args(args: PackedStringArray) -> Dictionary:
 	var opts: Dictionary = {
 		"scene": "",
-		"checkpoints": -1,
-		"clocks": -1,
+		"checkpoints": - 1,
+		"clocks": - 1,
 		"start_finish_setback": 8.0,
 		"gate_clearance": 4.0,
 		"clock_lateral": [0.0] as Array[float],

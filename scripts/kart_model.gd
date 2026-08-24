@@ -345,6 +345,18 @@ func add_boost_charge(bump: float, bleed: float) -> void:
 	_charge_bleed = bleed
 
 
+## Permanently raises the kart's top speed by `amount`, for the rest of the Run — the same
+## [member _top_speed_bonus] a boost_raises_top_speed ghost banks, but unconditional: unlike
+## [method add_boost_charge], this does not depend on any tuning flag, so a field that wants both
+## a speed effect and a permanent ceiling raise (SlipstreamGhostField) can grant the ceiling raise
+## on top of whatever [method add_boost_charge] already did, rather than the two being mutually
+## exclusive modes of the same call.
+func add_top_speed_bonus(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	_top_speed_bonus += amount
+
+
 ## Spends one banked charge as an ordinary boost, on the driver's own timing rather than the
 ## ghost's. False and a no-op with nothing banked, so the caller can fire this on every press of
 ## the button without first checking [member boost_charges].

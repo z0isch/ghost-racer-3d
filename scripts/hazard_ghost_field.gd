@@ -74,17 +74,17 @@ const WANDER_SLOW_SHARE: float = 0.75
 		ghost_count = maxi(value, 0)
 		_place_ghosts()
 
-## Chance, each time [signal RunDirector.checkpoint_paid] fires, that one hazard is added on top
-## of the standing field — a circuit's own traffic can thicken as a Run goes on, rather than
-## staying fixed at [member ghost_count] for the whole Run. Per-circuit, set by race.gd from
-## [member Circuit.hazard_spawn_chance_per_checkpoint], the same way [member ghost_count] is
-## seeded from the loadout. 0.0 reproduces this field's behaviour before checkpoint spawning
-## existed.
+## Seconds of Racing time between each hazard added on top of the standing field — a circuit's
+## own traffic can thicken as a Run goes on, rather than staying fixed at [member ghost_count] for
+## the whole Run. Per-circuit, set by race.gd from [member Circuit.hazard_spawn_interval_seconds],
+## the same way [member ghost_count] is seeded from the loadout. 0.0 (or below) disables
+## thickening entirely, reproducing this field's behaviour before it existed.
 ##
-## Not reset by [signal RunDirector.wrapped], for the class doc's reason: nothing about standing
-## hazards resets on a wrap. Cleared only when [method _place_ghosts] next runs, at the following
-## countdown.
-@export_range(0.0, 1.0) var spawn_chance_per_checkpoint: float = 0.0
+## Counted only while [member RunDirector.phase] is RACING ([method _physics_process]), and not
+## reset by [signal RunDirector.wrapped], for the class doc's reason: nothing about standing
+## hazards resets on a wrap. Reset only at [method _on_countdown_started], alongside the field
+## itself.
+@export var spawn_interval_seconds: float = 0.0
 
 ## The circuit's own loadout, for BoostGhostField.loadout's identical reason: the dev keys ([method
 ## _physics_process]) raise or lower its hazard_ghost_count directly. Set by race.gd alongside
@@ -190,6 +190,10 @@ var _has_last_kart_position: bool = false
 var _elapsed: float = 0.0
 var _road_container: RoadContainer
 var _start_line: Node3D
+## Seconds of Racing time accumulated toward the next interval spawn ([member
+## spawn_interval_seconds]). Reset at every countdown ([method _on_countdown_started]), matching
+## [method _place_ghosts]'s own re-place there.
+var _spawn_timer: float = 0.0
 ## The road's own centreline, walked once at the first re-place ([method _build_centreline]) and
 ## reused at every one after, for BoostGhostField._centreline_positions's identical reason.
 var _centreline_positions: PackedVector3Array = PackedVector3Array()
@@ -217,9 +221,6 @@ func _ready() -> void:
 	if _director != null:
 		# countdown_started only: a wrap deliberately leaves the field alone (see class doc).
 		_director.countdown_started.connect(_on_countdown_started)
-		# unbind(3) drops checkpoint_paid's value/position/direction: a checkpoint crossing spawns
-		# more traffic regardless of what it paid or where it was taken.
-		_director.checkpoint_paid.connect(_on_checkpoint_paid.unbind(3))
 
 	if _ghosts_root == null:
 		push_warning("HazardGhostField: no HazardGhosts node — nothing to spawn traffic into.")
@@ -243,6 +244,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _director != null and _director.phase == RunDirector.RunPhase.RACING:
 		_advance_ghosts(delta)
+		_advance_spawn_timer(delta)
 		if _kart != null:
 			_sweep_ghosts.call_deferred()
 
@@ -521,7 +523,7 @@ func _current_kart_distance() -> float:
 
 
 ## Hazards this half_band's own share of the road can support without two overlapping — the same
-## expression [method _place_ghosts] used inline before [member spawn_chance_per_checkpoint] gave it a
+## expression [method _place_ghosts] used inline before [member spawn_interval_seconds] gave it a
 ## second caller.
 func _half_band() -> float:
 	var car_width: float = 2.0 * _pickup_radius
@@ -560,11 +562,17 @@ func _spawn_extra_ghosts(count: int) -> void:
 			half_band, phase, distance, _centreline_length, _centreline_cumulative))
 
 
-## [signal RunDirector.checkpoint_paid] handler: see [member spawn_chance_per_checkpoint]. One roll
-## per checkpoint, for one hazard at most — a checkpoint either thickens the field by one car or it
-## doesn't, rather than a Poisson-ish number of them.
-func _on_checkpoint_paid() -> void:
-	if _rng.randf() < spawn_chance_per_checkpoint:
+## Advances [member _spawn_timer] by [param delta] and spawns one hazard for every full [member
+## spawn_interval_seconds] it crosses — a while loop rather than a single if, so a stalled frame
+## (or an interval shorter than a physics tick) still spawns the right count rather than losing
+## the remainder. Disabled outright by a non-positive interval, matching [member
+## spawn_interval_seconds]'s own doc.
+func _advance_spawn_timer(delta: float) -> void:
+	if spawn_interval_seconds <= 0.0:
+		return
+	_spawn_timer += delta
+	while _spawn_timer >= spawn_interval_seconds:
+		_spawn_timer -= spawn_interval_seconds
 		_spawn_extra_ghosts(1)
 
 
@@ -844,6 +852,7 @@ func _sweep_ghosts() -> void:
 ## identical reason.
 func _on_countdown_started() -> void:
 	_has_last_kart_position = false
+	_spawn_timer = 0.0
 	_place_ghosts()
 
 

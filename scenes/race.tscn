@@ -19,6 +19,7 @@
 [ext_resource type="Script" uid="uid://c6lyjon7i14mm" path="res://scripts/moebius_effect.gd" id="17_moebius_effect"]
 [ext_resource type="Script" uid="uid://b2m0rjc2vkdi1" path="res://scripts/hazard_ghost_field.gd" id="18_hazard_ghost_field"]
 [ext_resource type="Script" uid="uid://da76lipm4pj0o" path="res://scripts/wrap_hud.gd" id="19_wrap_hud"]
+[ext_resource type="Script" uid="uid://ddj5wvkg3i5r2" path="res://scripts/slipstream_ghost_field.gd" id="20_slipstream_ghost_field"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_moebius"]
 sky_top_color = Color(0.22114116, 0.5285429, 0.5401196, 1)
@@ -137,6 +138,7 @@ director_path = NodePath("../RunDirector")
 road_container_path = NodePath("../Circuit/RoadManager/RoadContainer")
 start_line_path = NodePath("../Circuit/StartLine")
 ghosts_path = NodePath("../Circuit/BoostGhosts")
+kart_clearance = 20.0
 placement_jitter = 0.669
 pickup_radius_fraction = 2.0
 ghost_color = Color(0, 0.5176471, 0.34509805, 0.5921569)
@@ -158,6 +160,23 @@ pickup_radius_fraction = 3.0
 line_width = 0.2
 line_color = Color(0.9490196, 0.101960786, 0.101960786, 0.4509804)
 
+[node name="SlipstreamGhostField" type="Node" parent="." unique_id=417553909]
+script = ExtResource("20_slipstream_ghost_field")
+kart_path = NodePath("../Kart")
+director_path = NodePath("../RunDirector")
+road_container_path = NodePath("../Circuit/RoadManager/RoadContainer")
+start_line_path = NodePath("../Circuit/StartLine")
+ghosts_path = NodePath("../Circuit/SlipstreamGhosts")
+kart_clearance = 20.0
+placement_jitter = 0.7
+min_speed = 0.5
+max_speed = 3.0
+max_lane_gradient = 0.3
+hit_time_bonus = 0.0
+pickup_radius_fraction = 3.0
+line_width = 0.2
+line_lead_length = 20.0
+
 [node name="PurseLink" type="Node" parent="." unique_id=417553903]
 script = ExtResource("11_purse")
 director_path = NodePath("../RunDirector")
@@ -167,6 +186,7 @@ script = ExtResource("12_pickup_popups")
 director_path = NodePath("../RunDirector")
 clock_field_path = NodePath("../ClockField")
 hazard_ghost_field_path = NodePath("../HazardGhostField")
+slipstream_ghost_field_path = NodePath("../SlipstreamGhostField")
 lead_distance = 5.0
 rise = 5.0
 lifetime = 1.5
@@ -181,6 +201,7 @@ start_line_path = NodePath("../Circuit/StartLine")
 checkpoints_path = NodePath("../Circuit/Checkpoints")
 clock_field_path = NodePath("../ClockField")
 hazard_ghost_field_path = NodePath("../HazardGhostField")
+slipstream_ghost_field_path = NodePath("../SlipstreamGhostField")
 restart_countdown_seconds = 1.0
 
 [node name="PaceGhost" type="Node3D" parent="." unique_id=871962825]

@@ -27,6 +27,8 @@ extends Node3D
 ## hazard_jumped → "+2s", for the trick rather than the clock — its own colour, not clock_color, so
 ## a run-clock popup and a jump-bonus popup never read as the same pickup.
 @export var hazard_ghost_field_path: NodePath
+## slipstream_hit → "+2s", its own colour so a catch never reads as a hazard-hop's bonus.
+@export var slipstream_ghost_field_path: NodePath
 
 ## How far in front of the pickup the text appears, along the pickup's own travel direction: far
 ## enough that you drive through it, close enough that it still belongs to the pickup you took. At
@@ -53,6 +55,11 @@ extends Node3D
 ## The jump bonus's own colour: a trick reward, not a clock, and not the hazard ghost's own red
 ## either — a bright lime so "+2s" for clearing a hazard never gets mistaken for either.
 @export var jump_color: Color = Color(0.6, 1.0, 0.2)
+
+## The slipstream catch's own colour — green, matching the ghost itself (CONTEXT.md's **Pickup
+## popup**, "tied together by colour"), and apart from money_color so a catch's seconds are never
+## mistaken for a checkpoint's dollars.
+@export var slipstream_color: Color = Color(0.15, 0.85, 0.35)
 
 ## With [member pixel_size], sizes the text in metres rather than pixels: 64 * 0.005 = 0.32 m tall,
 ## about half the height of the 0.6 m disc it came from.
@@ -81,6 +88,11 @@ func _ready() -> void:
 		# popup, since both are a bonus paid out by a different route, just with independent amounts.
 		hazard_field.hazard_hit.connect(_on_hazard_jumped)
 
+	var slipstream_field: SlipstreamGhostField = (
+		get_node_or_null(slipstream_ghost_field_path) as SlipstreamGhostField)
+	if slipstream_field != null:
+		slipstream_field.slipstream_hit.connect(_on_slipstream_hit)
+
 
 func _on_checkpoint_paid(value: int, pickup_position: Vector3, direction: Vector3) -> void:
 	_spawn("$%d" % value, money_color, pickup_position, direction)
@@ -92,6 +104,10 @@ func _on_clock_taken(seconds: float, pickup_position: Vector3, direction: Vector
 
 func _on_hazard_jumped(seconds: float, pickup_position: Vector3, direction: Vector3) -> void:
 	_spawn("+%ds" % roundi(seconds), jump_color, pickup_position, direction)
+
+
+func _on_slipstream_hit(seconds: float, pickup_position: Vector3, direction: Vector3) -> void:
+	_spawn("+%ds" % roundi(seconds), slipstream_color, pickup_position, direction)
 
 
 ## One popup per pickup, with no stacking logic. Sweeping three checkpoints in half a second leaves

@@ -85,6 +85,10 @@ enum RunPhase {
 ## HazardGhostField.hazard_jumped]. Left unset, hopping a hazard still clears it — the field does
 ## that on its own — but no time is banked for it.
 @export var hazard_ghost_field_path: NodePath
+## The SlipstreamGhostField whose caught ghosts also extend [member run_budget], via [signal
+## SlipstreamGhostField.slipstream_hit]. Left unset, catching a slipstream ghost still banks no
+## time — the field pays the boost charge on its own regardless.
+@export var slipstream_ghost_field_path: NodePath
 
 ## Where the ghost line is persisted. Loaded on [method _ready] if the file exists, and overwritten
 ## every time a Run promotes a new record — so the "drive one Run to get ghosts" tax is paid once,
@@ -104,6 +108,10 @@ enum RunPhase {
 ## Seconds banked into the Run budget every wrap. Set by race.gd from Circuit.wrap_bonus_seconds, the
 ## same way base_checkpoint_value is. 0.0 means a wrap banks nothing.
 @export var wrap_bonus_seconds: float = 0.0
+
+## How many wraps a Run may complete before it ends. Set by race.gd from Circuit.max_wraps, the same
+## way wrap_bonus_seconds is. 0 means unlimited — a Run only ever ends by Timeout or Abort.
+@export var max_wraps: int = 0
 
 ## The checkpoint prism, in each marker's own frame: the road and nothing but the road, from 1 m
 ## below the surface to 5 m above, which is where the gate's posts and crossbar are. Exported so the
@@ -313,6 +321,13 @@ func _ready() -> void:
 		hazard_field.hazard_jumped.connect(_on_clock_taken.unbind(2))
 		hazard_field.hazard_hit.connect(_on_clock_taken.unbind(2))
 
+	var slipstream_field: SlipstreamGhostField = (
+		get_node_or_null(slipstream_ghost_field_path) as SlipstreamGhostField)
+	if slipstream_field != null:
+		# unbind(2) drops slipstream_hit's position and direction arguments, for clock_taken's
+		# identical reason.
+		slipstream_field.slipstream_hit.connect(_on_clock_taken.unbind(2))
+
 	# The phase must resolve before Kart's physics step reads frozen, or the GO frame is spent still
 	# frozen — a dead frame the driver feels as a hitch off the line. Checkpoint detection needs the
 	# opposite, the kart's position after move_and_slide, hence the deferred swept test.
@@ -359,7 +374,8 @@ func _physics_process(delta: float) -> void:
 				_begin_countdown(restart_countdown_seconds)
 
 
-## Called when the Run clock reaches [member run_budget] — a Timeout, the only way a Run ends with
+## Called when the Run clock reaches [member run_budget] (a Timeout) or, on a circuit with
+## [member max_wraps] set, the instant the last permitted wrap closes — the two ways a Run ends with
 ## a result. Holds the promotion rule, and the only copy of it.
 func complete_run() -> void:
 	var run_time: float = _run_clock
@@ -506,6 +522,9 @@ func _sweep_pending_checkpoint() -> void:
 		var ghost_wrap_time: float = _ghost_wrap_time(_wraps_completed)
 		wrap_completed.emit(wrap_time, ghost_wrap_time, maxf(0.0, wrap_bonus_seconds))
 		_wrap_start_clock = _run_clock
+		if max_wraps > 0 and _wraps_completed >= max_wraps:
+			complete_run()
+			return
 	_update_gate_visibility()
 
 
