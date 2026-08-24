@@ -7,13 +7,11 @@ extends Node
 ## from being friendly traffic going the driver's own way rather than oncoming: it is dealt into a
 ## window of road ahead of the kart rather than stratified over the whole lap ([method
 ## place_along]), a slipstream ghost drives forward along its own lane instead of backward, its hit
-## costs no speed, and driving through it pays a boost charge (HazardGhostField's bump/bleed,
-## BoostGhostField's own reward) plus a small permanent top-speed raise, on top of the seconds a
-## hazard hop pays.
+## costs no speed, and driving through it pays a small permanent top-speed raise, on top of the
+## seconds a hazard hop pays. No boost charge — that reward is BoostGhostField's alone.
 ##
 ## The reward lives on the field, not on the ghost, for BoostGhostField's reason: every slipstream
-## ghost on a circuit is worth the same, so there is one bump/bleed/bonus here rather than per-ghost
-## metadata.
+## ghost on a circuit is worth the same, so there is one bonus here rather than per-ghost metadata.
 ##
 ## Placed at runtime along the circuit's own road centreline ([method _build_centreline], via
 ## [RoadCentreline]) — a genuine closed loop, unlike the driver's own recorded lap, so a circuit
@@ -28,7 +26,7 @@ extends Node
 
 ## One ghost, the instant it is driven through. Carries the seconds it pays, in the same shape as
 ## ClockField.clock_taken and HazardGhostField.hazard_hit, so PickupPopups and RunDirector can
-## treat it exactly the same way. The boost charge it also pays is applied directly to the kart
+## treat it exactly the same way. The top-speed raise it also pays is applied directly to the kart
 ## ([method _take_ghost]) rather than carried on this signal, matching BoostGhostField.ghost_taken's
 ## own split between a spatial signal and a direct kart call.
 signal slipstream_hit(seconds: float, position: Vector3, direction: Vector3)
@@ -126,18 +124,11 @@ var save_loadout: Callable = Callable()
 ## for with the wander of the lanes nearest the kerb.
 @export_range(0.0, 1.0) var lane_bias: float = 0.6
 
-## m/s the banked charge puts straight into forward speed, above the tuned ceiling, once spent —
-## BoostGhostField.bump's identical meaning, paid the instant a slipstream ghost is driven through
-## rather than banked for later: there is no button press here, only the catch.
-@export var bump: float = 10.0
-## m/s^2 the overspeed comes back off at, once the charge is spent — BoostGhostField.bleed's
-## identical meaning.
-@export var bleed: float = 5.0
-## m/s permanently added to the kart's top speed the instant a slipstream ghost is caught, on top
-## of the bump/bleed charge above — [method Kart.add_top_speed_bonus], unconditional rather than
-## gated on KartTuning.boost_raises_top_speed the way BoostGhostField's own ceiling raise is: that
-## flag governs how a *boost pad* ghost's grant is spent (an instant boost vs. a permanent raise),
-## a choice this field has no part in, so slipstream traffic always pays both.
+## m/s permanently added to the kart's top speed the instant a slipstream ghost is caught —
+## [method Kart.add_top_speed_bonus], unconditional rather than gated on
+## KartTuning.boost_raises_top_speed the way BoostGhostField's own ceiling raise is: that flag
+## governs how a *boost pad* ghost's grant is spent (an instant boost vs. a permanent raise), a
+## choice this field has no part in.
 @export var top_speed_bump: float = 0.3
 ## Seconds added to the Run when a slipstream ghost is driven through ([signal slipstream_hit]).
 ## Its own knob, separate from the boost: how much Run time a catch is worth is a different dial
@@ -796,7 +787,6 @@ func _take_ghost(ghost: Slipstream, direction: Vector3) -> void:
 	# Here rather than left to the next [method _update_ribbons]: the sweep is deferred and the
 	# ribbons were already updated this frame, for HazardGhostField's identical reason.
 	ghost.ribbon.visible = false
-	_kart.add_boost_charge(bump, bleed)
 	_kart.add_top_speed_bonus(top_speed_bump)
 	slipstream_hit.emit(hit_time_bonus, ghost.origin, direction)
 

@@ -37,7 +37,7 @@ const CLOCK_SPIN_PHASE_DEG := 37.0 ## per-clock yaw offset so the field does not
 const CLOCK_SPIN_SCRIPT := "res://scripts/track/clock_spin.gd"
 ## Seconds a single clock adds to the Run's time budget. A balance number, not a maths constant —
 ## the spec leaves it open and this is the ship-and-tune default.
-const CLOCK_SECONDS := 2.0
+const CLOCK_SECONDS := 0.0
 
 const CHECKPOINTS_NODE := "Checkpoints"
 const CLOCKS_NODE := "Clocks"

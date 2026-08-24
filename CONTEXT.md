@@ -325,10 +325,10 @@ A translucent, green-tinted ghost of the car driving the road's own centreline *
 _Avoid_: Draft ghost, convoy, ally car, friendly hazard.
 
 **Slipstream catch**:
-What driving through a slipstream ghost pays: a **boost charge**, banked exactly as a **boost ghost**'s own charge is, plus seconds added straight to the Run — its own tunable amount, independent of the boost. One-shot, with no duration, the same shape as a **hazard hit**'s speed scrub in miniature, just paid rather than taken.
+What driving through a slipstream ghost pays: a small permanent top-speed raise, applied straight to the kart, plus seconds added straight to the Run — its own tunable amount, independent of the top-speed raise. No boost charge — that reward is the **boost ghost**'s alone. One-shot, with no duration, the same shape as a **hazard hit**'s speed scrub in miniature, just paid rather than taken.
 _Avoid_: Slipstream bonus, draft bonus, tailwind.
 
-Slipstream ghosts pay no money. Like boost and hazard ghosts they are placed off the road's own centreline rather than authored into the circuit, and they reach the economy only through the boost and the seconds they pay.
+Slipstream ghosts pay no money. Like boost and hazard ghosts they are placed off the road's own centreline rather than authored into the circuit, and they reach the economy only through the top-speed raise and the seconds they pay.
 
 ### Income
 

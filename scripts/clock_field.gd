@@ -63,6 +63,16 @@ var save_loadout: Callable = Callable()
 ## fallback [class PickupPopups] used to compute for itself before this moved here.
 const MIN_MEANINGFUL_SPEED: float = 1.0
 
+## Bump/bleed a clock also banks as a boost charge, on top of the seconds it pays into the Run
+## budget — BoostGhostField.bump/bleed's own default, so a clock's charge feels like the same
+## pickup rather than a weaker or stronger one. Stored and spent through [method
+## Kart.add_boost_charge] exactly as a boost ghost's is: banked rather than fired immediately,
+## subject to the same [member KartTuning.store_boost_charges] switch.
+@export var bump: float = 10.0
+## m/s^2 the overspeed comes back off at, once the charge is spent — BoostGhostField.bleed's own
+## default.
+@export var bleed: float = 5.0
+
 var _kart: Kart
 var _director: RunDirector
 var _clocks: Array[Clock] = []
@@ -229,6 +239,7 @@ func _sweep_clocks() -> void:
 			continue
 		clock.taken = true
 		clock.node.visible = false
+		_kart.add_boost_charge(bump, bleed)
 		clock_taken.emit(clock.seconds, clock.origin, direction)
 
 

@@ -421,8 +421,8 @@ surface_material_override/0 = SubResource("Material_gate")
 [node name="Clocks" type="Node3D" parent="."]
 
 [node name="Clock00" type="Marker3D" parent="Clocks"]
-transform = Transform3D(0.9617812, 0, 0.2738192, 0, 1, 0, -0.2738192, 0, 0.9617812, -3.8750992, 0.4, -30.495224)
-metadata/seconds = 2.0
+transform = Transform3D(0.97331566, 0, 0.22947042, 0, 1, 0, -0.22947042, 0, 0.97331566, -3.968056, 0.4, -45.99907)
+metadata/seconds = 0.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock00"]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
@@ -430,8 +430,8 @@ mesh = SubResource("TorusMesh_clock")
 script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock01" type="Marker3D" parent="Clocks"]
-transform = Transform3D(0.9112303, 0, -0.4118974, 0, 1, 0, 0.4118974, 0, 0.9112303, -23.86423, 0.4, -68.30063)
-metadata/seconds = 2.0
+transform = Transform3D(-0.98389655, 0, -0.17873876, 0, 1, 0, 0.17873876, 0, -0.98389655, 13.958085, 0.9098917, -58.537632)
+metadata/seconds = 0.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock01"]
 transform = Transform3D(0.7986355, 0.60181504, 0, 0, 0, -1, -0.60181504, 0.7986355, 0, 0, 0, 0)
@@ -439,29 +439,11 @@ mesh = SubResource("TorusMesh_clock")
 script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock02" type="Marker3D" parent="Clocks"]
-transform = Transform3D(-0.98389655, 0, -0.17873876, 0, 1, 0, 0.17873876, 0, -0.98389655, 13.958085, 0.9098917, -58.537632)
-metadata/seconds = 2.0
+transform = Transform3D(-0.11867877, 0, -0.99293274, 0, 1, 0, 0.99293274, 0, -0.11867877, 20.066172, 2.3945758, 6.2711544)
+metadata/seconds = 0.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock02"]
 transform = Transform3D(0.27563736, 0.9612617, 0, 0, 0, -1, -0.9612617, 0.27563736, 0, 0, 0, 0)
-mesh = SubResource("TorusMesh_clock")
-script = ExtResource("1_gen_clock_spin")
-
-[node name="Clock03" type="Marker3D" parent="Clocks"]
-transform = Transform3D(-0.9788684, 0, 0.20449105, 0, 1, 0, -0.20449105, 0, -0.9788684, 0.16119666, 6.3610964, -15.343881)
-metadata/seconds = 2.0
-
-[node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock03"]
-transform = Transform3D(-0.35836795, 0.9335804, 0, 0, 0, -1, -0.9335804, -0.35836795, 0, 0, 0, 0)
-mesh = SubResource("TorusMesh_clock")
-script = ExtResource("1_gen_clock_spin")
-
-[node name="Clock04" type="Marker3D" parent="Clocks"]
-transform = Transform3D(0.99197924, 0, -0.12640093, 0, 1, 0, 0.12640093, 0, 0.99197924, 29.77925, 0.44427818, -3.229823)
-metadata/seconds = 2.0
-
-[node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock04"]
-transform = Transform3D(-0.8480481, 0.52991927, 0, 0, 0, -1, -0.52991927, -0.8480481, 0, 0, 0, 0)
 mesh = SubResource("TorusMesh_clock")
 script = ExtResource("1_gen_clock_spin")
 
