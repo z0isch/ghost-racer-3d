@@ -110,6 +110,8 @@ script = ExtResource("17_moebius_effect")
 [node name="HUD" type="CanvasLayer" parent="." unique_id=988637534]
 script = ExtResource("3_debug_hud")
 target_path = NodePath("../Kart")
+hazard_field_path = NodePath("../HazardGhostField")
+slipstream_field_path = NodePath("../SlipstreamGhostField")
 
 [node name="SpeedLabel" type="Label" parent="HUD" unique_id=144426822]
 offset_left = 16.0
@@ -126,6 +128,14 @@ offset_right = 216.0
 offset_bottom = 64.0
 theme_override_colors/font_color = Color(0, 0, 0, 1)
 text = "On-road"
+
+[node name="SpawnIntervalLabel" type="Label" parent="HUD" unique_id=452692009]
+offset_left = 16.0
+offset_top = 64.0
+offset_right = 416.0
+offset_bottom = 88.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+text = "Spawn interval: hazard 0.0s / slipstream 0.0s"
 
 [node name="ClockField" type="Node" parent="." unique_id=417553902]
 script = ExtResource("10_clock_field")

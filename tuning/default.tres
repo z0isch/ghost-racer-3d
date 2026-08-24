@@ -16,4 +16,4 @@ min_slip_speed = 0.0
 steer_grip_boost = 1.0
 drift_speed_scrub = 0.0
 mud_multiplier = 0.3
-grass_multiplier = 0.8
+grass_multiplier = 0.6

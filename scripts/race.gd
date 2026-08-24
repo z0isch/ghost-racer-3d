@@ -34,6 +34,12 @@ extends Node3D
 const FALLBACK_CIRCUIT: Circuit = preload("res://circuits/circuit3.tres")
 const WORLD_SCENE_PATH: String = "res://main.tscn"
 
+## Grow at the same rate: the two dial down independently in [class Circuit], but the dev keys
+## ([method _adjust_spawn_intervals]) treat them as one traffic-thickening knob, since a playtest
+## almost always wants both sides busier or both quieter together rather than retuning them one at
+## a time.
+const DEV_SPAWN_INTERVAL_STEP_SECONDS: float = 1.0
+
 @export var kart_path: NodePath = NodePath("Kart")
 @export var run_director_path: NodePath = NodePath("RunDirector")
 @export var clock_field_path: NodePath = NodePath("ClockField")
@@ -111,6 +117,11 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	if Input.is_action_just_pressed("dev_spawn_interval_more"):
+		_adjust_spawn_intervals(DEV_SPAWN_INTERVAL_STEP_SECONDS)
+	if Input.is_action_just_pressed("dev_spawn_interval_fewer"):
+		_adjust_spawn_intervals(-DEV_SPAWN_INTERVAL_STEP_SECONDS)
+
 	if _exiting or not Input.is_action_just_pressed("exit_circuit"):
 		return
 
@@ -134,3 +145,25 @@ func _physics_process(_delta: float) -> void:
 func _on_run_completed(_run_time: float, is_record: bool) -> void:
 	if is_record:
 		IncomeRunner.reseat(_circuit)
+
+
+## Raises or lowers both spawn intervals by [param delta_seconds] and pushes the result straight
+## into the live fields, for HazardGhostField._adjust_ghost_count's identical reason: the door the
+## dev keys go through is the field's own exported property, not the [class Circuit] alone, since
+## _enter_tree only reads the circuit once, at race setup. Floored at 0.0, spawn_interval_seconds's
+## own "0.0 (or below) disables thickening" meaning: a negative interval would be a distinct,
+## unintended state rather than just "more thickening than 0.0".
+func _adjust_spawn_intervals(delta_seconds: float) -> void:
+	_circuit.hazard_spawn_interval_seconds = maxf(
+		_circuit.hazard_spawn_interval_seconds + delta_seconds, 0.0)
+	_circuit.slipstream_spawn_interval_seconds = maxf(
+		_circuit.slipstream_spawn_interval_seconds + delta_seconds, 0.0)
+
+	var hazard_field: HazardGhostField = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
+	if hazard_field != null:
+		hazard_field.spawn_interval_seconds = _circuit.hazard_spawn_interval_seconds
+
+	var slipstream_field: SlipstreamGhostField = (
+		get_node_or_null(slipstream_ghost_field_path) as SlipstreamGhostField)
+	if slipstream_field != null:
+		slipstream_field.spawn_interval_seconds = _circuit.slipstream_spawn_interval_seconds
