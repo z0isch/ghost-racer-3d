@@ -38,7 +38,8 @@ signal ghost_taken(position: Vector3)
 const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 
 ## The model scale the FBX's own axis correction ([method _spawn_ghost]) is built from, per unit
-## of [member pickup_radius_fraction] — i.e. the tuned look at the old fixed 2.0 m radius against
+## of a ghost's own drawn pickup fraction ([member min_pickup_radius_fraction] …
+## [member max_pickup_radius_fraction]) — i.e. the tuned look at the old fixed 2.0 m radius against
 ## a 0.5 m kart, divided by that 4.0 fraction.
 const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 
@@ -101,12 +102,16 @@ var save_loadout: Callable = Callable()
 @export var bump: float = 10.0
 ## m/s^2 the overspeed comes back off at, once the charge is spent. Every ghost on the circuit.
 @export var bleed: float = 5.0
-## Fraction of the kart's own collision radius ([member Kart.sphere_radius]) a ghost reaches out
-## to. Wider than a clock's: the ghost is a car-sized silhouette, and clipping its wing should
-## count. 4.0 against the kart's default 0.5 m sphere_radius reproduces the old fixed 2.0 m
-## radius. [member _spawn_ghost] scales the model by this same fraction, so a wider pickup always
-## shows as a visually bigger ghost rather than the two drifting apart.
-@export var pickup_radius_fraction: float = 4.0
+## Range of the kart's own collision radius ([member Kart.sphere_radius]) a ghost reaches out to.
+## Wider than a clock's: the ghost is a car-sized silhouette, and clipping its wing should count.
+## 4.0 against the kart's default 0.5 m sphere_radius reproduces the old fixed 2.0 m radius.
+##
+## Each ghost draws its own fraction from this range once, at spawn ([method _spawn_ghost]), which
+## scales its model by that same draw — so the field reads as cars of assorted sizes and a bigger
+## silhouette is always the wider pickup, rather than the two drifting apart. Setting min above max
+## is not policed; the draw simply collapses to the smaller of the two.
+@export var min_pickup_radius_fraction: float = 3.0
+@export var max_pickup_radius_fraction: float = 5.0
 
 ## Metres of vertical gap the swept test still counts as a hit, for ClockField.max_vertical_gap's
 ## identical reason: the horizontal-only sweep would otherwise let a ghost be taken from a stretch
@@ -140,10 +145,6 @@ var _centreline_yaws: PackedFloat32Array = PackedFloat32Array()
 var _centreline_cumulative: PackedFloat32Array = PackedFloat32Array()
 var _road_container: RoadContainer
 var _start_line: Node3D
-## pickup_radius_fraction resolved against the kart's sphere_radius. Resolved once in _ready
-## rather than read every sweep: sphere_radius is a body constant, not something that changes
-## mid-race.
-var _pickup_radius: float = 0.0
 # Seeded randomly on creation by Godot and never re-seeded: a fresh draw at every countdown is the
 # whole point, so there is no layout worth reproducing.
 var _rng := RandomNumberGenerator.new()
@@ -153,8 +154,6 @@ func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
 	_director = get_node_or_null(director_path) as RunDirector
 	_ghosts_root = get_node_or_null(ghosts_path) as Node3D
-	if _kart != null:
-		_pickup_radius = pickup_radius_fraction * _kart.sphere_radius
 
 	if _director != null:
 		_director.countdown_started.connect(_on_countdown_started)
@@ -430,15 +429,18 @@ func _spawn_ghost(pose: Transform3D) -> Ghost:
 	wrapper.add_child(model)
 	# The FBX's own axes don't match the road's forward/up/scale; this is the same corrective local
 	# transform authored on every hand-placed pad's Ghost child and on PaceGhost's SportsCar child,
-	# scaled by pickup_radius_fraction so the silhouette tracks the pickup radius it stands for.
-	# 0.02, not PaceGhost's 0.0: just enough lift to keep the model's belly off the road mesh
+	# scaled by this ghost's own drawn fraction so the silhouette tracks the pickup radius it stands
+	# for. 0.02, not PaceGhost's 0.0: just enough lift to keep the model's belly off the road mesh
 	# without floating it visibly above the ground the way the old 0.1 did.
+	var fraction: float = _rng.randf_range(
+		min_pickup_radius_fraction, maxf(min_pickup_radius_fraction, max_pickup_radius_fraction))
 	model.transform = Transform3D(
-		Basis().scaled(MODEL_SCALE_PER_FRACTION * pickup_radius_fraction), Vector3(0.0, 0.02, 0.0))
+		Basis().scaled(MODEL_SCALE_PER_FRACTION * fraction), Vector3(0.0, 0.02, 0.0))
 
 	var ghost := Ghost.new()
 	ghost.node = wrapper
 	ghost.origin = pose.origin
+	ghost.pickup_radius = fraction * (_kart.sphere_radius if _kart != null else 0.0)
 	ghost.material = _build_ghost_material()
 	_apply_material(model, ghost.material)
 	return ghost
@@ -463,7 +465,7 @@ func _sweep_ghosts() -> void:
 	for ghost: Ghost in _ghosts:
 		if ghost.taken:
 			continue
-		if not ClockField.segment_takes_clock(previous, position, ghost.origin, _pickup_radius):
+		if not ClockField.segment_takes_clock(previous, position, ghost.origin, ghost.pickup_radius):
 			continue
 		if absf(position.y - ghost.origin.y) > max_vertical_gap:
 			continue
@@ -521,5 +523,8 @@ func _apply_material(node: Node, material: StandardMaterial3D) -> void:
 class Ghost extends RefCounted:
 	var node: Node3D = null # the wrapper; visibility toggles here
 	var origin: Vector3 = Vector3.ZERO
+	## Metres this ghost reaches out to, drawn once at spawn from the field's own fraction range
+	## and matched by the scale of the model standing here; see [method BoostGhostField._spawn_ghost].
+	var pickup_radius: float = 0.0
 	var material: StandardMaterial3D = null
 	var taken: bool = false

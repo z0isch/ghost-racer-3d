@@ -29,11 +29,11 @@ extends Resource
 ## Seconds between each extra hazard ghost added on top of the standing field —
 ## HazardGhostField.spawn_interval_seconds's own doc. 0.0 (or below) means a circuit's hazard
 ## traffic never thickens mid-Run, exactly as before checkpoint-driven spawning existed.
-@export var hazard_spawn_interval_seconds: float = 3
+@export var hazard_spawn_interval_seconds: float = 4
 ## Seconds between each extra slipstream ghost added on top of the standing field —
 ## SlipstreamGhostField.spawn_interval_seconds's own doc. 0.0 (or below) means a circuit's
 ## slipstream traffic never thickens mid-Run, matching hazard_spawn_interval_seconds's own reason.
-@export var slipstream_spawn_interval_seconds: float = 3
+@export var slipstream_spawn_interval_seconds: float = 4
 ## Seconds added to the Run budget every time the checkpoint sequence wraps back to the first
 ## checkpoint — completing a full circuit pays a time bonus exactly as a clock pickup does. Per
 ## circuit rather than a global constant, since a short circuit's wrap is a much smaller fraction of
@@ -43,7 +43,7 @@ extends Resource
 ## a Run only ever ends by Timeout or Abort, exactly as before this existed. A short, tightly-looped
 ## circuit can want a race decided by laps rather than by outlasting a budget that a wrap bonus keeps
 ## refilling.
-@export var max_wraps: int = 3
+@export var max_wraps: int = 4
 
 ## How many slipstream ghosts caught in one Run fill the slipstream bar
 ## ([member RunDirector.slipstream_target]). Per circuit rather than a global constant for the same

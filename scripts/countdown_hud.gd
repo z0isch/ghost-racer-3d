@@ -196,9 +196,9 @@ func _draw_results() -> void:
 
 # TIME, CASH, CP, RATE — the Run's four totals, each against the same figure from the ghost it raced.
 #
-# TIME is in the set because a Run's length is not a constant: clocks and jumped hazards buy seconds,
-# so "+8.0" is a line the player drove for, and without it a bigger CASH figure is ambiguous between
-# a better line and a longer Run. RATE resolves that ambiguity outright, and is what the record is
+# TIME is in the set because a Run's length is not a constant: clocks buy seconds, so "+8.0" is a
+# line the player drove for, and without it a bigger CASH figure is ambiguous between a better line
+# and a longer Run. RATE resolves that ambiguity outright, and is what the record is
 # actually kept on, so it goes last: it reads as the conclusion of the three above it.
 func _build_rows(director: RunDirector, run_time: float) -> void:
 	# Null on a circuit with no ghost yet, which is the whole "totals, no delta column" case: one

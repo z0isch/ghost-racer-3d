@@ -294,7 +294,7 @@ surface_material_override/0 = SubResource("StandardMaterial3D_awscb")
 shape = SubResource("BoxShape3D_8vwk7")
 
 [node name="Mud" type="StaticBody3D" parent="." unique_id=843691439]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0.01, 6.4320736)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0.01, 11.585652)
 collision_layer = 4
 collision_mask = 0
 
@@ -302,6 +302,7 @@ collision_mask = 0
 mesh = SubResource("PlaneMesh_awscb")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Mud" unique_id=251084773]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.08562279)
 shape = SubResource("BoxShape3D_g4lpy")
 
 [node name="Checkpoints" type="Node3D" parent="." unique_id=741683715]

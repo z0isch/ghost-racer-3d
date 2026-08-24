@@ -12,8 +12,8 @@ extends Resource
 ## What the recorded Run earned and how long it lasted — the two figures the results screen sets a
 ## new Run beside, alongside the checkpoint count [member checkpoint_samples] already carries and
 ## the rate above. Persisted rather than recomputed because a Run's length is not a constant (clocks
-## and jumped hazards extend it) and the ladder's base value is per-circuit authored content: both
-## can differ from what any later session would derive.
+## extend it) and the ladder's base value is per-circuit authored content: both can differ from what
+## any later session would derive.
 ##
 ## The negative defaults are what a line saved before these existed loads as, and RunDirector
 ## reconstructs the pair rather than dropping the line.

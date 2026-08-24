@@ -14,31 +14,28 @@ extends Node
 ## [RoadCentreline]) — a genuine closed loop, unlike the driver's own recorded lap, so a circuit
 ## nobody has driven yet still has traffic. Re-placed at every countdown; a re-place first frees
 ## whatever stood there before. A *wrap* does nothing at all to the field — unlike the boost ghosts,
-## hazards are neither restored nor re-placed there: cleared is cleared for the rest of the Run, and
-## the traffic still standing keeps driving straight through the wrap boundary.
+## hazards are neither restored nor re-placed there: a hit is cleared for the rest of the Run, and
+## the traffic still standing (including anything only ever jumped, never hit) keeps driving
+## straight through the wrap boundary.
 ##
 ## Each hazard trails a short ribbon down its own lane ahead of itself ([method _update_ribbons]),
 ## rather than the field painting the whole wrap red: under Runs the same wrap is driven over and
 ## over, so a wrap-long ribbon is permanent scenery, where a per-hazard one is a warning about
 ## traffic that is actually coming.
 
-## One ghost, the instant it is hit head-on. Carries [member jump_time_bonus] too, on the same
-## trial basis as the hit itself pays out the bonus (see that member's doc): whichever way a
-## hazard is cleared, RunDirector banks the same seconds, and position/direction match
-## hazard_jumped's own shape for PickupPopups's reason below.
+## One ghost, the instant it is hit head-on. Carries [member hit_time_bonus], on the trial basis
+## that member's doc describes, so RunDirector can bank the seconds the same way it banks a clock,
+## and position/direction in ClockField.clock_taken's own shape, so PickupPopups can spawn a popup
+## for it exactly as it does for that one. There is no companion signal for a hop: clearing a
+## hazard cleanly costs nothing and pays nothing, so there is nothing to report.
 signal hazard_hit(seconds: float, position: Vector3, direction: Vector3)
-## One ghost, the instant it is cleared by a hop instead. Carries the seconds the jump is worth, so
-## RunDirector can bank them the same way it banks a clock, and position/direction in ClockField.
-## clock_taken's own shape, so PickupPopups can spawn a popup for this pickup exactly as it does
-## for that one.
-signal hazard_jumped(seconds: float, position: Vector3, direction: Vector3)
 
 ## The same imported model every ghost in this game uses. No hazard_car.tscn: the field instances
 ## this directly, one per placement.
 const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 
 ## The model scale the FBX's own axis correction ([method _spawn_ghost]) is built from, per unit
-## of [member pickup_radius_fraction], for BoostGhostField.MODEL_SCALE_PER_FRACTION's identical
+## of a hazard's own drawn pickup fraction, for BoostGhostField.MODEL_SCALE_PER_FRACTION's identical
 ## reason and identical derivation.
 const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 
@@ -65,6 +62,10 @@ const WANDER_SLOW_SHARE: float = 0.75
 ## The circuit's HazardGhosts node: an empty runtime spawn parent. The field owns what stands under
 ## it; nothing is authored there.
 @export var ghosts_path: NodePath
+## The scene's ChaseCamera, shaken on a hit ([member hit_shake_trauma]). Left unset, a hit simply
+## doesn't shake — matching this field's behaviour before shake existed, the same fallback
+## kart_path/director_path leaving unset gets elsewhere in this class.
+@export var camera_path: NodePath
 
 ## Hazard ghosts on the circuit. Setting it re-places the whole field immediately, for
 ## BoostGhostField.ghost_count's reason: the door the dev input and any later system both go
@@ -124,24 +125,44 @@ var save_loadout: Callable = Callable()
 ## comment's "seven overlapping cars reading as a wall" trap lives here instead.
 @export var max_lane_gradient: float = 0.06
 
+## Fraction of the half-band a lane's *constant* offset may reach, dealt stratified across the road
+## by [method deal_biases] so the field spreads over the full width instead of every lane
+## oscillating about the centreline. A constant offset has zero slope, so this buys road-edge
+## traffic out of [member max_lane_gradient]'s budget for free — the swerve rate the ribbon has to
+## warn about is untouched. What it costs is wander: a lane biased b metres out keeps only
+## half_band - |b| to wander within, so the ghosts nearest the kerb hold the straightest lines. That
+## is the intended trade — a kerb-hugging lane that also swerved would be the one thing the gradient
+## cap exists to forbid. 0.0 is the field's behaviour before biased lanes, every lane centred on the
+## centreline, which makes it a direct in-editor A/B against the change.
+@export_range(0.0, 1.0) var lane_bias: float = 0.6
+
 ## Fraction the kart's forward speed is scrubbed by on a hit. 1.0 stops the kart dead; 0.0 does
 ## nothing. Kept separate from the ghost's own driving speed: how hard a hit costs you is a
 ## different dial than how fast the traffic comes at you.
 @export var hit_slow_multiplier: float = 0.5
-## Seconds added to the Run when a hazard is cleared by a hop ([signal hazard_jumped]). Tunable
-## independently of a clock's own seconds — a dodge is a smaller, riskier trick than driving over
-## an authored clock, so this defaults lower.
-@export var jump_time_bonus: float = 0.0
 ## Seconds added to the Run when a hazard is cleared by driving straight through it ([signal
-## hazard_hit]). Its own knob, separate from [member jump_time_bonus]: paying out on the hit too,
-## not just the hop, is a trial, and it turns every hazard into free time rather than a threat to
-## dodge — whether that reads as generous or as removing the hazard's whole point is the thing
-## being tested, and having its own dial makes that easy to tune down or zero without touching the
-## hop's own payout.
+## hazard_hit]). Paying anything at all for a hit is a trial: it turns every hazard into free time
+## rather than a threat to dodge, and whether that reads as generous or as removing the hazard's
+## whole point is the thing being tested — its own dial makes that easy to tune down or zero.
+## A hop pays nothing at all, by design: clearing a hazard cleanly is the whole reward for it.
 @export var hit_time_bonus: float = 0.0
+## Trauma ([method ChaseCamera.add_trauma]) added to the camera on a hit. 0.0 disables shake outright
+## rather than adding a zero-strength one every hit. Not added on a hop: a hazard cleared cleanly is
+## not an impact, so there is nothing for the camera to react to.
+@export_range(0.0, 1.0) var hit_shake_trauma: float = 0.4
 ## Fraction of the kart's own collision radius ([member Kart.sphere_radius]) a hazard reaches out
-## to, for BoostGhostField.pickup_radius_fraction's identical reason and identical default.
-@export var pickup_radius_fraction: float = 4.0
+## to, for BoostGhostField.min_pickup_radius_fraction's identical reason and identical defaults.
+## Each hazard draws its own fraction from this range once, at spawn, and is modelled at that same
+## scale — traffic of assorted sizes, each car's silhouette the hitbox it stands for. The lane band
+## ([method _half_band]) is still sized off the max, so even the widest hazard has room in its lane.
+@export var min_pickup_radius_fraction: float = 3.0
+@export var max_pickup_radius_fraction: float = 5.0
+## Shrinks the hitbox below the visible model, leaving [member min_pickup_radius_fraction]/
+## [member max_pickup_radius_fraction] alone since those also size the model's own scale ([method
+## _spawn_ghost]) and its lane room ([method _half_band]). 1.0 makes the hitbox exactly match the
+## car's silhouette, this field's behaviour before the multiplier existed; lower values give the
+## driver room to graze a hazard's visible edges without being counted as hit.
+@export_range(0.0, 1.0) var hitbox_scale: float = 0.7
 
 ## Metres of vertical gap the swept test still counts as a hit, for ClockField.max_vertical_gap's
 ## identical reason: the horizontal-only sweep would otherwise let a hazard be taken from a stretch
@@ -162,8 +183,13 @@ var save_loadout: Callable = Callable()
 	set(value):
 		line_visible = value
 		_update_ribbons()
-## Metres wide a ribbon is painted, square across the line.
-@export var line_width: float = 0.6
+## How wide a ribbon is painted, square across the line, as a fraction of its own hazard's hitbox
+## diameter (twice [member Hazard.pickup_radius]) rather than metres: the hazards are traffic of
+## assorted sizes ([member min_pickup_radius_fraction]), so a fixed width had the smallest car and
+## the largest trailing the same thread, and the ribbon's width said nothing about how much road
+## the thing coming at you actually covers. Scaling it off the hitbox rather than the model means
+## the warning tracks what the swept test will actually take you on ([member hitbox_scale]).
+@export var line_width_fraction: float = 0.08
 ## Lifted this far above the recorded line, so a ribbon doesn't z-fight the road it was recorded
 ## driving on.
 @export var line_height_offset: float = 0.05
@@ -183,6 +209,7 @@ var save_loadout: Callable = Callable()
 
 var _kart: Kart
 var _director: RunDirector
+var _camera: ChaseCamera
 var _ghosts_root: Node3D
 var _ghosts: Array[Hazard] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
@@ -204,9 +231,6 @@ var _centreline_yaws: PackedFloat32Array = PackedFloat32Array()
 ## countdown, so recomputing per call would redo the same walk every checkpoint of a Run.
 var _centreline_cumulative: PackedFloat32Array = PackedFloat32Array()
 var _centreline_length: float = 0.0
-## pickup_radius_fraction resolved against the kart's sphere_radius, for
-## BoostGhostField._pickup_radius's identical reason.
-var _pickup_radius: float = 0.0
 # Seeded randomly on creation by Godot and never re-seeded, for BoostGhostField._rng's reason.
 var _rng := RandomNumberGenerator.new()
 
@@ -214,10 +238,8 @@ var _rng := RandomNumberGenerator.new()
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
 	_director = get_node_or_null(director_path) as RunDirector
+	_camera = get_node_or_null(camera_path) as ChaseCamera
 	_ghosts_root = get_node_or_null(ghosts_path) as Node3D
-	if _kart != null:
-		_pickup_radius = pickup_radius_fraction * _kart.sphere_radius
-
 	if _director != null:
 		# countdown_started only: a wrap deliberately leaves the field alone (see class doc).
 		_director.countdown_started.connect(_on_countdown_started)
@@ -391,6 +413,7 @@ static func _pose_at(
 ## Transient — consumed by _offset_positions at spawn and deliberately not stored on Hazard, since
 ## the lane polyline it produces is precomputed and the wander is never re-evaluated afterward.
 class Wander extends RefCounted:
+	var bias: float = 0.0 # constant metres right of the centreline, before either harmonic
 	var slow_amplitude: float = 0.0
 	var slow_harmonic: int = 0
 	var slow_phase: float = 0.0
@@ -402,7 +425,15 @@ class Wander extends RefCounted:
 ## Draws one hazard's wander, fitted to the road and capped for readability. [param half_band] is
 ## the metres either side of the centreline a car may occupy with all four wheels on tarmac, already
 ## scaled by lane_wander; [param loop_length] is the centreline's own arclength; [param slow_phase]
-## comes from deal_phases so no two hazards drift in sync.
+## comes from deal_phases so no two hazards drift in sync; [param bias_fraction] comes from
+## deal_biases scaled by lane_bias, and is the share of half_band this lane spends on a constant
+## offset before either harmonic gets any.
+##
+## The bias is taken off the top and the harmonics are fitted to what is left, so bias plus both
+## amplitudes never exceeds half_band and a biased lane stays on tarmac by construction rather than
+## by a clamp downstream. It is deliberately free of the gradient budget: a constant offset has no
+## slope, so pushing traffic to the kerb this way never shortens the warning [member
+## max_lane_gradient] is sized against.
 ##
 ## Amplitudes are scaled to fit, never clamped — a clamped sine spends real stretches flat against
 ## the limit, which reintroduces the parallel-to-the-road straight line this exists to remove, just
@@ -414,10 +445,16 @@ class Wander extends RefCounted:
 ## Returns an all-zero Wander — a constant, centreline-following lane, this field's behaviour before
 ## wandering lanes — where half_band <= 0.0 or loop_length <= 0.0.
 static func draw_wander(half_band: float, loop_length: float, max_gradient: float,
-		slow_phase: float, rng: RandomNumberGenerator) -> Wander:
+		slow_phase: float, bias_fraction: float, rng: RandomNumberGenerator) -> Wander:
 	var wander := Wander.new()
 	if half_band <= 0.0 or loop_length <= 0.0:
 		return wander
+
+	# Assigned before the harmonics because it is what they are fitted around: a lane that spends
+	# all of half_band on its bias is a pure kerb-parallel line, which is the correct degenerate
+	# case rather than a missing one.
+	wander.bias = half_band * clampf(bias_fraction, -1.0, 1.0)
+	half_band = maxf(half_band - absf(wander.bias), 0.0)
 
 	wander.slow_harmonic = rng.randi_range(WANDER_SLOW_HARMONIC_MIN, WANDER_SLOW_HARMONIC_MAX)
 	wander.fast_harmonic = rng.randi_range(WANDER_FAST_HARMONIC_MIN, WANDER_FAST_HARMONIC_MAX)
@@ -443,7 +480,8 @@ static func draw_wander(half_band: float, loop_length: float, max_gradient: floa
 static func wander_offset_at(wander: Wander, s: float, loop_length: float) -> float:
 	if loop_length <= 0.0:
 		return 0.0
-	return (wander.slow_amplitude
+	return (wander.bias
+		+ wander.slow_amplitude
 			* sin(TAU * wander.slow_harmonic * s / loop_length + wander.slow_phase)
 		+ wander.fast_amplitude
 			* sin(TAU * wander.fast_harmonic * s / loop_length + wander.fast_phase))
@@ -477,6 +515,35 @@ static func deal_phases(count: int, rng: RandomNumberGenerator) -> Array[float]:
 	return result
 
 
+## One constant lane offset per hazard, as a fraction of the half-band in [-1, 1], stratified across
+## the road exactly as deal_phases stratifies the circle: [-1, 1] is cut into [param count] equal
+## bands, the bands are dealt shuffled and without replacement, and each hazard takes a uniform
+## fraction within its own band. Independent draws would cluster traffic near the centreline —
+## the mean of a uniform draw — which is the whole thing spreading lanes across the road is meant
+## to stop.
+##
+## Signed rather than absolute: the two sides of the road are different lanes, and dealing one band
+## set across both is what guarantees a field of two spreads to opposite kerbs rather than doubling
+## up on one.
+static func deal_biases(count: int, rng: RandomNumberGenerator) -> Array[float]:
+	var result: Array[float] = []
+	if count <= 0:
+		return result
+
+	var band_width: float = 2.0 / count
+	var pool: Array[int] = []
+	for _i in count:
+		if pool.is_empty():
+			for band in count:
+				pool.append(band)
+		var index: int = rng.randi_range(0, pool.size() - 1)
+		var band: int = pool[index]
+		pool.remove_at(index)
+		result.append(-1.0 + band * band_width + rng.randf_range(0.0, band_width))
+
+	return result
+
+
 ## Frees the standing field and places a fresh one on the road's centreline. An empty centreline —
 ## no RoadContainer wired up, or the walk in [method _build_centreline] failed — yields no ghosts
 ## rather than a warning here, for BoostGhostField's reason: that warning already fired once, in
@@ -496,8 +563,8 @@ func _place_ghosts() -> void:
 	if _centreline_length <= 0.0:
 		return
 
-	var half_band: float = _half_band()
 	var phases: Array[float] = deal_phases(ghost_count, _rng)
+	var biases: Array[float] = deal_biases(ghost_count, _rng)
 	var kart_distance: float = _current_kart_distance()
 
 	var distances: Array[float] = place_along(
@@ -509,8 +576,8 @@ func _place_ghosts() -> void:
 		placement_jitter,
 	)
 	for i in distances.size():
-		_ghosts.append(_spawn_ghost(
-			half_band, phases[i], distances[i], _centreline_length, _centreline_cumulative))
+		_ghosts.append(_spawn_ghost(phases[i], biases[i] * lane_bias, distances[i],
+			_centreline_length, _centreline_cumulative))
 
 
 ## The kart's own current arclength along the centreline, or 0.0 (the start line) with no kart wired
@@ -522,12 +589,17 @@ func _current_kart_distance() -> float:
 	return _kart_arclength(_centreline_positions, _centreline_cumulative, _kart.global_position)
 
 
-## Hazards this half_band's own share of the road can support without two overlapping — the same
-## expression [method _place_ghosts] used inline before [member spawn_interval_seconds] gave it a
-## second caller.
-func _half_band() -> float:
-	var car_width: float = 2.0 * _pickup_radius
-	return maxf((RoadCentreline.width(_road_container) - car_width) * 0.5, 0.0) * lane_wander
+## The lateral room one hazard has, given [param pickup_radius] — the road's half-width less its own
+## reach, so its silhouette stays on tarmac at full lock either way.
+##
+## Per-hazard, not one band shared by the field. Sizing the band off the widest fraction the field
+## could draw confined every narrow hazard to the widest one's lane, and since a hazard is tested as
+## a radius against the kart's own centre point, that left a margin of road at each kerb no hazard
+## could reach and the driver could sit on untouched. A hazard that drew a small radius may sit
+## further out precisely because it is small; one that drew a large radius covers the kerb from
+## further in.
+func _half_band(pickup_radius: float) -> float:
+	return maxf(RoadCentreline.width(_road_container) * 0.5 - pickup_radius, 0.0) * lane_wander
 
 
 ## Adds [param count] hazards to the standing field without disturbing it, for [signal
@@ -549,7 +621,6 @@ func _spawn_extra_ghosts(count: int) -> void:
 		return
 
 	const MAX_DRAWS: int = 20
-	var half_band: float = _half_band()
 	var kart_distance: float = _current_kart_distance()
 	for _i in count:
 		var distance: float = _rng.randf_range(0.0, _centreline_length)
@@ -558,8 +629,9 @@ func _spawn_extra_ghosts(count: int) -> void:
 				break
 			distance = _rng.randf_range(0.0, _centreline_length)
 		var phase: float = _rng.randf_range(0.0, TAU)
-		_ghosts.append(_spawn_ghost(
-			half_band, phase, distance, _centreline_length, _centreline_cumulative))
+		var bias: float = _rng.randf_range(-1.0, 1.0)
+		_ghosts.append(_spawn_ghost(phase, bias * lane_bias, distance,
+			_centreline_length, _centreline_cumulative))
 
 
 ## Advances [member _spawn_timer] by [param delta] and spawns one hazard for every full [member
@@ -627,15 +699,17 @@ func _offset_positions(wander: Wander, cumulative: PackedFloat32Array) -> Packed
 
 ## Two vertices per sample of [param positions], square across it via [param yaws]' own right
 ## vector — one hazard's own ribbon geometry, built once at spawn and sliced (with the seam wrapped)
-## by [method _update_ribbons] every physics tick rather than rebuilt.
+## by [method _update_ribbons] every physics tick rather than rebuilt. [param pickup_radius] is that
+## hazard's own hitbox radius, which sizes the width ([member line_width_fraction]); half the ribbon
+## width is therefore that radius times the fraction, the fraction being of the full diameter.
 func _build_ribbon_vertices(
-	positions: PackedVector3Array, yaws: PackedFloat32Array
+	positions: PackedVector3Array, yaws: PackedFloat32Array, pickup_radius: float
 ) -> PackedVector3Array:
 	var vertices: PackedVector3Array = PackedVector3Array()
 	if positions.size() < 2:
 		return vertices
 
-	var half_width: float = line_width * 0.5
+	var half_width: float = pickup_radius * line_width_fraction
 	var lift: Vector3 = Vector3.UP * line_height_offset
 	for i in positions.size():
 		var right: Vector3 = Basis(Vector3.UP, yaws[i]).x
@@ -707,7 +781,7 @@ func _update_ribbons() -> void:
 		var arrays: Array = []
 		arrays.resize(Mesh.ARRAY_MAX)
 		# A quad strip, not a PRIMITIVE_LINE_STRIP: line primitives render at a fixed 1 px under the
-		# GL Compatibility renderer this project targets, which [member line_width] could not affect.
+		# GL Compatibility renderer this project targets, which a line width could not affect.
 		arrays[Mesh.ARRAY_VERTEX] = vertices
 		arrays[Mesh.ARRAY_COLOR] = colors
 
@@ -732,19 +806,27 @@ func _build_line_material() -> StandardMaterial3D:
 	return material
 
 
-## Builds one hazard standing in its own lane: a wander drawn from [param half_band] and [param
-## slow_phase] ([method draw_wander]) pushes the centreline sideways as a function of its own
-## arclength, and the hazard starts at the point [param centreline_distance] metres along [param
-## centreline_length] converts to along that lane's own (generally different) length.
+## Builds one hazard standing in its own lane: a wander drawn from [param half_band], [param
+## slow_phase] and [param bias_fraction] ([method draw_wander]) pushes the centreline sideways as a
+## function of its own arclength, and the hazard starts at the point [param centreline_distance]
+## metres along [param centreline_length] converts to along that lane's own (generally different)
+## length. [param bias_fraction] arrives already scaled by [member lane_bias].
 ##
 ## Yaws are re-derived from the offset polyline rather than copied off the centreline
 ## ([RoadCentreline.yaws_from_positions]): an outer lane through a corner turns through the same
 ## angle over a longer arc, and copying would leave a hazard's nose pointing subtly off its own
 ## path.
-func _spawn_ghost(half_band: float, slow_phase: float, centreline_distance: float,
-		centreline_length: float, centreline_cumulative: PackedFloat32Array) -> Hazard:
-	var wander: Wander = draw_wander(
-		half_band, centreline_length, max_lane_gradient, slow_phase, _rng)
+func _spawn_ghost(slow_phase: float, bias_fraction: float,
+		centreline_distance: float, centreline_length: float,
+		centreline_cumulative: PackedFloat32Array) -> Hazard:
+	# Drawn before the lane, because it is what the lane is sized against: this hazard's own
+	# reach decides how far out it may sit ([method _half_band]).
+	var fraction: float = _rng.randf_range(
+		min_pickup_radius_fraction, maxf(min_pickup_radius_fraction, max_pickup_radius_fraction))
+	var visual_radius: float = fraction * (_kart.sphere_radius if _kart != null else 0.0)
+	var pickup_radius: float = visual_radius * hitbox_scale
+	var wander: Wander = draw_wander(_half_band(visual_radius), centreline_length,
+		max_lane_gradient, slow_phase, bias_fraction, _rng)
 	var lane_positions: PackedVector3Array = _offset_positions(wander, centreline_cumulative)
 	var lane_yaws: PackedFloat32Array = RoadCentreline.yaws_from_positions(lane_positions)
 	var lane_cumulative: PackedFloat32Array = _cumulative_lengths(lane_positions)
@@ -762,10 +844,10 @@ func _spawn_ghost(half_band: float, slow_phase: float, centreline_distance: floa
 	var model: Node3D = GHOST_MODEL.instantiate() as Node3D
 	wrapper.add_child(model)
 	# The FBX's own axes don't match the road's forward/up/scale, for BoostGhostField._spawn_ghost's
-	# identical reason and identical correction, scaled by pickup_radius_fraction for the same
-	# reason as there too.
+	# identical reason and identical correction, scaled by this hazard's own drawn fraction for the
+	# same reason as there too.
 	model.transform = Transform3D(
-		Basis().scaled(MODEL_SCALE_PER_FRACTION * pickup_radius_fraction), Vector3(0.0, 0.1, 0.0))
+		Basis().scaled(MODEL_SCALE_PER_FRACTION * fraction), Vector3(0.0, 0.1, 0.0))
 
 	var hazard := Hazard.new()
 	hazard.node = wrapper
@@ -774,8 +856,9 @@ func _spawn_ghost(half_band: float, slow_phase: float, centreline_distance: floa
 	hazard.lane_yaws = lane_yaws
 	hazard.lane_cumulative = lane_cumulative
 	hazard.lane_length = lane_length
-	hazard.ribbon_vertices = _build_ribbon_vertices(lane_positions, lane_yaws)
+	hazard.ribbon_vertices = _build_ribbon_vertices(lane_positions, lane_yaws, pickup_radius)
 	hazard.origin = wrapper.global_position
+	hazard.pickup_radius = pickup_radius
 	hazard.speed = _rng.randf_range(min_speed, max_speed)
 	hazard.material = _build_ghost_material()
 	# A sibling of the wrapper, not a child of it: the ribbon's vertices are the lane's own, already
@@ -827,9 +910,15 @@ func _sweep_ghosts() -> void:
 	for hazard: Hazard in _ghosts:
 		if hazard.taken:
 			continue
-		if not ClockField.segment_takes_clock(previous, position, hazard.origin, _pickup_radius):
+		if not ClockField.segment_takes_clock(previous, position, hazard.origin, hazard.pickup_radius):
 			continue
 		if absf(position.y - hazard.origin.y) > max_vertical_gap:
+			continue
+		# The swept test itself ignores height (see class doc), so a hop clears a hazard by immunity
+		# rather than clearance — unlike a hit, the hazard is not taken: it stays on its lane and
+		# keeps coming. A hop costs nothing and pays nothing; the obstacle is simply passed, not
+		# removed for the next lap around.
+		if _kart.is_hopping:
 			continue
 		hazard.taken = true
 		hazard.node.visible = false
@@ -837,15 +926,10 @@ func _sweep_ghosts() -> void:
 		# ribbons were already updated this frame, so waiting would leave a warning hanging in the
 		# air for a frame after the thing it warned about was hit.
 		hazard.ribbon.visible = false
-		# The swept test itself ignores height (see class doc), so a hop clears a hazard by immunity
-		# rather than clearance — the hazard still disappears exactly as a hit one does, but instead
-		# of costing speed it pays out jump_time_bonus, rewarding the trick rather than merely
-		# forgiving it.
-		if _kart.is_hopping:
-			hazard_jumped.emit(jump_time_bonus, hazard.origin, direction)
-		else:
-			_kart.apply_hazard_slow(hit_slow_multiplier)
-			hazard_hit.emit(hit_time_bonus, hazard.origin, direction)
+		_kart.apply_hazard_slow(hit_slow_multiplier)
+		if _camera != null and hit_shake_trauma > 0.0:
+			_camera.add_trauma(hit_shake_trauma)
+		hazard_hit.emit(hit_time_bonus, hazard.origin, direction)
 
 
 ## Re-places the whole field at every countdown, for BoostGhostField._on_countdown_started's
@@ -879,6 +963,10 @@ class Hazard extends RefCounted:
 	var distance: float = 0.0 # arclength along this hazard's own lane, decreasing as it drives
 	var speed: float = 0.0 # m/s, picked once at spawn from [min_speed, max_speed]
 	var origin: Vector3 = Vector3.ZERO
+	## Metres this hazard reaches out to, drawn once at spawn from the field's own fraction range
+	## and matched by the scale of the model driving here; see [method
+	## HazardGhostField._spawn_ghost].
+	var pickup_radius: float = 0.0
 	var material: StandardMaterial3D = null
 	## This hazard's own lane, drawn once at spawn from a wander across the centreline and kept for
 	## its whole life — never re-evaluated afterward, even though the wander it came from is a

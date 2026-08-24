@@ -88,9 +88,9 @@ enum RunPhase {
 @export var checkpoints_path: NodePath
 ## The ClockField whose pickups extend [member run_budget].
 @export var clock_field_path: NodePath
-## The HazardGhostField whose jumped-over ghosts also extend [member run_budget], via [signal
-## HazardGhostField.hazard_jumped]. Left unset, hopping a hazard still clears it — the field does
-## that on its own — but no time is banked for it.
+## The HazardGhostField whose hit ghosts spend Condition, and may extend [member run_budget], via
+## [signal HazardGhostField.hazard_hit]. Left unset, a hit still scrubs speed — the field does that
+## on its own — but it costs no Condition and banks no time.
 @export var hazard_ghost_field_path: NodePath
 ## The SlipstreamGhostField whose caught ghosts also extend [member run_budget], via [signal
 ## SlipstreamGhostField.slipstream_hit]. Left unset, catching a slipstream ghost still banks no
@@ -131,10 +131,11 @@ enum RunPhase {
 ## what a Circuit is, only the number. 0 (or below) means no target: the bar never fills.
 @export var slipstream_bar_target: int = 10
 
-## The checkpoint prism, in each marker's own frame: the road and nothing but the road, from 1 m
-## below the surface to 5 m above, which is where the gate's posts and crossbar are. Exported so the
-## pair can be pushed apart in a playtest, but meant to match the gate geometry.
-@export var checkpoint_half_width: float = 4.0
+## The checkpoint prism, in each marker's own frame: as wide as the gate itself (road half-width
+## plus the gate's overhang), from 1 m below the surface to 5 m above, which is where the gate's
+## posts and crossbar are. Exported so the pair can be pushed apart in a playtest, but meant to
+## match the gate geometry.
+@export var checkpoint_half_width: float = 4.75
 @export var checkpoint_floor: float = -1.0
 @export var checkpoint_ceiling: float = 5.0
 
@@ -364,16 +365,14 @@ func _ready() -> void:
 
 	var hazard_field: HazardGhostField = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
 	if hazard_field != null:
-		# unbind(2) drops hazard_jumped's/hazard_hit's position and direction arguments, for
-		# clock_taken's identical reason: _on_clock_taken only ever banks the seconds it's handed,
-		# whichever pickup handed them. Both are connected — see HazardGhostField.hit_time_bonus's
-		# doc for why a hit pays out its own bonus, independent of the hop's, on trial.
-		hazard_field.hazard_jumped.connect(_on_clock_taken.unbind(2))
+		# unbind(2) drops hazard_hit's position and direction arguments, for clock_taken's identical
+		# reason: _on_clock_taken only ever banks the seconds it's handed, whichever pickup handed
+		# them. See HazardGhostField.hit_time_bonus's doc for why a hit pays a bonus at all, on
+		# trial. A hop reaches nothing here: it neither costs nor pays.
 		hazard_field.hazard_hit.connect(_on_clock_taken.unbind(2))
 		# The second thing a hit does, and the only one that can end the Run. Connected separately
 		# rather than folded into _on_clock_taken: banking seconds is what every pickup in the game
-		# does, and Condition damage is what exactly one of them does. A hop is deliberately not
-		# connected here — clearing a hazard cleanly is the whole reward for hopping it.
+		# does, and Condition damage is what exactly one of them does.
 		hazard_field.hazard_hit.connect(_on_hazard_hit.unbind(3))
 
 	var slipstream_field: SlipstreamGhostField = (
@@ -470,7 +469,7 @@ func complete_run() -> void:
 	run_completed.emit(run_time, is_record)
 
 
-# Shared by ClockField.clock_taken and HazardGhostField.hazard_jumped: banking seconds is banking
+# Shared by ClockField.clock_taken and HazardGhostField.hazard_hit: banking seconds is banking
 # seconds regardless of which pickup earned them, so one handler serves both rather than each
 # duplicating this one line. No phase guard: both fields sweep only while Racing and re-check the
 # phase inside their own deferred callback, so a pickup cannot reach here outside a live Run.

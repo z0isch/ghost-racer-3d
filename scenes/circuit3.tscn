@@ -11,22 +11,22 @@ albedo_color = Color(0.46229059, 0.46229064, 0.4622904, 1)
 
 [sub_resource type="Curve3D" id="Curve3D_kwvsp"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 15.383445, -4, 0, 0, -3.1591255e-06, 0, 36.136185, 30, -6, 7, 34, -6, 7.0000005),
-"tilts": PackedFloat32Array(0, -0.3132041)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 15.439019, -4, 0, 0, -3.0537012e-06, 0, 34.93027, 30, -6, 7, 34, -6, 7.0000005),
+"tilts": PackedFloat32Array(0, -0.31320402)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_f7ioj"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 11.282556, 4, 0, 0, -1.7947735e-06, 0, 20.529816, 30, -6, 7, 26, -6, 6.9999995),
-"tilts": PackedFloat32Array(0, -0.53250396)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 11.226981, 4, 0, 0, -1.7253523e-06, 0, 19.73573, 30, -6, 7, 26, -6, 6.9999995),
+"tilts": PackedFloat32Array(0, -0.53250444)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_ntw3p"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 13.333, 0, 0, 0, -2.4769495e-06, 0, 28.333, 30, -6, 7, 30, -6, 7),
-"tilts": PackedFloat32Array(0, -0.39479122)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 13.333, 0, 0, 0, -2.3895268e-06, 0, 27.333, 30, -6, 7, 30, -6, 7),
+"tilts": PackedFloat32Array(0, -0.39479107)
 }
 point_count = 2
 
@@ -74,21 +74,21 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_an3qf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 26.18009, -3.9999993, 0, 0, -0.7186167, 0, -0.43692583, -18.299002, 0, -28.165005, 21.258854, 0, 27.573753),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 26.37149, -3.9999993, 0, 0, -2.3384242, 0, -1.4217842, -18.299002, 0, -28.165005, 21.258854, 0, 27.573753),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_mxsjf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 18.485903, 3.9999993, 0, 0, -2.4907281, 0, -1.5143865, -18.299002, 0, -28.165005, 25.415005, 0, 20.738083),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 18.294502, 3.9999993, 0, 0, -4.28876, 0, -2.6076071, -18.299002, 0, -28.165005, 25.415005, 0, 20.738083),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_e1fha"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 22.332996, 0, 0, 0, -1.6046724, 0, -0.9756561, -18.299002, 0, -28.165005, 23.33693, 0, 24.155918),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 22.332996, 0, 0, 0, -3.3135922, 0, -2.0146956, -18.299002, 0, -28.165005, 23.33693, 0, 24.155918),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
@@ -208,7 +208,7 @@ transform = Transform3D(-0.6730125, 0, -0.7396311, 0, 1, 0, 0.7396311, 0, -0.673
 script = ExtResource("3_f7ioj")
 traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
-prior_mag = 1.878
+prior_mag = 3.878
 next_mag = 11.878
 lane_width = 8.0
 shoulder_width_l = 0.0
@@ -260,7 +260,7 @@ transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 30, 
 script = ExtResource("3_f7ioj")
 traffic_dir = Array[int]([0])
 lanes = Array[int]([0])
-prior_mag = 28.333
+prior_mag = 27.333
 next_mag = 12.333
 lane_width = 8.0
 shoulder_width_l = 0.0
@@ -293,7 +293,7 @@ transform = Transform3D(0.57357645, 0, 0.81915206, 0, 1, 0, -0.81915206, 0, 0.57
 [node name="Checkpoints" type="Node3D" parent="."]
 
 [node name="Checkpoint00" type="Marker3D" parent="Checkpoints"]
-transform = Transform3D(0.9999993, 0, -0.0012340604, 0, 1, 0, 0.0012340604, 0, 0.9999993, -3.4344234, 0, -40.55204)
+transform = Transform3D(0.9998727, 0, -0.015957817, 0, 1, 0, 0.015957817, 0, 0.9998727, -3.402205, 0, -40.459724)
 
 [node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint00"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
@@ -311,7 +311,7 @@ mesh = SubResource("BoxMesh_gate_bar")
 surface_material_override/0 = SubResource("Material_gate")
 
 [node name="Checkpoint01" type="Marker3D" parent="Checkpoints"]
-transform = Transform3D(0.85713774, 0, 0.51508725, 0, 1, 0, -0.51508725, 0, 0.85713774, -23.592787, 0, -64.69803)
+transform = Transform3D(0.8343208, 0, 0.5512793, 0, 1, 0, -0.55127937, 0, 0.8343207, -23.469475, 0, -64.50255)
 
 [node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint01"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
@@ -329,7 +329,7 @@ mesh = SubResource("BoxMesh_gate_bar")
 surface_material_override/0 = SubResource("Material_gate")
 
 [node name="Checkpoint02" type="Marker3D" parent="Checkpoints"]
-transform = Transform3D(-0.45608312, 0, -0.88993716, 0, 1, 0, 0.8899372, 0, -0.4560831, 3.6949196, 0, -70.45738)
+transform = Transform3D(-0.44660658, 0, -0.89473045, 0, 1, 0, 0.89473045, 0, -0.44660658, 3.4081306, 0, -70.602455)
 
 [node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint02"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
@@ -347,7 +347,7 @@ mesh = SubResource("BoxMesh_gate_bar")
 surface_material_override/0 = SubResource("Material_gate")
 
 [node name="Checkpoint03" type="Marker3D" parent="Checkpoints"]
-transform = Transform3D(-0.9424983, 0.043532673, 0.3313636, 0, 0.9914805, -0.13025507, -0.33421093, -0.122765206, -0.9344686, 11.556478, 2.578844, -41.82416)
+transform = Transform3D(-0.9443621, 0.042818423, 0.32610863, 0, 0.9914899, -0.13018371, -0.3289077, -0.12294056, -0.93632543, 11.691817, 2.5252361, -42.209236)
 
 [node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint03"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
@@ -365,7 +365,7 @@ mesh = SubResource("BoxMesh_gate_bar")
 surface_material_override/0 = SubResource("Material_gate")
 
 [node name="Checkpoint04" type="Marker3D" parent="Checkpoints"]
-transform = Transform3D(-0.9602584, 0.015556511, -0.27867866, 0, 0.9984456, 0.055735625, 0.27911252, 0.053520605, -0.95876575, 0.47950852, 5.9040985, -10.883621)
+transform = Transform3D(-0.9690943, 0.012156498, -0.24639101, 0, 0.9987851, 0.049278293, 0.24669072, 0.047755312, -0.9679169, 0.35102195, 5.9297957, -11.367945)
 
 [node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint04"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
@@ -383,7 +383,7 @@ mesh = SubResource("BoxMesh_gate_bar")
 surface_material_override/0 = SubResource("Material_gate")
 
 [node name="Checkpoint05" type="Marker3D" parent="Checkpoints"]
-transform = Transform3D(0.5532321, 0.13690375, -0.82170045, 0, 0.9864029, 0.16434486, 0.8330272, -0.09092086, 0.5457097, 25.53745, 0.89250994, 5.591036)
+transform = Transform3D(0.5064509, 0.14653681, -0.84972614, 0, 0.98545384, 0.16994332, 0.86226887, -0.08606794, 0.49908397, 25.289513, 0.9420972, 5.3258743)
 
 [node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint05"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
@@ -401,7 +401,7 @@ mesh = SubResource("BoxMesh_gate_bar")
 surface_material_override/0 = SubResource("Material_gate")
 
 [node name="Checkpoint06" type="Marker3D" parent="Checkpoints"]
-transform = Transform3D(0.3439529, 0, 0.9389869, 0, 1, 0, -0.9389869, 0, 0.3439529, 15.053743, 0, -18.032612)
+transform = Transform3D(0.3439445, 0, 0.93899006, 0, 1, 0, -0.93899006, 0, 0.3439445, 15.053283, 0, -18.03278)
 
 [node name="GatePostLeft" type="MeshInstance3D" parent="Checkpoints/Checkpoint06"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 2.5, 0)
@@ -421,7 +421,7 @@ surface_material_override/0 = SubResource("Material_gate")
 [node name="Clocks" type="Node3D" parent="."]
 
 [node name="Clock00" type="Marker3D" parent="Clocks"]
-transform = Transform3D(0.96376115, 0, 0.26676667, 0, 1, 0, -0.26676667, 0, 0.96376115, -3.8920364, 0.4, -30.555557)
+transform = Transform3D(0.9617812, 0, 0.2738192, 0, 1, 0, -0.2738192, 0, 0.9617812, -3.8750992, 0.4, -30.495224)
 metadata/seconds = 2.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock00"]
@@ -430,7 +430,7 @@ mesh = SubResource("TorusMesh_clock")
 script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock01" type="Marker3D" parent="Clocks"]
-transform = Transform3D(0.8883706, 0, -0.4591272, 0, 1, 0, 0.4591272, 0, 0.8883706, -23.763418, 0.4, -68.50875)
+transform = Transform3D(0.9112303, 0, -0.4118974, 0, 1, 0, 0.4118974, 0, 0.9112303, -23.86423, 0.4, -68.30063)
 metadata/seconds = 2.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock01"]
@@ -439,7 +439,7 @@ mesh = SubResource("TorusMesh_clock")
 script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock02" type="Marker3D" parent="Clocks"]
-transform = Transform3D(-0.9874534, 0, -0.15791081, 0, 1, 0, 0.15791081, 0, -0.9874534, 14.020128, 0.9449634, -58.17903)
+transform = Transform3D(-0.98389655, 0, -0.17873876, 0, 1, 0, 0.17873876, 0, -0.98389655, 13.958085, 0.9098917, -58.537632)
 metadata/seconds = 2.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock02"]
@@ -448,7 +448,7 @@ mesh = SubResource("TorusMesh_clock")
 script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock03" type="Marker3D" parent="Clocks"]
-transform = Transform3D(-0.9889704, 0, 0.14811334, 0, 1, 0, -0.14811334, 0, -0.9889704, 0.070061035, 6.383198, -14.844977)
+transform = Transform3D(-0.9788684, 0, 0.20449105, 0, 1, 0, -0.20449105, 0, -0.9788684, 0.16119666, 6.3610964, -15.343881)
 metadata/seconds = 2.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock03"]
@@ -457,7 +457,7 @@ mesh = SubResource("TorusMesh_clock")
 script = ExtResource("1_gen_clock_spin")
 
 [node name="Clock04" type="Marker3D" parent="Clocks"]
-transform = Transform3D(0.99285555, 0, -0.1193226, 0, 1, 0, 0.1193226, 0, 0.99285555, 29.787867, 0.44254068, -3.1646416)
+transform = Transform3D(0.99197924, 0, -0.12640093, 0, 1, 0, 0.12640093, 0, 0.99197924, 29.77925, 0.44427818, -3.229823)
 metadata/seconds = 2.0
 
 [node name="Mesh" type="MeshInstance3D" parent="Clocks/Clock04"]

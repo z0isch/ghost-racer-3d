@@ -38,6 +38,25 @@ extends Node3D
 @export var brake_smoke_min_speed: float = 4.0
 @export var smoke_color: Color = Color(196.0 / 255.0, 196.0 / 255.0, 196.0 / 255.0, 0.3)
 
+## Orbs that ride around the kart, one per banked boost charge. Cosmetic only: the count is read
+## straight off KartState.boost_charges, so the ring is a view of the bank rather than a second
+## copy of it, and a charge spent from any source empties an orb the same frame.
+@export var charge_orb_max: int = 8
+## Radius of the ring the orbs ride on.
+@export var charge_orb_radius: float = 1
+## Height above the kart's origin the ring sits at.
+@export var charge_orb_height: float = 0.35
+## Radians per second the whole ring turns.
+@export var charge_orb_spin_speed: float = 2.2
+## Radius of one orb at full size.
+@export var charge_orb_size: float = 0.09
+## Half-amplitude of the vertical bob, and how fast it cycles.
+@export var charge_orb_bob_height: float = 0.06
+@export var charge_orb_bob_speed: float = 3.0
+## Seconds an orb takes to scale in when earned / out when spent. Short: a pop, not a fade.
+@export var charge_orb_grow_time: float = 0.18
+@export var charge_orb_color: Color = Color(1.0, 0.45, 0.05)
+
 ## Low-frequency motor magnitude at full slip.
 @export var drift_vibration_weak: float = 0.05
 ## High-frequency motor magnitude at full slip.
@@ -69,6 +88,11 @@ var _wheelie_phase: int = _WheeliePhase.INACTIVE
 var _wheelie_slam_elapsed: float = 0.0
 var _wheelie_pitch_degrees: float = 0.0
 
+var _charge_orbs: Array[MeshInstance3D] = []
+var _charge_orb_fill: Array[float] = [] # 0 = hidden, 1 = full size, one per pooled orb
+var _charge_orb_ring: Node3D
+var _charge_orb_phase: float = 0.0
+
 var _smoke_material_left: ParticleProcessMaterial
 var _smoke_material_right: ParticleProcessMaterial
 
@@ -86,6 +110,7 @@ var _smoke_material_right: ParticleProcessMaterial
 func _ready() -> void:
 	_smoke_material_left = _smoke_left.process_material as ParticleProcessMaterial
 	_smoke_material_right = _smoke_right.process_material as ParticleProcessMaterial
+	_build_charge_orbs()
 
 
 ## One frame of view, driven entirely by the snapshot. Called by Kart at the end of its physics
@@ -97,6 +122,7 @@ func update_view(state: KartState, delta: float) -> void:
 	_update_boost_flames(state)
 	_update_wheelie(state, delta)
 	_update_hop(state)
+	_update_charge_orbs(state, delta)
 	_update_vibration(state)
 
 
@@ -122,6 +148,7 @@ func reset() -> void:
 	_boost_flame_left.restart()
 	_boost_flame_right.restart()
 	_set_boost_flames(false, 0.0)
+	_reset_charge_orbs()
 	_stop_vibration()
 
 
@@ -319,3 +346,82 @@ func _update_vibration(state: KartState) -> void:
 func _stop_vibration() -> void:
 	for device: int in Input.get_connected_joypads():
 		Input.stop_joy_vibration(device)
+
+
+# The pool is built once, at full count, and orbs are shown by scale rather than by visibility: a
+# spent charge shrinks its orb away over charge_orb_grow_time instead of blinking out, and the
+# ring's spacing is a function of the live count alone, so the survivors slide round to close the
+# gap.
+#
+# Hung off Cosmetics rather than Chassis on purpose. The chassis carries bank, drift yaw and the
+# wheelie pitch; a ring bolted to that would cant and pitch with every slide, reading as part of
+# the bodywork. Hung here it stays a level ring the kart moves underneath.
+func _build_charge_orbs() -> void:
+	_charge_orb_ring = Node3D.new()
+	_charge_orb_ring.name = "ChargeOrbs"
+	add_child(_charge_orb_ring)
+
+	var mesh: SphereMesh = SphereMesh.new()
+	mesh.radius = charge_orb_size
+	mesh.height = charge_orb_size * 2.0
+	mesh.radial_segments = 12
+	mesh.rings = 6
+
+	# Unshaded and emissive: the orbs are meant to read as light the kart is carrying, not as
+	# painted props that go dark on the shadowed side of the track.
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = charge_orb_color
+	material.emission_enabled = true
+	material.emission = charge_orb_color
+	material.emission_energy_multiplier = 2.0
+	mesh.material = material
+
+	for i: int in charge_orb_max:
+		var orb: MeshInstance3D = MeshInstance3D.new()
+		orb.mesh = mesh
+		orb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		orb.scale = Vector3.ZERO
+		orb.visible = false
+		_charge_orb_ring.add_child(orb)
+		_charge_orbs.append(orb)
+		_charge_orb_fill.append(0.0)
+
+
+func _update_charge_orbs(state: KartState, delta: float) -> void:
+	if _charge_orbs.is_empty():
+		return
+
+	var held: int = 0 if state.frozen else clampi(state.boost_charges, 0, _charge_orbs.size())
+	_charge_orb_phase = fposmod(_charge_orb_phase + charge_orb_spin_speed * delta, TAU)
+
+	# Spacing follows the held count, not the pool size, so two charges sit opposite each other
+	# rather than leaving six holes in an eight-slot ring.
+	var step: float = TAU / float(maxi(held, 1))
+	var grow_rate: float = 1.0 / maxf(charge_orb_grow_time, 0.001)
+
+	for i: int in _charge_orbs.size():
+		var target: float = 1.0 if i < held else 0.0
+		_charge_orb_fill[i] = move_toward(_charge_orb_fill[i], target, grow_rate * delta)
+		var fill: float = _charge_orb_fill[i]
+		var orb: MeshInstance3D = _charge_orbs[i]
+		orb.visible = fill > 0.0
+		if not orb.visible:
+			continue
+		# A shrinking orb keeps the angle it had at the count it belonged to, so it dies in place
+		# while the ring re-spaces around it.
+		var angle: float = _charge_orb_phase + step * float(i)
+		var bob: float = sin(_charge_orb_phase * charge_orb_bob_speed + float(i)) * charge_orb_bob_height
+		orb.position = Vector3(
+			sin(angle) * charge_orb_radius,
+			charge_orb_height + bob,
+			cos(angle) * charge_orb_radius)
+		orb.scale = Vector3.ONE * fill
+
+
+func _reset_charge_orbs() -> void:
+	_charge_orb_phase = 0.0
+	for i: int in _charge_orbs.size():
+		_charge_orb_fill[i] = 0.0
+		_charge_orbs[i].scale = Vector3.ZERO
+		_charge_orbs[i].visible = false

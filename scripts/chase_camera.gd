@@ -48,6 +48,17 @@ extends Camera3D
 @export var drift_lateral_offset: float = 0.6
 @export var drift_framing_smoothing: float = 6.0
 
+## Screen shake: trauma-based rather than a fixed-length effect, so overlapping hits ([method
+## add_trauma]) compound instead of restarting a timer. Shake magnitude scales with trauma squared
+## (Berkeley/GDC's "trauma" pattern) so small knocks stay subtle and only a trauma near 1.0 reads as
+## violent, rather than every hit shaking the screen by the same amount.
+@export var shake_trauma_decay: float = 2.0 # trauma lost per second, regardless of current amount
+@export var shake_max_offset: float = 0.15 # metres of positional jitter at trauma == 1.0
+@export var shake_max_roll_degrees: float = 3.0 # roll jitter at trauma == 1.0
+
+var _trauma: float = 0.0
+var _shake_rng := RandomNumberGenerator.new()
+
 var _target: Node3D
 var _kart: Kart # null when target_path isn't a Kart; FOV and drift dynamics then don't apply
 var _smoothed_target_y: float = 0.0
@@ -62,7 +73,15 @@ func _ready() -> void:
 	_kart = _target as Kart
 	_current_fov = base_fov
 	fov = base_fov
+	_shake_rng.randomize()
 	snap_to_target()
+
+
+## Adds trauma, clamped to 1.0 — called by whatever hit the driver (e.g.
+## HazardGhostField.hit_shake_trauma on a hazard hit). Additive, not a set, so a second hit while the
+## first shake is still decaying compounds rather than restarting it.
+func add_trauma(amount: float) -> void:
+	_trauma = clampf(_trauma + amount, 0.0, 1.0)
 
 
 func _physics_process(delta: float) -> void:
@@ -90,6 +109,25 @@ func _physics_process(delta: float) -> void:
 	global_position = global_position.lerp(desired_position, 1.0 - exp(-position_smoothing * delta))
 	_update_look_ahead(delta)
 	look_at(_aim_point(), Vector3.UP)
+	_apply_shake(delta)
+
+
+## Applied after look_at, not folded into desired_position/the aim point: those are smoothed toward
+## a target and would soften a shake into a slow wobble, where a hit should read as an instant jolt
+## that then decays away.
+func _apply_shake(delta: float) -> void:
+	_trauma = maxf(_trauma - shake_trauma_decay * delta, 0.0)
+	if _trauma <= 0.0:
+		return
+
+	var shake: float = _trauma * _trauma
+	translate_object_local(Vector3(
+		_shake_rng.randf_range(-1.0, 1.0), _shake_rng.randf_range(-1.0, 1.0), 0.0
+	) * shake_max_offset * shake)
+	# Around the camera's own forward axis: a roll, not a pitch/yaw, so the shake reads as an impact
+	# rather than the camera hunting for a new thing to look at.
+	rotate_object_local(Vector3.FORWARD,
+		deg_to_rad(_shake_rng.randf_range(-1.0, 1.0) * shake_max_roll_degrees * shake))
 
 
 func _update_drift_framing(delta: float) -> void:

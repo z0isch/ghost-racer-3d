@@ -24,10 +24,11 @@ extends Node3D
 @export var director_path: NodePath
 ## clock_taken → "+10s", pointedly not green.
 @export var clock_field_path: NodePath
-## hazard_jumped → "+2s", for the trick rather than the clock — its own colour, not clock_color, so
-## a run-clock popup and a jump-bonus popup never read as the same pickup.
+## hazard_hit → "+2s", for the bonus a hit pays on trial — its own colour, not clock_color, so a
+## run-clock popup and a hazard's own never read as the same pickup. A hop pays nothing and pops
+## nothing up.
 @export var hazard_ghost_field_path: NodePath
-## slipstream_hit → "+2s", its own colour so a catch never reads as a hazard-hop's bonus.
+## slipstream_hit → "+2s", its own colour so a catch never reads as a hazard's own bonus.
 @export var slipstream_ghost_field_path: NodePath
 
 ## How far in front of the pickup the text appears, along the pickup's own travel direction: far
@@ -52,9 +53,9 @@ extends Node3D
 ## final-seconds urgency red already spoken for elsewhere on screen.
 @export var clock_color: Color = Color(0.4, 0.75, 1.0)
 
-## The jump bonus's own colour: a trick reward, not a clock, and not the hazard ghost's own red
-## either — a bright lime so "+2s" for clearing a hazard never gets mistaken for either.
-@export var jump_color: Color = Color(0.6, 1.0, 0.2)
+## The hazard bonus's own colour: not a clock, and not the hazard ghost's own red either — a bright
+## lime so "+2s" for a hazard never gets mistaken for either.
+@export var hazard_color: Color = Color(0.6, 1.0, 0.2)
 
 ## The slipstream catch's own colour — green, matching the ghost itself (CONTEXT.md's **Pickup
 ## popup**, "tied together by colour"), and apart from money_color so a catch's seconds are never
@@ -83,10 +84,9 @@ func _ready() -> void:
 
 	var hazard_field: HazardGhostField = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
 	if hazard_field != null:
-		hazard_field.hazard_jumped.connect(_on_hazard_jumped)
-		# On trial alongside HazardGhostField.hit_time_bonus's own payout: same colour as the hop's
-		# popup, since both are a bonus paid out by a different route, just with independent amounts.
-		hazard_field.hazard_hit.connect(_on_hazard_jumped)
+		# On trial alongside HazardGhostField.hit_time_bonus's own payout: a hit is the only way a
+		# hazard pays anything, so it is the only thing that pops up here.
+		hazard_field.hazard_hit.connect(_on_hazard_hit)
 
 	var slipstream_field: SlipstreamGhostField = (
 		get_node_or_null(slipstream_ghost_field_path) as SlipstreamGhostField)
@@ -102,8 +102,8 @@ func _on_clock_taken(seconds: float, pickup_position: Vector3, direction: Vector
 	_spawn("+%ds" % roundi(seconds), clock_color, pickup_position, direction)
 
 
-func _on_hazard_jumped(seconds: float, pickup_position: Vector3, direction: Vector3) -> void:
-	_spawn("+%ds" % roundi(seconds), jump_color, pickup_position, direction)
+func _on_hazard_hit(seconds: float, pickup_position: Vector3, direction: Vector3) -> void:
+	_spawn("+%ds" % roundi(seconds), hazard_color, pickup_position, direction)
 
 
 func _on_slipstream_hit(seconds: float, pickup_position: Vector3, direction: Vector3) -> void:

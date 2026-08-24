@@ -2,10 +2,11 @@ class_name SlipstreamGhostField
 extends Node
 
 ## Owner of the slipstream ghosts: where they are, which are currently taken, and the swept test
-## that takes them. Modelled on HazardGhostField, sharing its whole placement engine — the same
-## per-lane sine wander, the same stratified starting slots, the same checkpoint-driven thickening
-## — with the differences that follow from being friendly traffic going the driver's own way rather
-## than oncoming: a slipstream ghost drives forward along its own lane instead of backward, its hit
+## that takes them. Modelled on HazardGhostField, sharing most of its placement engine — the same
+## per-lane sine wander, the same checkpoint-driven thickening — with the differences that follow
+## from being friendly traffic going the driver's own way rather than oncoming: it is dealt into a
+## window of road ahead of the kart rather than stratified over the whole lap ([method
+## place_along]), a slipstream ghost drives forward along its own lane instead of backward, its hit
 ## costs no speed, and driving through it pays a boost charge (HazardGhostField's bump/bleed,
 ## BoostGhostField's own reward) plus a small permanent top-speed raise, on top of the seconds a
 ## hazard hop pays.
@@ -26,7 +27,7 @@ extends Node
 ## the identical geometry a hazard ribbon is.
 
 ## One ghost, the instant it is driven through. Carries the seconds it pays, in the same shape as
-## ClockField.clock_taken and HazardGhostField.hazard_jumped, so PickupPopups and RunDirector can
+## ClockField.clock_taken and HazardGhostField.hazard_hit, so PickupPopups and RunDirector can
 ## treat it exactly the same way. The boost charge it also pays is applied directly to the kart
 ## ([method _take_ghost]) rather than carried on this signal, matching BoostGhostField.ghost_taken's
 ## own split between a spatial signal and a direct kart call.
@@ -37,7 +38,7 @@ signal slipstream_hit(seconds: float, position: Vector3, direction: Vector3)
 const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 
 ## The model scale the FBX's own axis correction ([method _spawn_ghost]) is built from, per unit
-## of [member pickup_radius_fraction], for BoostGhostField.MODEL_SCALE_PER_FRACTION's identical
+## of a ghost's own drawn pickup fraction, for BoostGhostField.MODEL_SCALE_PER_FRACTION's identical
 ## reason and identical derivation.
 const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 
@@ -92,13 +93,19 @@ var loadout: CircuitLoadout = null
 ## reason. Set by race.gd, bound to the resolved Circuit.
 var save_loadout: Callable = Callable()
 
-## Metres of ghost line kept clear either side of the kart's own current position, for
-## HazardGhostField.kart_clearance's identical reason.
-@export var kart_clearance: float = 10.0
-
-## Fraction of its own slot a ghost may wander across at spawn, for HazardGhostField's identical
-## reason.
-@export_range(0.0, 1.0) var placement_jitter: float = 0.3
+## The window of ghost line, measured forward from the kart's own current position, a slipstream
+## ghost may be placed in. Every ghost draws its own distance uniformly from between the two,
+## in metres ahead of the kart ([method place_along]), rather than taking a stratified slot of the
+## whole loop the way HazardGhostField does: friendly traffic is only worth anything where the
+## driver will actually reach it, so it is dealt into the road ahead instead of spread over the
+## lap. [member min_kart_distance] keeps a ghost from ever being handed
+## right off the kart's nose (HazardGhostField.kart_clearance's own reason); [member
+## max_kart_distance] keeps the rest of it from being dealt somewhere the driver never gets to.
+##
+## A window wider than the loop just wraps, so the far end can overlap the near end on a short
+## circuit; a max at or below the min degenerates to every ghost landing at the min.
+@export var min_kart_distance: float = 10.0
+@export var max_kart_distance: float = 60.0
 
 ## m/s range a slipstream ghost may drive forward along the ghost line. Each ghost picks its own
 ## speed from this range at spawn ([method _spawn_ghost]), so the traffic doesn't read as a single
@@ -113,6 +120,11 @@ var save_loadout: Callable = Callable()
 ## Metres of lateral movement per metre of arclength a lane may ask for, for
 ## HazardGhostField.max_lane_gradient's identical reason.
 @export var max_lane_gradient: float = 0.06
+
+## Fraction of the half-band a lane's constant offset may reach, for HazardGhostField.lane_bias's
+## identical reason and identical trade: road-edge traffic bought outside the gradient budget, paid
+## for with the wander of the lanes nearest the kerb.
+@export_range(0.0, 1.0) var lane_bias: float = 0.6
 
 ## m/s the banked charge puts straight into forward speed, above the tuned ceiling, once spent —
 ## BoostGhostField.bump's identical meaning, paid the instant a slipstream ghost is driven through
@@ -131,9 +143,14 @@ var save_loadout: Callable = Callable()
 ## Its own knob, separate from the boost: how much Run time a catch is worth is a different dial
 ## than how much speed it hands you.
 @export var hit_time_bonus: float = 2.0
-## Fraction of the kart's own collision radius ([member Kart.sphere_radius]) a ghost reaches out
-## to, for HazardGhostField.pickup_radius_fraction's identical reason and identical default.
-@export var pickup_radius_fraction: float = 4.0
+## Range of the kart's own collision radius ([member Kart.sphere_radius]) a ghost reaches out to,
+## for HazardGhostField.min_pickup_radius_fraction's identical reason and identical defaults. Each
+## ghost draws its own fraction from this range once, at spawn, and is modelled at that same scale,
+## for BoostGhostField.min_pickup_radius_fraction's identical reason — traffic of assorted sizes,
+## each car's silhouette the pickup it stands for. The lane band ([method _half_band]) is still
+## sized off the max, so even the widest ghost has room in its own lane.
+@export var min_pickup_radius_fraction: float = 3.0
+@export var max_pickup_radius_fraction: float = 5.0
 
 ## Metres of vertical gap the swept test still counts as a hit, for ClockField.max_vertical_gap's
 ## identical reason.
@@ -188,9 +205,6 @@ var _centreline_yaws: PackedFloat32Array = PackedFloat32Array()
 ## it in [method _build_centreline], for HazardGhostField._centreline_cumulative's identical reason.
 var _centreline_cumulative: PackedFloat32Array = PackedFloat32Array()
 var _centreline_length: float = 0.0
-## pickup_radius_fraction resolved against the kart's sphere_radius, for
-## HazardGhostField._pickup_radius's identical reason.
-var _pickup_radius: float = 0.0
 # Seeded randomly on creation by Godot and never re-seeded, for HazardGhostField._rng's reason.
 var _rng := RandomNumberGenerator.new()
 
@@ -199,9 +213,6 @@ func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
 	_director = get_node_or_null(director_path) as RunDirector
 	_ghosts_root = get_node_or_null(ghosts_path) as Node3D
-	if _kart != null:
-		_pickup_radius = pickup_radius_fraction * _kart.sphere_radius
-
 	if _director != null:
 		# countdown_started only: a wrap deliberately leaves the field alone (see class doc).
 		_director.countdown_started.connect(_on_countdown_started)
@@ -264,36 +275,40 @@ func _process(delta: float) -> void:
 
 
 ## Starting arclength distances for [param count] slipstream ghosts along a line of [param
-## total_length] metres — HazardGhostField.place_along's identical stratification and wraparound
-## exclusion, duplicated for the same reason it is there rather than shared: a static function
-## called with no instance, from a TestCase that cannot touch either field.
+## total_length] metres: each drawn uniformly from the [param min_distance]..[param max_distance]
+## window ahead of [param kart_distance] and wrapped onto the loop, for [member
+## min_kart_distance]'s reason. Unlike HazardGhostField.place_along there is no stratification —
+## the ghosts are free to bunch inside the window, which is what traffic ahead of the driver looks
+## like anyway.
+##
+## Static, and not shared with the hazard field it once copied, for BoostGhostField.place_along's
+## identical reason: called with no instance, from a TestCase that cannot touch either field.
+##
+## Parameters named min_distance/max_distance rather than after the exported members (whose names
+## this class already claims), for BoostGhostField.place_along's identical reason.
 static func place_along(
 	total_length: float,
 	count: int,
 	kart_distance: float,
-	clearance: float,
+	min_distance: float,
+	max_distance: float,
 	rng: RandomNumberGenerator,
-	jitter: float,
 ) -> Array[float]:
 	var result: Array[float] = []
 	if count <= 0 or total_length <= 0.0:
 		return result
 
-	var usable: float = total_length - 2.0 * clearance
-	if usable <= 0.0:
-		return result
-
-	var slot: float = usable / count
-	for i in count:
-		var centre: float = kart_distance + clearance + (i + 0.5) * slot
-		var target: float = fposmod(centre + rng.randf_range(-0.5, 0.5) * jitter * slot, total_length)
-		result.append(target)
+	var near: float = maxf(min_distance, 0.0)
+	var far: float = maxf(max_distance, near)
+	for _i in count:
+		result.append(fposmod(kart_distance + rng.randf_range(near, far), total_length))
 
 	return result
 
 
-## The arclength on [member _centreline_cumulative] nearest [param point], for [member
-## kart_clearance]'s exclusion band. HazardGhostField._kart_arclength's identical search.
+## The arclength on [member _centreline_cumulative] nearest [param point], for the [member
+## min_kart_distance] window it is measured from. HazardGhostField._kart_arclength's identical
+## search.
 static func _kart_arclength(
 	positions: PackedVector3Array, cumulative: PackedFloat32Array, point: Vector3
 ) -> float:
@@ -305,13 +320,6 @@ static func _kart_arclength(
 			best_distance = distance
 			best_index = i
 	return cumulative[best_index]
-
-
-## The shorter arclength gap between [param a] and [param b] on a closed loop of [param
-## total_length] metres, for HazardGhostField._circular_distance's identical reason.
-static func _circular_distance(a: float, b: float, total_length: float) -> float:
-	var diff: float = absf(fposmod(a - b, total_length))
-	return minf(diff, total_length - diff)
 
 
 ## The index of the sample [param distance] metres along the line falls on, capped so the sample
@@ -361,6 +369,7 @@ static func _pose_at(
 ## One ghost's drawn lane wander: two sine harmonics over the centreline's own arclength, for
 ## HazardGhostField.Wander's identical reason.
 class Wander extends RefCounted:
+	var bias: float = 0.0 # constant metres right of the centreline, before either harmonic
 	var slow_amplitude: float = 0.0
 	var slow_harmonic: int = 0
 	var slow_phase: float = 0.0
@@ -373,10 +382,13 @@ class Wander extends RefCounted:
 ## HazardGhostField.draw_wander's identical construction and identical reasoning, duplicated here
 ## for the same reason [method place_along] is.
 static func draw_wander(half_band: float, loop_length: float, max_gradient: float,
-		slow_phase: float, rng: RandomNumberGenerator) -> Wander:
+		slow_phase: float, bias_fraction: float, rng: RandomNumberGenerator) -> Wander:
 	var wander := Wander.new()
 	if half_band <= 0.0 or loop_length <= 0.0:
 		return wander
+
+	wander.bias = half_band * clampf(bias_fraction, -1.0, 1.0)
+	half_band = maxf(half_band - absf(wander.bias), 0.0)
 
 	wander.slow_harmonic = rng.randi_range(WANDER_SLOW_HARMONIC_MIN, WANDER_SLOW_HARMONIC_MAX)
 	wander.fast_harmonic = rng.randi_range(WANDER_FAST_HARMONIC_MIN, WANDER_FAST_HARMONIC_MAX)
@@ -401,7 +413,8 @@ static func draw_wander(half_band: float, loop_length: float, max_gradient: floa
 static func wander_offset_at(wander: Wander, s: float, loop_length: float) -> float:
 	if loop_length <= 0.0:
 		return 0.0
-	return (wander.slow_amplitude
+	return (wander.bias
+		+ wander.slow_amplitude
 			* sin(TAU * wander.slow_harmonic * s / loop_length + wander.slow_phase)
 		+ wander.fast_amplitude
 			* sin(TAU * wander.fast_harmonic * s / loop_length + wander.fast_phase))
@@ -428,6 +441,27 @@ static func deal_phases(count: int, rng: RandomNumberGenerator) -> Array[float]:
 	return result
 
 
+## One constant lane offset per ghost, as a fraction of the half-band in [-1, 1], stratified across
+## the road, for HazardGhostField.deal_biases's identical reason.
+static func deal_biases(count: int, rng: RandomNumberGenerator) -> Array[float]:
+	var result: Array[float] = []
+	if count <= 0:
+		return result
+
+	var band_width: float = 2.0 / count
+	var pool: Array[int] = []
+	for _i in count:
+		if pool.is_empty():
+			for band in count:
+				pool.append(band)
+		var index: int = rng.randi_range(0, pool.size() - 1)
+		var band: int = pool[index]
+		pool.remove_at(index)
+		result.append(-1.0 + band * band_width + rng.randf_range(0.0, band_width))
+
+	return result
+
+
 ## Frees the standing field and places a fresh one on the road's centreline, for
 ## HazardGhostField._place_ghosts's identical reason.
 func _place_ghosts() -> void:
@@ -445,21 +479,21 @@ func _place_ghosts() -> void:
 	if _centreline_length <= 0.0:
 		return
 
-	var half_band: float = _half_band()
 	var phases: Array[float] = deal_phases(ghost_count, _rng)
+	var biases: Array[float] = deal_biases(ghost_count, _rng)
 	var kart_distance: float = _current_kart_distance()
 
 	var distances: Array[float] = place_along(
 		_centreline_length,
 		ghost_count,
 		kart_distance,
-		kart_clearance,
+		min_kart_distance,
+		max_kart_distance,
 		_rng,
-		placement_jitter,
 	)
 	for i in distances.size():
-		_ghosts.append(_spawn_ghost(
-			half_band, phases[i], distances[i], _centreline_length, _centreline_cumulative))
+		_ghosts.append(_spawn_ghost(phases[i], biases[i] * lane_bias, distances[i],
+			_centreline_length, _centreline_cumulative))
 
 
 ## The kart's own current arclength along the centreline, for HazardGhostField's identical reason.
@@ -469,31 +503,35 @@ func _current_kart_distance() -> float:
 	return _kart_arclength(_centreline_positions, _centreline_cumulative, _kart.global_position)
 
 
-## Ghosts this half_band's own share of the road can support without two overlapping, for
-## HazardGhostField._half_band's identical reason.
-func _half_band() -> float:
-	var car_width: float = 2.0 * _pickup_radius
-	return maxf((RoadCentreline.width(_road_container) - car_width) * 0.5, 0.0) * lane_wander
+## The lateral room one ghost has, given [param pickup_radius], for HazardGhostField._half_band's
+## identical reason: per-ghost rather than one band sized off the widest possible draw, which is
+## what left the kerbs uncoverable.
+func _half_band(pickup_radius: float) -> float:
+	return maxf(RoadCentreline.width(_road_container) * 0.5 - pickup_radius, 0.0) * lane_wander
 
 
 ## Adds [param count] ghosts to the standing field without disturbing it, for
-## HazardGhostField._spawn_extra_ghosts's identical reason.
+## HazardGhostField._spawn_extra_ghosts's identical reason. Straight through [method place_along]
+## rather than the hazard field's rejection-sampled draw: the same window ahead of the kart serves
+## a mid-Run arrival as well as it serves the opening deal, and lands it where the driver is headed.
 func _spawn_extra_ghosts(count: int) -> void:
 	if count <= 0 or _ghosts_root == null or _centreline_length <= 0.0:
 		return
 
-	const MAX_DRAWS: int = 20
-	var half_band: float = _half_band()
 	var kart_distance: float = _current_kart_distance()
-	for _i in count:
-		var distance: float = _rng.randf_range(0.0, _centreline_length)
-		for _draw in MAX_DRAWS - 1:
-			if _circular_distance(distance, kart_distance, _centreline_length) >= kart_clearance:
-				break
-			distance = _rng.randf_range(0.0, _centreline_length)
+	var distances: Array[float] = place_along(
+		_centreline_length,
+		count,
+		kart_distance,
+		min_kart_distance,
+		max_kart_distance,
+		_rng,
+	)
+	for distance: float in distances:
 		var phase: float = _rng.randf_range(0.0, TAU)
-		_ghosts.append(_spawn_ghost(
-			half_band, phase, distance, _centreline_length, _centreline_cumulative))
+		var bias: float = _rng.randf_range(-1.0, 1.0)
+		_ghosts.append(_spawn_ghost(phase, bias * lane_bias, distance,
+			_centreline_length, _centreline_cumulative))
 
 
 ## Advances [member _spawn_timer] and spawns one ghost per full [member spawn_interval_seconds]
@@ -652,10 +690,16 @@ func _build_line_material() -> StandardMaterial3D:
 ## Builds one ghost standing in its own lane, for HazardGhostField._spawn_ghost's identical
 ## construction — everything but the yaw (unmodified here: this ghost's nose already points the
 ## direction it drives, [method _pose_at]).
-func _spawn_ghost(half_band: float, slow_phase: float, centreline_distance: float,
-		centreline_length: float, centreline_cumulative: PackedFloat32Array) -> Slipstream:
-	var wander: Wander = draw_wander(
-		half_band, centreline_length, max_lane_gradient, slow_phase, _rng)
+func _spawn_ghost(slow_phase: float, bias_fraction: float,
+		centreline_distance: float, centreline_length: float,
+		centreline_cumulative: PackedFloat32Array) -> Slipstream:
+	# Drawn before the lane, because it is what the lane is sized against: this ghost's own
+	# reach decides how far out it may sit ([method _half_band]).
+	var fraction: float = _rng.randf_range(
+		min_pickup_radius_fraction, maxf(min_pickup_radius_fraction, max_pickup_radius_fraction))
+	var pickup_radius: float = fraction * (_kart.sphere_radius if _kart != null else 0.0)
+	var wander: Wander = draw_wander(_half_band(pickup_radius), centreline_length,
+		max_lane_gradient, slow_phase, bias_fraction, _rng)
 	var lane_positions: PackedVector3Array = _offset_positions(wander, centreline_cumulative)
 	var lane_yaws: PackedFloat32Array = RoadCentreline.yaws_from_positions(lane_positions)
 	var lane_cumulative: PackedFloat32Array = _cumulative_lengths(lane_positions)
@@ -672,9 +716,10 @@ func _spawn_ghost(half_band: float, slow_phase: float, centreline_distance: floa
 	var model: Node3D = GHOST_MODEL.instantiate() as Node3D
 	wrapper.add_child(model)
 	# The FBX's own axes don't match the road's forward/up/scale, for
-	# HazardGhostField._spawn_ghost's identical reason and identical correction.
+	# HazardGhostField._spawn_ghost's identical reason and identical correction, scaled by this
+	# ghost's own drawn fraction so the silhouette tracks the pickup radius it stands for.
 	model.transform = Transform3D(
-		Basis().scaled(MODEL_SCALE_PER_FRACTION * pickup_radius_fraction), Vector3(0.0, 0.1, 0.0))
+		Basis().scaled(MODEL_SCALE_PER_FRACTION * fraction), Vector3(0.0, 0.1, 0.0))
 
 	var ghost := Slipstream.new()
 	ghost.node = wrapper
@@ -685,6 +730,7 @@ func _spawn_ghost(half_band: float, slow_phase: float, centreline_distance: floa
 	ghost.lane_length = lane_length
 	ghost.ribbon_vertices = _build_ribbon_vertices(lane_positions, lane_yaws)
 	ghost.origin = wrapper.global_position
+	ghost.pickup_radius = pickup_radius
 	ghost.speed = _rng.randf_range(min_speed, max_speed)
 	ghost.material = _build_ghost_material()
 	# A sibling of the wrapper, not a child of it, for HazardGhostField._spawn_ghost's identical
@@ -734,7 +780,7 @@ func _sweep_ghosts() -> void:
 	for ghost: Slipstream in _ghosts:
 		if ghost.taken:
 			continue
-		if not ClockField.segment_takes_clock(previous, position, ghost.origin, _pickup_radius):
+		if not ClockField.segment_takes_clock(previous, position, ghost.origin, ghost.pickup_radius):
 			continue
 		if absf(position.y - ghost.origin.y) > max_vertical_gap:
 			continue
@@ -785,6 +831,10 @@ class Slipstream extends RefCounted:
 	var node: Node3D = null # the wrapper; visibility toggles here
 	var distance: float = 0.0 # arclength along this ghost's own lane, increasing as it drives
 	var speed: float = 0.0 # m/s, picked once at spawn from [min_speed, max_speed]
+	## Metres this ghost reaches out to, drawn once at spawn from the field's own fraction range
+	## and matched by the scale of the model driving here; see [method
+	## SlipstreamGhostField._spawn_ghost].
+	var pickup_radius: float = 0.0
 	var origin: Vector3 = Vector3.ZERO
 	var material: StandardMaterial3D = null
 	## This ghost's own lane, drawn once at spawn from a wander across the centreline and kept for
