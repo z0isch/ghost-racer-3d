@@ -179,7 +179,7 @@ func test_wander_offset_is_seamless_across_the_loop() -> void:
 	var rng := RandomNumberGenerator.new()
 	for roll in ROLLS:
 		var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
-			HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
+			HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), 0.0, rng)
 		check_near(
 			HazardGhostField.wander_offset_at(wander, 0.0, LOOP_LENGTH),
 			HazardGhostField.wander_offset_at(wander, LOOP_LENGTH, LOOP_LENGTH),
@@ -190,7 +190,7 @@ func test_wander_offset_is_seamless_across_the_loop() -> void:
 func test_wander_offset_stays_within_the_half_band() -> void:
 	var rng := RandomNumberGenerator.new()
 	var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
-		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), 0.0, rng)
 	var samples: int = 2000
 	for i in samples:
 		var s: float = LOOP_LENGTH * float(i) / float(samples)
@@ -201,7 +201,7 @@ func test_wander_offset_stays_within_the_half_band() -> void:
 func test_wander_gradient_stays_at_or_under_the_cap() -> void:
 	var rng := RandomNumberGenerator.new()
 	var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
-		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), 0.0, rng)
 	# Sampled at 0.1 m, well under the fast harmonic's wavelength: a coarser stride can miss a
 	# violation between samples and go quietly green.
 	var step: float = 0.1
@@ -219,7 +219,7 @@ func test_wander_gradient_stays_at_or_under_the_cap() -> void:
 func test_wander_is_inert_at_zero_half_band() -> void:
 	var rng := RandomNumberGenerator.new()
 	var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
-		0.0, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
+		0.0, LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), 0.0, rng)
 	for roll in ROLLS:
 		var s: float = rng.randf_range(0.0, LOOP_LENGTH)
 		check(HazardGhostField.wander_offset_at(wander, s, LOOP_LENGTH) == 0.0,
@@ -229,7 +229,7 @@ func test_wander_is_inert_at_zero_half_band() -> void:
 func test_wander_cap_binds_the_fast_harmonic_only() -> void:
 	var rng := RandomNumberGenerator.new()
 	var wander: HazardGhostField.Wander = HazardGhostField.draw_wander(
-		HALF_BAND, CAP_BINDING_LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), rng)
+		HALF_BAND, CAP_BINDING_LOOP_LENGTH, MAX_GRADIENT, rng.randf_range(0.0, TAU), 0.0, rng)
 	var expected_slow: float = HALF_BAND * 0.75
 	check_near(wander.slow_amplitude, expected_slow, 1e-4,
 		"the slow harmonic keeps its full share of the half_band when the cap binds")
@@ -246,11 +246,11 @@ func test_wander_is_deterministic_per_seed() -> void:
 	third_rng.seed = 2
 
 	var first: HazardGhostField.Wander = HazardGhostField.draw_wander(
-		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, 1.0, first_rng)
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, 1.0, 0.0, first_rng)
 	var second: HazardGhostField.Wander = HazardGhostField.draw_wander(
-		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, 1.0, second_rng)
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, 1.0, 0.0, second_rng)
 	var third: HazardGhostField.Wander = HazardGhostField.draw_wander(
-		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, 1.0, third_rng)
+		HALF_BAND, LOOP_LENGTH, MAX_GRADIENT, 1.0, 0.0, third_rng)
 
 	check(first.slow_harmonic == second.slow_harmonic
 			and first.fast_harmonic == second.fast_harmonic
@@ -265,12 +265,12 @@ func test_wander_is_deterministic_per_seed() -> void:
 func test_wander_degenerate_inputs_give_zero_and_deal_phases_are_well_formed() -> void:
 	var rng := RandomNumberGenerator.new()
 	var zero_band: HazardGhostField.Wander = HazardGhostField.draw_wander(
-		0.0, LOOP_LENGTH, MAX_GRADIENT, 0.0, rng)
+		0.0, LOOP_LENGTH, MAX_GRADIENT, 0.0, 0.0, rng)
 	check(zero_band.slow_amplitude == 0.0 and zero_band.fast_amplitude == 0.0,
 		"half_band <= 0.0 gives an all-zero wander")
 
 	var zero_loop: HazardGhostField.Wander = HazardGhostField.draw_wander(
-		HALF_BAND, 0.0, MAX_GRADIENT, 0.0, rng)
+		HALF_BAND, 0.0, MAX_GRADIENT, 0.0, 0.0, rng)
 	check(zero_loop.slow_amplitude == 0.0 and zero_loop.fast_amplitude == 0.0,
 		"loop_length <= 0.0 gives an all-zero wander")
 
