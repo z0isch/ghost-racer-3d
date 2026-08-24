@@ -23,7 +23,7 @@ param(
     [double]$StartFinishSetback = 8.0,
     [double]$GateClearance = 4.0,
     [string]$ClockLateral = "0",
-    [double]$HalfWidth = 4.0,
+    [double]$HalfWidth = 4.5,
     [switch]$DryRun
 )
 

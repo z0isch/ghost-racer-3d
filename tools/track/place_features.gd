@@ -23,7 +23,7 @@
 
 # The prism's ceiling (RunDirector.checkpoint_ceiling), so the gate draws the rule rather than
 # approximating it.
-const GATE_HEIGHT := 5.0
+const GATE_HEIGHT := 4.0
 const GATE_POST_THICKNESS := 0.4
 const GATE_BAR_THICKNESS := 0.4
 
@@ -750,7 +750,7 @@ func _parse_args(args: PackedStringArray) -> Dictionary:
 		"start_finish_setback": 8.0,
 		"gate_clearance": 4.0,
 		"clock_lateral": [0.0] as Array[float],
-		"half_width": 4.0,
+		"half_width": 4.5,
 		"dry_run": false,
 	}
 	var i: int = 0

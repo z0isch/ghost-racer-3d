@@ -135,7 +135,7 @@ enum RunPhase {
 ## plus the gate's overhang), from 1 m below the surface to 5 m above, which is where the gate's
 ## posts and crossbar are. Exported so the pair can be pushed apart in a playtest, but meant to
 ## match the gate geometry.
-@export var checkpoint_half_width: float = 4.75
+@export var checkpoint_half_width: float = 5.25
 @export var checkpoint_floor: float = -1.0
 @export var checkpoint_ceiling: float = 5.0
 
