@@ -4,7 +4,9 @@
 [ext_resource type="PackedScene" uid="uid://dhb86lw6o4g5n" path="res://cars/FBX/SportsCar.fbx" id="2_yjkmi"]
 [ext_resource type="Script" uid="uid://csbebaqbrv1ah" path="res://scripts/kart_cosmetics.gd" id="3_cosmetics"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_body"]
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.495
+height = 1.5875
 
 [sub_resource type="Gradient" id="Gradient_smoke"]
 offsets = PackedFloat32Array(0, 0.2, 1)
@@ -101,7 +103,7 @@ collision_mask = 2
 script = ExtResource("1_kart")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=579138]
-shape = SubResource("SphereShape3D_body")
+shape = SubResource("CapsuleShape3D_body")
 
 [node name="GroundRay" type="RayCast3D" parent="." unique_id=427231096]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)

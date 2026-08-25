@@ -35,7 +35,7 @@ signal hazard_hit(seconds: float, position: Vector3, direction: Vector3)
 const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 
 ## The model scale the FBX's own axis correction ([method _spawn_ghost]) is built from, per unit
-## of a hazard's own drawn pickup fraction, for BoostGhostField.MODEL_SCALE_PER_FRACTION's identical
+## of a hazard's own drawn car scale, for BoostGhostField.MODEL_SCALE_PER_FRACTION's identical
 ## reason and identical derivation.
 const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 
@@ -150,18 +150,16 @@ var save_loadout: Callable = Callable()
 ## rather than adding a zero-strength one every hit. Not added on a hop: a hazard cleared cleanly is
 ## not an impact, so there is nothing for the camera to react to.
 @export_range(0.0, 1.0) var hit_shake_trauma: float = 0.4
-## Fraction of the kart's own collision radius ([member Kart.sphere_radius]) a hazard reaches out
-## to, for BoostGhostField.min_pickup_radius_fraction's identical reason and identical defaults.
-## Each hazard draws its own fraction from this range once, at spawn, and is modelled at that same
-## scale — traffic of assorted sizes, each car's silhouette the hitbox it stands for. The lane band
-## ([method _half_band]) is still sized off the max, so even the widest hazard has room in its lane.
-@export var min_pickup_radius_fraction: float = 3.0
-@export var max_pickup_radius_fraction: float = 5.0
-## Shrinks the hitbox below the visible model, leaving [member min_pickup_radius_fraction]/
-## [member max_pickup_radius_fraction] alone since those also size the model's own scale ([method
-## _spawn_ghost]) and its lane room ([method _half_band]). 1.0 makes the hitbox exactly match the
-## car's silhouette, this field's behaviour before the multiplier existed; lower values give the
-## driver room to graze a hazard's visible edges without being counted as hit.
+## Range of car sizes this field spawns, for BoostGhostField.min_car_scale's identical reason and
+## identical defaults. Each hazard draws its own scale from this range once, at spawn, and is
+## modelled at that same scale — traffic of assorted sizes, each car's silhouette the hitbox it
+## stands for.
+@export var min_car_scale: float = 3.0
+@export var max_car_scale: float = 5.0
+## Shrinks the hitbox below the visible model, leaving [member min_car_scale]/[member max_car_scale]
+## alone since those also size the model's own scale ([method _spawn_ghost]) and its lane room
+## ([method _half_band]). 1.0 makes the capsule exactly the car's measured silhouette; lower values
+## give the driver room to graze a hazard's visible edges without being counted as hit.
 @export_range(0.0, 1.0) var hitbox_scale: float = 0.7
 
 ## Metres of vertical gap the swept test still counts as a hit, for ClockField.max_vertical_gap's
@@ -184,12 +182,12 @@ var save_loadout: Callable = Callable()
 		line_visible = value
 		_update_ribbons()
 ## How wide a ribbon is painted, square across the line, as a fraction of its own hazard's hitbox
-## diameter (twice [member Hazard.pickup_radius]) rather than metres: the hazards are traffic of
-## assorted sizes ([member min_pickup_radius_fraction]), so a fixed width had the smallest car and
-## the largest trailing the same thread, and the ribbon's width said nothing about how much road
-## the thing coming at you actually covers. Scaling it off the hitbox rather than the model means
-## the warning tracks what the swept test will actually take you on ([member hitbox_scale]).
-@export var line_width_fraction: float = 0.08
+## width (twice [member Hazard.half_width]) rather than metres: the hazards are traffic of assorted
+## sizes ([member min_car_scale]), so a fixed width had the smallest car and the largest trailing
+## the same thread, and the ribbon's width said nothing about how much road the thing coming at you
+## actually covers. Scaling it off the hitbox rather than the model means the warning tracks what
+## the swept test will actually take you on ([member hitbox_scale]).
+@export var line_width_fraction: float = 0.25
 ## Lifted this far above the recorded line, so a ribbon doesn't z-fight the road it was recorded
 ## driving on.
 @export var line_height_offset: float = 0.05
@@ -212,8 +210,11 @@ var _director: RunDirector
 var _camera: ChaseCamera
 var _ghosts_root: Node3D
 var _ghosts: Array[Hazard] = []
-var _last_kart_position: Vector3 = Vector3.ZERO
-var _has_last_kart_position: bool = false
+var _last_kart_centre: Vector3 = Vector3.ZERO
+var _last_kart_yaw: float = 0.0
+var _has_last_kart_pose: bool = false
+## Built once and re-aimed every frame rather than rebuilt, for [Hitbox.Sweep]'s own reason.
+var _sweep := Hitbox.Sweep.new()
 var _elapsed: float = 0.0
 var _road_container: RoadContainer
 var _start_line: Node3D
@@ -589,17 +590,18 @@ func _current_kart_distance() -> float:
 	return _kart_arclength(_centreline_positions, _centreline_cumulative, _kart.global_position)
 
 
-## The lateral room one hazard has, given [param pickup_radius] — the road's half-width less its own
-## reach, so its silhouette stays on tarmac at full lock either way.
+## The lateral room one hazard has, given [param car_half_width] — the road's half-width less half
+## its own body, so its silhouette stays on tarmac either way.
 ##
-## Per-hazard, not one band shared by the field. Sizing the band off the widest fraction the field
-## could draw confined every narrow hazard to the widest one's lane, and since a hazard is tested as
-## a radius against the kart's own centre point, that left a margin of road at each kerb no hazard
-## could reach and the driver could sit on untouched. A hazard that drew a small radius may sit
-## further out precisely because it is small; one that drew a large radius covers the kerb from
-## further in.
-func _half_band(pickup_radius: float) -> float:
-	return maxf(RoadCentreline.width(_road_container) * 0.5 - pickup_radius, 0.0) * lane_wander
+## Per-hazard, not one band shared by the field. Sizing the band off the widest car scale the field
+## could draw confined every narrow hazard to the widest one's lane, which left a margin of road at
+## each kerb no hazard could reach and the driver could sit on untouched. A narrow hazard may sit
+## further out precisely because it is narrow; a wide one covers the kerb from further in.
+##
+## Half the car's WIDTH, not half its length: a capsule turns with its lane, so what can hang over
+## the kerb is the door, never the nose.
+func _half_band(car_half_width: float) -> float:
+	return maxf(RoadCentreline.width(_road_container) * 0.5 - car_half_width, 0.0) * lane_wander
 
 
 ## Adds [param count] hazards to the standing field without disturbing it, for [signal
@@ -699,17 +701,18 @@ func _offset_positions(wander: Wander, cumulative: PackedFloat32Array) -> Packed
 
 ## Two vertices per sample of [param positions], square across it via [param yaws]' own right
 ## vector — one hazard's own ribbon geometry, built once at spawn and sliced (with the seam wrapped)
-## by [method _update_ribbons] every physics tick rather than rebuilt. [param pickup_radius] is that
-## hazard's own hitbox radius, which sizes the width ([member line_width_fraction]); half the ribbon
-## width is therefore that radius times the fraction, the fraction being of the full diameter.
+## by [method _update_ribbons] every physics tick rather than rebuilt. [param car_half_width] is
+## that hazard's own hitbox half-width, which sizes the ribbon ([member line_width_fraction]); half
+## the ribbon width is therefore that half-width times the fraction, the fraction being of the car's
+## full width.
 func _build_ribbon_vertices(
-	positions: PackedVector3Array, yaws: PackedFloat32Array, pickup_radius: float
+	positions: PackedVector3Array, yaws: PackedFloat32Array, car_half_width: float
 ) -> PackedVector3Array:
 	var vertices: PackedVector3Array = PackedVector3Array()
 	if positions.size() < 2:
 		return vertices
 
-	var half_width: float = pickup_radius * line_width_fraction
+	var half_width: float = car_half_width * line_width_fraction
 	var lift: Vector3 = Vector3.UP * line_height_offset
 	for i in positions.size():
 		var right: Vector3 = Basis(Vector3.UP, yaws[i]).x
@@ -819,13 +822,15 @@ func _build_line_material() -> StandardMaterial3D:
 func _spawn_ghost(slow_phase: float, bias_fraction: float,
 		centreline_distance: float, centreline_length: float,
 		centreline_cumulative: PackedFloat32Array) -> Hazard:
-	# Drawn before the lane, because it is what the lane is sized against: this hazard's own
-	# reach decides how far out it may sit ([method _half_band]).
-	var fraction: float = _rng.randf_range(
-		min_pickup_radius_fraction, maxf(min_pickup_radius_fraction, max_pickup_radius_fraction))
-	var visual_radius: float = fraction * (_kart.sphere_radius if _kart != null else 0.0)
-	var pickup_radius: float = visual_radius * hitbox_scale
-	var wander: Wander = draw_wander(_half_band(visual_radius), centreline_length,
+	# Drawn before the lane, because it is what the lane is sized against: how wide this hazard's
+	# own body is decides how far out it may sit ([method _half_band]). The lane is sized off the
+	# drawn car, the capsule off the hitbox_scale'd one — a hazard forgiven a graze still may not
+	# park a wheel off the tarmac.
+	var car_scale: float = _rng.randf_range(min_car_scale, maxf(min_car_scale, max_car_scale))
+	var model_scale: Vector3 = MODEL_SCALE_PER_FRACTION * car_scale
+	var drawn: Vector2 = Hitbox.model_half_extents(model_scale)
+	var half_extents: Vector2 = drawn * hitbox_scale
+	var wander: Wander = draw_wander(_half_band(drawn.y), centreline_length,
 		max_lane_gradient, slow_phase, bias_fraction, _rng)
 	var lane_positions: PackedVector3Array = _offset_positions(wander, centreline_cumulative)
 	var lane_yaws: PackedFloat32Array = RoadCentreline.yaws_from_positions(lane_positions)
@@ -844,10 +849,9 @@ func _spawn_ghost(slow_phase: float, bias_fraction: float,
 	var model: Node3D = GHOST_MODEL.instantiate() as Node3D
 	wrapper.add_child(model)
 	# The FBX's own axes don't match the road's forward/up/scale, for BoostGhostField._spawn_ghost's
-	# identical reason and identical correction, scaled by this hazard's own drawn fraction for the
+	# identical reason and identical correction, scaled by this hazard's own drawn car scale for the
 	# same reason as there too.
-	model.transform = Transform3D(
-		Basis().scaled(MODEL_SCALE_PER_FRACTION * fraction), Vector3(0.0, 0.1, 0.0))
+	model.transform = Transform3D(Basis().scaled(model_scale), Vector3(0.0, 0.1, 0.0))
 
 	var hazard := Hazard.new()
 	hazard.node = wrapper
@@ -856,9 +860,11 @@ func _spawn_ghost(slow_phase: float, bias_fraction: float,
 	hazard.lane_yaws = lane_yaws
 	hazard.lane_cumulative = lane_cumulative
 	hazard.lane_length = lane_length
-	hazard.ribbon_vertices = _build_ribbon_vertices(lane_positions, lane_yaws, pickup_radius)
+	hazard.ribbon_vertices = _build_ribbon_vertices(lane_positions, lane_yaws, half_extents.y)
 	hazard.origin = wrapper.global_position
-	hazard.pickup_radius = pickup_radius
+	hazard.yaw = Hitbox.yaw_of(wrapper.global_transform.basis)
+	hazard.half_length = half_extents.x
+	hazard.half_width = half_extents.y
 	hazard.speed = _rng.randf_range(min_speed, max_speed)
 	hazard.material = _build_ghost_material()
 	# A sibling of the wrapper, not a child of it: the ribbon's vertices are the lane's own, already
@@ -886,6 +892,7 @@ func _advance_ghosts(delta: float) -> void:
 			hazard.lane_positions, hazard.lane_yaws, hazard.lane_cumulative, hazard.distance)
 		hazard.node.global_transform = pose
 		hazard.origin = pose.origin
+		hazard.yaw = Hitbox.yaw_of(pose.basis)
 
 	_update_ribbons()
 
@@ -895,24 +902,30 @@ func _sweep_ghosts() -> void:
 	if _director.phase != RunDirector.RunPhase.RACING:
 		return
 
-	var position: Vector3 = _kart.global_position
+	var centre: Vector3 = _kart.hitbox_centre
+	var yaw: float = _kart.hitbox_yaw
 	# The first Racing frame after a teleport records a position and tests nothing, for
 	# BoostGhostField's identical reason.
-	if not _has_last_kart_position:
-		_last_kart_position = position
-		_has_last_kart_position = true
+	if not _has_last_kart_pose:
+		_last_kart_centre = centre
+		_last_kart_yaw = yaw
+		_has_last_kart_pose = true
 		return
 
-	var previous: Vector3 = _last_kart_position
-	_last_kart_position = position
-	var direction: Vector3 = ClockField.sweep_direction(previous, position, _kart.global_transform.basis)
+	var previous: Vector3 = _last_kart_centre
+	var previous_yaw: float = _last_kart_yaw
+	_last_kart_centre = centre
+	_last_kart_yaw = yaw
+	_sweep.moved(previous, previous_yaw, centre, yaw,
+		_kart.hitbox_half_length, _kart.hitbox_half_width)
+	var direction: Vector3 = ClockField.sweep_direction(previous, centre, _kart.global_transform.basis)
 
 	for hazard: Hazard in _ghosts:
 		if hazard.taken:
 			continue
-		if not ClockField.segment_takes_clock(previous, position, hazard.origin, hazard.pickup_radius):
+		if not _sweep.takes(hazard.origin, hazard.yaw, hazard.half_length, hazard.half_width):
 			continue
-		if absf(position.y - hazard.origin.y) > max_vertical_gap:
+		if absf(centre.y - hazard.origin.y) > max_vertical_gap:
 			continue
 		# The swept test itself ignores height (see class doc), so a hop clears a hazard by immunity
 		# rather than clearance — unlike a hit, the hazard is not taken: it stays on its lane and
@@ -935,7 +948,7 @@ func _sweep_ghosts() -> void:
 ## Re-places the whole field at every countdown, for BoostGhostField._on_countdown_started's
 ## identical reason.
 func _on_countdown_started() -> void:
-	_has_last_kart_position = false
+	_has_last_kart_pose = false
 	_spawn_timer = 0.0
 	_place_ghosts()
 
@@ -963,10 +976,14 @@ class Hazard extends RefCounted:
 	var distance: float = 0.0 # arclength along this hazard's own lane, decreasing as it drives
 	var speed: float = 0.0 # m/s, picked once at spawn from [min_speed, max_speed]
 	var origin: Vector3 = Vector3.ZERO
-	## Metres this hazard reaches out to, drawn once at spawn from the field's own fraction range
-	## and matched by the scale of the model driving here; see [method
+	## Which way this hazard's capsule lies, re-read from its pose every time it is advanced: this
+	## car drives, so its hitbox turns through every corner of its lane.
+	var yaw: float = 0.0
+	## Half this hazard's capsule, nose to tail and kerb to kerb — the model's own footprint under
+	## the scale it was drawn at, times [member HazardGhostField.hitbox_scale]; see [method
 	## HazardGhostField._spawn_ghost].
-	var pickup_radius: float = 0.0
+	var half_length: float = 0.0
+	var half_width: float = 0.0
 	var material: StandardMaterial3D = null
 	## This hazard's own lane, drawn once at spawn from a wander across the centreline and kept for
 	## its whole life — never re-evaluated afterward, even though the wander it came from is a

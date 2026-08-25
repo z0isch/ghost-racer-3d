@@ -14,15 +14,20 @@ extends CharacterBody3D
 ##
 ##   - Translation comes from velocity/move_and_slide() ONLY. Nudging global_position to "pivot"
 ##     visually is a second independent source of translation, and it walks the kart across the
-##     track a little more every frame.
+##     track a little more every frame. Swinging the collision shape's LOCAL transform with the
+##     drift cant is not that: the body stays where move_and_slide left it.
 ##   - Surface classification HOLDS the last known surface when the ray misses (airborne, off the
 ##     world edge) rather than flickering or inventing an airborne state.
 ##
-## The ground is the ray's job and the sphere's job is barriers — the body's collision mask carries
+## The ground is the ray's job and the capsule's job is barriers — the body's collision mask carries
 ## no ground layer at all. Two independent things holding the kart up is what makes edges violent:
-## the ray and the sphere disagree about where the surface is within half a metre of any boundary,
-## and the sphere wins by depenetrating sideways off a zero-thickness road ribbon or straight up out
-## of the grass slab the road dips below. Held apart, running out of road is a plain fall.
+## the ray and the capsule disagree about where the surface is within half a metre of any boundary,
+## and the capsule wins by depenetrating sideways off a zero-thickness road ribbon or straight up
+## out of the grass slab the road dips below. Held apart, running out of road is a plain fall.
+##
+## The capsule lies flat along the car's own length rather than standing up, and is the same shape
+## the ghost fields sweep the kart as ([Hitbox]) — one hitbox, whether the thing being hit is a
+## barrier or a hazard.
 
 enum SurfaceType {
 	ROAD,
@@ -35,13 +40,18 @@ enum SurfaceType {
 const GRASS_LAYER_BIT: int = 1 << 3
 const MUD_LAYER_BIT: int = 1 << 2
 
+# A CapsuleShape3D is always authored standing up its own Y; a car's lies down its length. Composed
+# into the shape's transform by _aim_hitbox rather than authored on the node, because that node's
+# transform is rewritten every frame with the drift cant.
+const _LAID_FLAT: Basis = Basis(Vector3.RIGHT, Vector3.BACK, Vector3.DOWN)
+
 ## Every number the feel model runs on. Left null in the scene, so the defaults in KartTuning are
 ## the tuning of record and there is exactly one place to read them from; assign a KartTuning
 ## resource here to override per-scene.
 @export var tuning: KartTuning
 
 # --- The body's own numbers -------------------------------------------------------------------
-# How a sphere on a raycast sits on a mesh, not how the kart feels; hence here, not in KartTuning.
+# How a body on a raycast sits on a mesh, not how the kart feels; hence here, not in KartTuning.
 @export var gravity: float = 20.0
 @export var ground_snap_strength: float = 40.0
 ## Ceiling on the m/s the snap may command, in either direction. The ray's hit height is a
@@ -49,11 +59,14 @@ const MUD_LAYER_BIT: int = 1 << 2
 ## proportional snap turns any step into an instantaneous launch of step * strength m/s. Bounded, a
 ## step is climbed over a few frames instead.
 @export var ground_snap_max_speed: float = 6.0
-@export var sphere_radius: float = 0.5
+## Metres the body origin rides above whatever the ground ray hit. Deliberately not read off the
+## collision capsule: the capsule is half the car's WIDTH across and its own radius would float the
+## kart, and nothing about the body touches the ground anyway — the mask carries no ground layer.
+@export var ride_height: float = 0.5
 ## Vertical launch speed, m/s, fired on the same "hop" press that opens the model's hazard-immunity
 ## window (see KartTuning's Hop section) — one button, two independent effects. Lives here rather
-## than in KartTuning for gravity's reason: this is how the sphere leaves the raycast's surface,
-## not how the kart feels to drive.
+## than in KartTuning for gravity's reason: this is how the body leaves the raycast's surface, not
+## how the kart feels to drive.
 @export var jump_speed: float = 8.0
 
 ## A *driver-input* concept, not a Run concept: Kart names no Run phase and holds no reference to
@@ -81,12 +94,14 @@ var _current_surface: SurfaceType = SurfaceType.ROAD
 # the circuit's scene subtree if and only if it is that circuit's own road.
 var _current_ground_collider: Node = null
 # True from the jump press until the kart falls back through the ground surface. While true, the
-# vertical axis is plain gravity instead of the ground snap, which is what lets the sphere clear a
+# vertical axis is plain gravity instead of the ground snap, which is what lets the body clear a
 # barrier instead of being pulled straight back down to the road under it.
 var _is_jumping: bool = false
 
 @onready var _ground_ray: RayCast3D = $GroundRay
 @onready var _cosmetics: KartCosmetics = $Cosmetics
+@onready var _body_shape: CollisionShape3D = $CollisionShape3D
+@onready var _capsule: CapsuleShape3D = _body_shape.shape as CapsuleShape3D
 
 
 func _ready() -> void:
@@ -141,12 +156,12 @@ func _physics_process(delta: float) -> void:
 		# to fight. The ray still sees the road under a barrier the kart is sailing over, so this
 		# is "back at ground height", not "touching something".
 		if is_grounded and vertical <= 0.0:
-			var target_y: float = _ground_ray.get_collision_point().y + sphere_radius
+			var target_y: float = _ground_ray.get_collision_point().y + ride_height
 			if global_position.y <= target_y:
 				_is_jumping = false
 	elif is_grounded:
-		# Without the radius the sphere embeds in the mesh and every bump becomes a wall.
-		var target_y: float = _ground_ray.get_collision_point().y + sphere_radius
+		# Without the ride height the body embeds in the mesh and every bump becomes a wall.
+		var target_y: float = _ground_ray.get_collision_point().y + ride_height
 		vertical = clampf(
 			(target_y - global_position.y) * ground_snap_strength,
 			- ground_snap_max_speed,
@@ -166,6 +181,7 @@ func _physics_process(delta: float) -> void:
 	_state.is_grounded = is_grounded and not _is_jumping
 	_state.is_jumping = _is_jumping
 	_cosmetics.update_view(_state, delta)
+	_aim_hitbox()
 
 
 ## Teleports to a caller-supplied pose, clearing every scrap of motion, drift and cosmetic
@@ -180,6 +196,7 @@ func reset_to(pose: Transform3D) -> void:
 	_model.snapshot_into(_state)
 	_state.is_grounded = true
 	_cosmetics.reset()
+	_aim_hitbox()
 
 
 # Holds the last known surface when the ray has no hit, rather than flickering or introducing a
@@ -257,7 +274,42 @@ func _apply_barrier_impacts() -> void:
 		_model.apply_impact(max_impact)
 
 
+# Swings the collision shape with the cant the chassis is showing, about the same front-axle pivot,
+# so a tail hung out to the left is hit on the left. Without it the shape stays square to the
+# heading and the car is hit by things it has visibly already passed, which is the specific
+# confusion this exists to remove.
+#
+# Runs after the cosmetics, so the shape carries the pose settled this frame: what it feeds is the
+# NEXT move_and_slide, plus the ghost sweeps deferred to the end of this one.
+func _aim_hitbox() -> void:
+	_body_shape.transform = Transform3D(
+		Basis(Vector3.UP, _cosmetics.chassis_yaw) * _LAID_FLAT, _cosmetics.chassis_pivot)
+
+
 # --- Public surface ---------------------------------------------------------------------------
+
+## The kart's hitbox, as the ghost fields sweep it: a capsule half this long nose to tail, half this
+## wide kerb to kerb, centred on [member hitbox_centre] and pointed along [member hitbox_yaw]. Both
+## come off the authored CapsuleShape3D rather than a second pair of exports, so the shape the
+## barriers push against and the shape a hazard is tested against cannot drift apart. It is sized to
+## the SportsCar model's own footprint under the chassis' authored scale — see [Hitbox].
+var hitbox_half_length: float:
+	get: return _capsule.height * 0.5
+
+var hitbox_half_width: float:
+	get: return _capsule.radius
+
+## Where the hitbox actually sits this frame: the body's origin, offset by the front-axle pivot the
+## drift cant is swung about. Not global_position — during a drift the two differ by up to the
+## pivot correction, and a field sweeping global_position would test a box the car is not in.
+var hitbox_centre: Vector3:
+	get: return global_position + global_transform.basis * _cosmetics.chassis_pivot
+
+## The direction the hitbox points: the body's heading plus the chassis' drift cant. Taken off the
+## forward vector rather than global_rotation.y, so a start pose with bank or pitch in it — the
+## race scene authors one — still yields the heading alone.
+var hitbox_yaw: float:
+	get: return Hitbox.yaw_of(global_transform.basis) + _cosmetics.chassis_yaw
 
 ## A world event done to the kart, alongside the barrier impact the model already takes: the ghost
 ## field decides a ghost was taken, the model owns what a boost does. Banks a charge rather than

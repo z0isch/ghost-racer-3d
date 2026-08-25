@@ -14,6 +14,7 @@ func _initialize() -> void:
 	var suites: Array[TestCase] = [
 		KartModelTest.new(),
 		KartInputTest.new(),
+		HitboxTest.new(),
 		ClockPickupTest.new(),
 		BoostGhostPlacementTest.new(),
 		HazardGhostPlacementTest.new(),

@@ -87,7 +87,7 @@ directional_shadow_max_distance = 120.0
 [node name="Kart" parent="." unique_id=658236697 instance=ExtResource("1_kart")]
 transform = Transform3D(0.8480481, -0.13715316, 0.51186264, 0, 0.96592563, 0.258819, -0.52991927, -0.21949095, 0.8191514, -14.479635, 5.2275114, -22.458918)
 tuning = ExtResource("3_4c57u")
-sphere_radius = 0.4
+ride_height = 0.4
 
 [node name="ChaseCamera" type="Camera3D" parent="." unique_id=1992052791]
 current = true
@@ -152,8 +152,8 @@ start_line_path = NodePath("../Circuit/StartLine")
 ghosts_path = NodePath("../Circuit/BoostGhosts")
 kart_clearance = 20.0
 placement_jitter = 0.669
-min_pickup_radius_fraction = 1.5
-max_pickup_radius_fraction = 2.5
+min_car_scale = 1.5
+max_car_scale = 2.5
 ghost_color = Color(0, 0.5176471, 0.34509805, 0.5921569)
 
 [node name="HazardGhostField" type="Node" parent="." unique_id=417553908]
@@ -167,13 +167,13 @@ camera_path = NodePath("../ChaseCamera")
 kart_clearance = 20.0
 placement_jitter = 0.5
 min_speed = 0.5
-max_speed = 14.0
+max_speed = 20.0
 max_lane_gradient = 0.3
 lane_bias = 0.3
 hit_slow_multiplier = 0.75
 hit_shake_trauma = 0.7
-min_pickup_radius_fraction = 2.5
-max_pickup_radius_fraction = 8.0
+min_car_scale = 2.5
+max_car_scale = 10.0
 hitbox_scale = 0.75
 max_vertical_gap = 2.5
 line_color = Color(0.9490196, 0.101960786, 0.101960786, 0.4509804)
@@ -193,7 +193,7 @@ max_lane_gradient = 0.3
 lane_bias = 0.2
 top_speed_bump = 0.5
 hit_time_bonus = 0.0
-max_pickup_radius_fraction = 3.0
+max_car_scale = 3.0
 line_width = 0.2
 line_lead_length = 20.0
 

@@ -90,12 +90,19 @@ _Avoid_: Arch, marker, banner.
 
 **Checkpoint prism**:
 The bounded region that defines where a checkpoint counts — as wide as the gate itself (±4.5 m: the road's ±4 m plus the gate's overhang), from 1 m below the road surface to 5 m above, carried in the frame of the checkpoint's own marker. It has no thickness: it is crossed, not entered. The prism rolls with the road: a marker's frame is taken from the road's own definition — the same interpolation the road surface is built from — so its up *is* the road's up where it stands, the prism lies flat on banked and cresting road exactly as it does on a straight, and a gate may be placed anywhere on the circuit.
-_Avoid_: Trigger, volume, collider, hitbox — there is no `Area3D` and no physics body involved.
+_Avoid_: Trigger, volume, collider — there is no `Area3D` and no physics body involved, and it is not a **hitbox** either: a checkpoint is a rule about a plane, not a shape a car has.
 
 **Taken**:
 What a checkpoint becomes when the kart's path crosses its prism while that checkpoint is the pending one. Direction does not matter, and taking is permanent until the sequence wraps back to the first checkpoint, at which point every checkpoint is untaken again and the pending checkpoint is once more the first. Taking one also advances the **checkpoint ladder**, which — unlike the pending checkpoint — does *not* reset on a wrap.
 _Avoid_: Hit, triggered, passed (a checkpoint can be passed without being taken — that is the whole point of the ordering rule).
 A **clock** is taken too, and so is a **boost ghost**, by the same swept path. The shared verb is deliberate and is a true statement about the design, not a coincidence: all three are things the kart's path collects rather than touches, and all three are tested against the segment travelled rather than a sampled position. A checkpoint comes back on the next wrap; a clock, a boost ghost and a **hazard ghost** do not come back until the next Run.
+
+**Hitbox**:
+The shape a car is, for every purpose other than being looked at: a capsule lying flat in the horizontal plane, as long as the car and as wide, with height ignored entirely. One shape covers everything — the kart against the barriers, the kart against a **clock**, a **boost ghost**, a **hazard ghost** or a **slipstream ghost**, and each of those cars against the kart — because they are all the same model under a scale, and a hitbox is that model's own measured footprint under that same scale. Nothing is tuned to be a shape the car is not; a field that wants to be forgiving or harsh scales its cars' hitboxes as a whole and says so.
+Deliberately not a sphere, which is what all of this was before. A car is more than twice as long as it is wide, so a circle around one is simultaneously too generous across the road and too mean along it — and the wrong one in both directions changes with which way the car happens to be pointing.
+The kart's hitbox **swings with the drift cant**, about the same front-axle pivot the chassis is drawn rotating about. What you can see is what you can be hit on: with the tail hung out, the box is out with it. Bank is excluded — a rolled hitbox is a hitbox that changes width mid-corner.
+Tested **swept**, never sampled: the region a hitbox covers between one physics frame and the next is what a pickup or a hazard is measured against, so nothing is driven through at speed. Height is each field's own separate check (a metres-of-vertical-gap tolerance), for the same reason the **checkpoint prism** rolls with the road: a pickup up a banked sweeper belongs to the road it is on.
+_Avoid_: Sphere, radius, collider, bounding box.
 
 **Pending checkpoint**:
 The single checkpoint that is currently live. Every other checkpoint is inert: crossing one does nothing at all. Advances by one each time it is taken, wrapping from the last checkpoint back to the first rather than stopping, and never moves backwards otherwise.

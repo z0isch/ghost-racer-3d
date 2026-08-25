@@ -37,10 +37,10 @@ signal ghost_taken(position: Vector3)
 ## directly, one per placement.
 const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 
-## The model scale the FBX's own axis correction ([method _spawn_ghost]) is built from, per unit
-## of a ghost's own drawn pickup fraction ([member min_pickup_radius_fraction] …
-## [member max_pickup_radius_fraction]) — i.e. the tuned look at the old fixed 2.0 m radius against
-## a 0.5 m kart, divided by that 4.0 fraction.
+## The model scale the FBX's own axis correction ([method _spawn_ghost]) is built from, per unit of
+## a ghost's own drawn car scale ([member min_car_scale] … [member max_car_scale]). At
+## [constant Hitbox.KART_CAR_SCALE] this product is exactly the kart's own authored model scale,
+## which is what makes that number mean "kart-sized" everywhere it is read.
 const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 
 @export var kart_path: NodePath
@@ -102,16 +102,20 @@ var save_loadout: Callable = Callable()
 @export var bump: float = 10.0
 ## m/s^2 the overspeed comes back off at, once the charge is spent. Every ghost on the circuit.
 @export var bleed: float = 5.0
-## Range of the kart's own collision radius ([member Kart.sphere_radius]) a ghost reaches out to.
-## Wider than a clock's: the ghost is a car-sized silhouette, and clipping its wing should count.
-## 4.0 against the kart's default 0.5 m sphere_radius reproduces the old fixed 2.0 m radius.
+## Range of car sizes this field spawns, in multiples of [member MODEL_SCALE_PER_FRACTION] —
+## [constant Hitbox.KART_CAR_SCALE] is kart-sized, half that is a car half as long and half as wide.
 ##
-## Each ghost draws its own fraction from this range once, at spawn ([method _spawn_ghost]), which
-## scales its model by that same draw — so the field reads as cars of assorted sizes and a bigger
-## silhouette is always the wider pickup, rather than the two drifting apart. Setting min above max
-## is not policed; the draw simply collapses to the smaller of the two.
-@export var min_pickup_radius_fraction: float = 3.0
-@export var max_pickup_radius_fraction: float = 5.0
+## Each ghost draws its own scale from this range once, at spawn ([method _spawn_ghost]), and that
+## one draw sizes both the model and the capsule it is taken by: the two cannot drift apart, because
+## the hitbox is the model's own measured footprint under that scale ([method
+## Hitbox.model_half_extents]). Setting min above max is not policed; the draw simply collapses to
+## the smaller of the two.
+@export var min_car_scale: float = 3.0
+@export var max_car_scale: float = 5.0
+## Generosity of the hitbox against the drawn car, for HazardGhostField.hitbox_scale's identical
+## reason — except that this field's ghosts are rewards rather than obstacles, so >1.0 is the useful
+## direction here: it forgives a near miss instead of punishing one.
+@export var hitbox_scale: float = 1.0
 
 ## Metres of vertical gap the swept test still counts as a hit, for ClockField.max_vertical_gap's
 ## identical reason: the horizontal-only sweep would otherwise let a ghost be taken from a stretch
@@ -130,8 +134,11 @@ var _kart: Kart
 var _director: RunDirector
 var _ghosts_root: Node3D
 var _ghosts: Array[Ghost] = []
-var _last_kart_position: Vector3 = Vector3.ZERO
-var _has_last_kart_position: bool = false
+var _last_kart_centre: Vector3 = Vector3.ZERO
+var _last_kart_yaw: float = 0.0
+var _has_last_kart_pose: bool = false
+## Built once and re-aimed every frame rather than rebuilt, for [Hitbox.Sweep]'s own reason.
+var _sweep := Hitbox.Sweep.new()
 var _elapsed: float = 0.0
 ## The road's own centreline, walked once at the first re-place ([method _build_centreline]) and
 ## reused at every one after: the road doesn't change shape mid-session, so re-walking it at every
@@ -429,18 +436,20 @@ func _spawn_ghost(pose: Transform3D) -> Ghost:
 	wrapper.add_child(model)
 	# The FBX's own axes don't match the road's forward/up/scale; this is the same corrective local
 	# transform authored on every hand-placed pad's Ghost child and on PaceGhost's SportsCar child,
-	# scaled by this ghost's own drawn fraction so the silhouette tracks the pickup radius it stands
-	# for. 0.02, not PaceGhost's 0.0: just enough lift to keep the model's belly off the road mesh
-	# without floating it visibly above the ground the way the old 0.1 did.
-	var fraction: float = _rng.randf_range(
-		min_pickup_radius_fraction, maxf(min_pickup_radius_fraction, max_pickup_radius_fraction))
-	model.transform = Transform3D(
-		Basis().scaled(MODEL_SCALE_PER_FRACTION * fraction), Vector3(0.0, 0.02, 0.0))
+	# scaled by this ghost's own drawn car scale, which is also what its capsule is measured from —
+	# the silhouette IS the hitbox. 0.02, not PaceGhost's 0.0: just enough lift to keep the belly off
+	# the road mesh without floating it visibly above the ground the way the old 0.1 did.
+	var car_scale: float = _rng.randf_range(min_car_scale, maxf(min_car_scale, max_car_scale))
+	var model_scale: Vector3 = MODEL_SCALE_PER_FRACTION * car_scale
+	model.transform = Transform3D(Basis().scaled(model_scale), Vector3(0.0, 0.02, 0.0))
 
+	var half_extents: Vector2 = Hitbox.model_half_extents(model_scale) * hitbox_scale
 	var ghost := Ghost.new()
 	ghost.node = wrapper
 	ghost.origin = pose.origin
-	ghost.pickup_radius = fraction * (_kart.sphere_radius if _kart != null else 0.0)
+	ghost.yaw = Hitbox.yaw_of(pose.basis)
+	ghost.half_length = half_extents.x
+	ghost.half_width = half_extents.y
 	ghost.material = _build_ghost_material()
 	_apply_material(model, ghost.material)
 	return ghost
@@ -451,23 +460,29 @@ func _sweep_ghosts() -> void:
 	if _director.phase != RunDirector.RunPhase.RACING:
 		return
 
-	var position: Vector3 = _kart.global_position
+	var centre: Vector3 = _kart.hitbox_centre
+	var yaw: float = _kart.hitbox_yaw
 	# The first Racing frame after a teleport records a position and tests nothing: a segment
 	# spanning the teleport would sweep half the circuit.
-	if not _has_last_kart_position:
-		_last_kart_position = position
-		_has_last_kart_position = true
+	if not _has_last_kart_pose:
+		_last_kart_centre = centre
+		_last_kart_yaw = yaw
+		_has_last_kart_pose = true
 		return
 
-	var previous: Vector3 = _last_kart_position
-	_last_kart_position = position
+	var previous: Vector3 = _last_kart_centre
+	var previous_yaw: float = _last_kart_yaw
+	_last_kart_centre = centre
+	_last_kart_yaw = yaw
+	_sweep.moved(previous, previous_yaw, centre, yaw,
+		_kart.hitbox_half_length, _kart.hitbox_half_width)
 
 	for ghost: Ghost in _ghosts:
 		if ghost.taken:
 			continue
-		if not ClockField.segment_takes_clock(previous, position, ghost.origin, ghost.pickup_radius):
+		if not _sweep.takes(ghost.origin, ghost.yaw, ghost.half_length, ghost.half_width):
 			continue
-		if absf(position.y - ghost.origin.y) > max_vertical_gap:
+		if absf(centre.y - ghost.origin.y) > max_vertical_gap:
 			continue
 		_take_ghost(ghost)
 
@@ -485,14 +500,14 @@ func _take_ghost(ghost: Ghost) -> void:
 ## during the countdown — the signal that exists precisely for this. Not called on run_completed:
 ## rearranging the circuit while the player is still reading the Results screen.
 func _on_countdown_started() -> void:
-	_has_last_kart_position = false
+	_has_last_kart_pose = false
 	_place_ghosts()
 
 
 ## Re-places the whole field at every wrap too ([signal RunDirector.wrapped]), the same as
 ## ClockField: a boost taken on one lap is offered again on the next, at freshly rolled positions,
 ## rather than the field thinning out over a long Run. No teleport happens on a wrap, so unlike
-## [method _on_countdown_started] this leaves [member _has_last_kart_position] alone — the swept
+## [method _on_countdown_started] this leaves [member _has_last_kart_pose] alone — the swept
 ## segment carries straight through the wrap.
 func _on_wrapped() -> void:
 	_place_ghosts()
@@ -523,8 +538,12 @@ func _apply_material(node: Node, material: StandardMaterial3D) -> void:
 class Ghost extends RefCounted:
 	var node: Node3D = null # the wrapper; visibility toggles here
 	var origin: Vector3 = Vector3.ZERO
-	## Metres this ghost reaches out to, drawn once at spawn from the field's own fraction range
-	## and matched by the scale of the model standing here; see [method BoostGhostField._spawn_ghost].
-	var pickup_radius: float = 0.0
+	## Which way this ghost's capsule lies. Fixed at spawn: a boost ghost stands still.
+	var yaw: float = 0.0
+	## Half this ghost's capsule, nose to tail and kerb to kerb. The model's own footprint under the
+	## scale it was drawn at, times [member BoostGhostField.hitbox_scale]; see [method
+	## BoostGhostField._spawn_ghost].
+	var half_length: float = 0.0
+	var half_width: float = 0.0
 	var material: StandardMaterial3D = null
 	var taken: bool = false

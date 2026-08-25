@@ -36,7 +36,7 @@ signal slipstream_hit(seconds: float, position: Vector3, direction: Vector3)
 const GHOST_MODEL: PackedScene = preload("res://cars/FBX/SportsCar.fbx")
 
 ## The model scale the FBX's own axis correction ([method _spawn_ghost]) is built from, per unit
-## of a ghost's own drawn pickup fraction, for BoostGhostField.MODEL_SCALE_PER_FRACTION's identical
+## of a ghost's own drawn car scale, for BoostGhostField.MODEL_SCALE_PER_FRACTION's identical
 ## reason and identical derivation.
 const MODEL_SCALE_PER_FRACTION: Vector3 = Vector3(-0.1375, 0.15, -0.1)
 
@@ -134,14 +134,15 @@ var save_loadout: Callable = Callable()
 ## Its own knob, separate from the boost: how much Run time a catch is worth is a different dial
 ## than how much speed it hands you.
 @export var hit_time_bonus: float = 2.0
-## Range of the kart's own collision radius ([member Kart.sphere_radius]) a ghost reaches out to,
-## for HazardGhostField.min_pickup_radius_fraction's identical reason and identical defaults. Each
-## ghost draws its own fraction from this range once, at spawn, and is modelled at that same scale,
-## for BoostGhostField.min_pickup_radius_fraction's identical reason — traffic of assorted sizes,
-## each car's silhouette the pickup it stands for. The lane band ([method _half_band]) is still
-## sized off the max, so even the widest ghost has room in its own lane.
-@export var min_pickup_radius_fraction: float = 3.0
-@export var max_pickup_radius_fraction: float = 5.0
+## Range of car sizes this field spawns, for HazardGhostField.min_car_scale's identical reason and
+## identical defaults. Each ghost draws its own scale from this range once, at spawn, and is
+## modelled at that same scale — traffic of assorted sizes, each car's silhouette the pickup it
+## stands for.
+@export var min_car_scale: float = 3.0
+@export var max_car_scale: float = 5.0
+## Generosity of the hitbox against the drawn car, for BoostGhostField.hitbox_scale's identical
+## reason: catching a slipstream is a reward, so the useful direction here is >1.0.
+@export var hitbox_scale: float = 1.0
 
 ## Metres of vertical gap the swept test still counts as a hit, for ClockField.max_vertical_gap's
 ## identical reason.
@@ -180,8 +181,11 @@ var _kart: Kart
 var _director: RunDirector
 var _ghosts_root: Node3D
 var _ghosts: Array[Slipstream] = []
-var _last_kart_position: Vector3 = Vector3.ZERO
-var _has_last_kart_position: bool = false
+var _last_kart_centre: Vector3 = Vector3.ZERO
+var _last_kart_yaw: float = 0.0
+var _has_last_kart_pose: bool = false
+## Built once and re-aimed every frame rather than rebuilt, for [Hitbox.Sweep]'s own reason.
+var _sweep := Hitbox.Sweep.new()
 var _elapsed: float = 0.0
 var _road_container: RoadContainer
 var _start_line: Node3D
@@ -494,11 +498,11 @@ func _current_kart_distance() -> float:
 	return _kart_arclength(_centreline_positions, _centreline_cumulative, _kart.global_position)
 
 
-## The lateral room one ghost has, given [param pickup_radius], for HazardGhostField._half_band's
+## The lateral room one ghost has, given [param car_half_width], for HazardGhostField._half_band's
 ## identical reason: per-ghost rather than one band sized off the widest possible draw, which is
 ## what left the kerbs uncoverable.
-func _half_band(pickup_radius: float) -> float:
-	return maxf(RoadCentreline.width(_road_container) * 0.5 - pickup_radius, 0.0) * lane_wander
+func _half_band(car_half_width: float) -> float:
+	return maxf(RoadCentreline.width(_road_container) * 0.5 - car_half_width, 0.0) * lane_wander
 
 
 ## Adds [param count] ghosts to the standing field without disturbing it, for
@@ -686,10 +690,11 @@ func _spawn_ghost(slow_phase: float, bias_fraction: float,
 		centreline_cumulative: PackedFloat32Array) -> Slipstream:
 	# Drawn before the lane, because it is what the lane is sized against: this ghost's own
 	# reach decides how far out it may sit ([method _half_band]).
-	var fraction: float = _rng.randf_range(
-		min_pickup_radius_fraction, maxf(min_pickup_radius_fraction, max_pickup_radius_fraction))
-	var pickup_radius: float = fraction * (_kart.sphere_radius if _kart != null else 0.0)
-	var wander: Wander = draw_wander(_half_band(pickup_radius), centreline_length,
+	var car_scale: float = _rng.randf_range(min_car_scale, maxf(min_car_scale, max_car_scale))
+	var model_scale: Vector3 = MODEL_SCALE_PER_FRACTION * car_scale
+	var drawn: Vector2 = Hitbox.model_half_extents(model_scale)
+	var half_extents: Vector2 = drawn * hitbox_scale
+	var wander: Wander = draw_wander(_half_band(drawn.y), centreline_length,
 		max_lane_gradient, slow_phase, bias_fraction, _rng)
 	var lane_positions: PackedVector3Array = _offset_positions(wander, centreline_cumulative)
 	var lane_yaws: PackedFloat32Array = RoadCentreline.yaws_from_positions(lane_positions)
@@ -709,8 +714,7 @@ func _spawn_ghost(slow_phase: float, bias_fraction: float,
 	# The FBX's own axes don't match the road's forward/up/scale, for
 	# HazardGhostField._spawn_ghost's identical reason and identical correction, scaled by this
 	# ghost's own drawn fraction so the silhouette tracks the pickup radius it stands for.
-	model.transform = Transform3D(
-		Basis().scaled(MODEL_SCALE_PER_FRACTION * fraction), Vector3(0.0, 0.1, 0.0))
+	model.transform = Transform3D(Basis().scaled(model_scale), Vector3(0.0, 0.1, 0.0))
 
 	var ghost := Slipstream.new()
 	ghost.node = wrapper
@@ -721,7 +725,9 @@ func _spawn_ghost(slow_phase: float, bias_fraction: float,
 	ghost.lane_length = lane_length
 	ghost.ribbon_vertices = _build_ribbon_vertices(lane_positions, lane_yaws)
 	ghost.origin = wrapper.global_position
-	ghost.pickup_radius = pickup_radius
+	ghost.yaw = Hitbox.yaw_of(wrapper.global_transform.basis)
+	ghost.half_length = half_extents.x
+	ghost.half_width = half_extents.y
 	ghost.speed = _rng.randf_range(min_speed, max_speed)
 	ghost.material = _build_ghost_material()
 	# A sibling of the wrapper, not a child of it, for HazardGhostField._spawn_ghost's identical
@@ -747,6 +753,7 @@ func _advance_ghosts(delta: float) -> void:
 			ghost.lane_positions, ghost.lane_yaws, ghost.lane_cumulative, ghost.distance)
 		ghost.node.global_transform = pose
 		ghost.origin = pose.origin
+		ghost.yaw = Hitbox.yaw_of(pose.basis)
 
 	_update_ribbons()
 
@@ -756,24 +763,30 @@ func _sweep_ghosts() -> void:
 	if _director.phase != RunDirector.RunPhase.RACING:
 		return
 
-	var position: Vector3 = _kart.global_position
+	var centre: Vector3 = _kart.hitbox_centre
+	var yaw: float = _kart.hitbox_yaw
 	# The first Racing frame after a teleport records a position and tests nothing, for
 	# HazardGhostField's identical reason.
-	if not _has_last_kart_position:
-		_last_kart_position = position
-		_has_last_kart_position = true
+	if not _has_last_kart_pose:
+		_last_kart_centre = centre
+		_last_kart_yaw = yaw
+		_has_last_kart_pose = true
 		return
 
-	var previous: Vector3 = _last_kart_position
-	_last_kart_position = position
-	var direction: Vector3 = ClockField.sweep_direction(previous, position, _kart.global_transform.basis)
+	var previous: Vector3 = _last_kart_centre
+	var previous_yaw: float = _last_kart_yaw
+	_last_kart_centre = centre
+	_last_kart_yaw = yaw
+	_sweep.moved(previous, previous_yaw, centre, yaw,
+		_kart.hitbox_half_length, _kart.hitbox_half_width)
+	var direction: Vector3 = ClockField.sweep_direction(previous, centre, _kart.global_transform.basis)
 
 	for ghost: Slipstream in _ghosts:
 		if ghost.taken:
 			continue
-		if not ClockField.segment_takes_clock(previous, position, ghost.origin, ghost.pickup_radius):
+		if not _sweep.takes(ghost.origin, ghost.yaw, ghost.half_length, ghost.half_width):
 			continue
-		if absf(position.y - ghost.origin.y) > max_vertical_gap:
+		if absf(centre.y - ghost.origin.y) > max_vertical_gap:
 			continue
 		_take_ghost(ghost, direction)
 
@@ -794,7 +807,7 @@ func _take_ghost(ghost: Slipstream, direction: Vector3) -> void:
 ## Re-places the whole field at every countdown, for HazardGhostField._on_countdown_started's
 ## identical reason.
 func _on_countdown_started() -> void:
-	_has_last_kart_position = false
+	_has_last_kart_pose = false
 	_spawn_timer = 0.0
 	_place_ghosts()
 
@@ -821,10 +834,14 @@ class Slipstream extends RefCounted:
 	var node: Node3D = null # the wrapper; visibility toggles here
 	var distance: float = 0.0 # arclength along this ghost's own lane, increasing as it drives
 	var speed: float = 0.0 # m/s, picked once at spawn from [min_speed, max_speed]
-	## Metres this ghost reaches out to, drawn once at spawn from the field's own fraction range
-	## and matched by the scale of the model driving here; see [method
+	## Which way this ghost's capsule lies, re-read from its pose every time it is advanced, for
+	## HazardGhostField.Hazard.yaw's identical reason.
+	var yaw: float = 0.0
+	## Half this ghost's capsule, nose to tail and kerb to kerb — the model's own footprint under
+	## the scale it was drawn at, times [member SlipstreamGhostField.hitbox_scale]; see [method
 	## SlipstreamGhostField._spawn_ghost].
-	var pickup_radius: float = 0.0
+	var half_length: float = 0.0
+	var half_width: float = 0.0
 	var origin: Vector3 = Vector3.ZERO
 	var material: StandardMaterial3D = null
 	## This ghost's own lane, drawn once at spawn from a wander across the centreline and kept for

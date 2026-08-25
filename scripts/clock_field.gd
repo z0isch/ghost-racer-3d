@@ -49,13 +49,14 @@ var save_loadout: Callable = Callable()
 
 ## Generously larger than the 0.6 m disc. The pickup is a horizontal test on banked and cresting
 ## road, where a clock's apparent position and its marker origin differ by up to a third of a metre;
-## a radius smaller than the clock looks reads as theft.
+## a radius smaller than the clock looks reads as theft. Reached from anywhere on the kart's own
+## capsule, not from a point at its centre — a clock brushed by the front wing is taken.
 @export var pickup_radius: float = 1.2
 
 ## Metres of vertical gap, beyond the horizontal sweep test, that still counts as the same road.
-## segment_takes_clock ignores height entirely so a clock up a banked sweeper or on a crest stays
-## collectable, but that same leniency lets a clock be taken from a stretch of road that merely
-## passes underneath or beside it at a different height. This caps how far that leniency reaches.
+## [Hitbox] ignores height entirely so a clock up a banked sweeper or on a crest stays collectable,
+## but that same leniency lets a clock be taken from a stretch of road that merely passes underneath
+## or beside it at a different height. This caps how far that leniency reaches.
 @export var max_vertical_gap: float = 5.0
 
 ## Below this planar speed the swept segment's own direction is noise (a near-stationary kart, e.g.
@@ -76,8 +77,11 @@ const MIN_MEANINGFUL_SPEED: float = 1.0
 var _kart: Kart
 var _director: RunDirector
 var _clocks: Array[Clock] = []
-var _last_kart_position: Vector3 = Vector3.ZERO
-var _has_last_kart_position: bool = false
+var _last_kart_centre: Vector3 = Vector3.ZERO
+var _last_kart_yaw: float = 0.0
+var _has_last_kart_pose: bool = false
+## Built once and re-aimed every frame rather than rebuilt, for [Hitbox.Sweep]'s own reason.
+var _sweep := Hitbox.Sweep.new()
 
 
 func _ready() -> void:
@@ -125,30 +129,6 @@ func _adjust_live_clock_count(delta: int) -> void:
 	_resolve_clocks()
 	if save_loadout.is_valid():
 		save_loadout.call()
-
-
-## Horizontal distance from a swept segment to a clock. Static and free of node access: it is the
-## seam the geometry suite tests, and a TestCase is a RefCounted that cannot touch the scene tree.
-##
-## Y is ignored entirely, which is what lets a clock sit up the banked sweeper or out on the crest
-## and still be collectable from the road it belongs to.
-##
-## The clamp to [0, 1] makes this a segment rather than an infinite line, and covers the degenerate
-## zero-length case: a stationary kart inside the radius still collects.
-static func segment_takes_clock(
-	segment_start: Vector3, segment_end: Vector3, clock_position: Vector3, radius: float
-) -> bool:
-	var start := Vector2(segment_start.x, segment_start.z)
-	var end := Vector2(segment_end.x, segment_end.z)
-	var clock := Vector2(clock_position.x, clock_position.z)
-
-	var travelled := end - start
-	var length_squared := travelled.length_squared()
-	var along := 0.0
-	if length_squared > 0.0:
-		along = clampf((clock - start).dot(travelled) / length_squared, 0.0, 1.0)
-
-	return (start + travelled * along).distance_squared_to(clock) <= radius * radius
 
 
 ## Which way "ahead" is for a pickup swept between [param previous] and [param position]: the
@@ -218,24 +198,32 @@ func _sweep_clocks() -> void:
 	if _director.phase != RunDirector.RunPhase.RACING:
 		return
 
-	var position: Vector3 = _kart.global_position
+	var centre: Vector3 = _kart.hitbox_centre
+	var yaw: float = _kart.hitbox_yaw
 	# The first Racing frame after a teleport records a position and tests nothing: a segment
 	# spanning the teleport would sweep half the circuit.
-	if not _has_last_kart_position:
-		_last_kart_position = position
-		_has_last_kart_position = true
+	if not _has_last_kart_pose:
+		_last_kart_centre = centre
+		_last_kart_yaw = yaw
+		_has_last_kart_pose = true
 		return
 
-	var previous: Vector3 = _last_kart_position
-	_last_kart_position = position
-	var direction: Vector3 = sweep_direction(previous, position, _kart.global_transform.basis)
+	var previous: Vector3 = _last_kart_centre
+	var previous_yaw: float = _last_kart_yaw
+	_last_kart_centre = centre
+	_last_kart_yaw = yaw
+	_sweep.moved(previous, previous_yaw, centre, yaw,
+		_kart.hitbox_half_length, _kart.hitbox_half_width)
+	var direction: Vector3 = sweep_direction(previous, centre, _kart.global_transform.basis)
 
 	for clock: Clock in _clocks:
 		if clock.taken:
 			continue
-		if not segment_takes_clock(previous, position, clock.origin, pickup_radius):
+		# A clock is round, so both of its extents are the one radius and its capsule collapses to
+		# the disc it is drawn as. The kart's, by then, has not.
+		if not _sweep.takes(clock.origin, 0.0, pickup_radius, pickup_radius):
 			continue
-		if absf(position.y - clock.origin.y) > max_vertical_gap:
+		if absf(centre.y - clock.origin.y) > max_vertical_gap:
 			continue
 		clock.taken = true
 		clock.node.visible = false
@@ -247,14 +235,14 @@ func _sweep_clocks() -> void:
 ## each Run opens on an identical maximum. Driven by the director's signal rather than by watching
 ## the phase: the teleport and the restore are the same moment.
 func _on_countdown_started() -> void:
-	_has_last_kart_position = false
+	_has_last_kart_pose = false
 	_respawn_clocks()
 
 
 ## Restores the field whole at every wrap too ([signal RunDirector.wrapped]), the same as the boost
 ## and hazard ghost fields: a clock taken on one lap is offered again on the next rather than the
 ## field thinning out to nothing over a long Run. No teleport happens on a wrap, so unlike [method
-## _on_countdown_started] this leaves [member _has_last_kart_position] alone — the swept segment
+## _on_countdown_started] this leaves [member _has_last_kart_pose] alone — the swept segment
 ## carries straight through the wrap.
 func _on_wrapped() -> void:
 	_respawn_clocks()

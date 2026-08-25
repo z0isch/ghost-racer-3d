@@ -78,6 +78,10 @@ extends Node3D
 
 var _bank_degrees: float = 0.0
 var _yaw_degrees: float = 0.0
+# The planar half of _chassis.position: the pivot correction the drift yaw alone asks for, kept
+# apart from the wheelie's and the hop's own offsets so the hitbox can follow the drift cant
+# without also following a pop of the nose. See [member chassis_pivot].
+var _yaw_pivot: Vector3 = Vector3.ZERO
 var _squash_impulse: float = 0.0 # >0 stretched, <0 squashed; decays to 0
 var _was_grounded: bool = true
 
@@ -130,6 +134,7 @@ func update_view(state: KartState, delta: float) -> void:
 func reset() -> void:
 	_bank_degrees = 0.0
 	_yaw_degrees = 0.0
+	_yaw_pivot = Vector3.ZERO
 	_squash_impulse = 0.0
 	_was_grounded = true
 	_prev_overspeed = 0.0
@@ -152,6 +157,19 @@ func reset() -> void:
 	_stop_vibration()
 
 
+## The drift cant the chassis is currently showing, in radians about the kart's up, positive to the
+## left. Read by [Kart] so the hitbox swings with the tail rather than staying square to a heading
+## the car visibly is not pointing along.
+var chassis_yaw: float:
+	get: return deg_to_rad(_yaw_degrees)
+
+## The kart-local offset [member chassis_yaw] is pivoted about the front axle by ([method
+## _pivot_correction]). The drift yaw's part of it alone — a hitbox that also carried the wheelie's
+## pitch pivot would slide fore and aft under a boost, which is not something the car does.
+var chassis_pivot: Vector3:
+	get: return _yaw_pivot
+
+
 # Two lean sources, added rather than switched between, so nothing here reads an on/off drift flag.
 # A grip corner banks with the front axle; a slide banks with the rear, and harder.
 #
@@ -171,8 +189,9 @@ func _update_lean(state: KartState, delta: float) -> void:
 
 	_bank_degrees = move_toward(_bank_degrees, target_bank, bank_smoothing * delta)
 	_yaw_degrees = move_toward(_yaw_degrees, target_yaw, yaw_smoothing * delta)
+	_yaw_pivot = _pivot_correction(state.front_axle_offset, deg_to_rad(_yaw_degrees))
 	_chassis.rotation = Vector3(0.0, deg_to_rad(_yaw_degrees), deg_to_rad(_bank_degrees))
-	_chassis.position = _pivot_correction(state.front_axle_offset, deg_to_rad(_yaw_degrees))
+	_chassis.position = _yaw_pivot
 
 
 # Node3D spins about its own origin, the body centre, which would swing the nose out as far as the
@@ -180,8 +199,10 @@ func _update_lean(state: KartState, delta: float) -> void:
 # the node transform applies it after the spin (T * R * S), making the yaw a rotation about the
 # front axle instead. Forward is -Z, so the axle sits at -front_axle_offset.
 #
-# Cosmetic only: no collider, ray or barrier contact moves with it. Bank is excluded, staying a roll
-# about the chassis' long axis; the difference is millimetre-scale at a ten-degree lean.
+# Not cosmetic only: the kart's hitbox is swung by the same yaw about the same pivot ([member
+# chassis_yaw], [member chassis_pivot]), so what a hazard hits is where the car looks. Bank is
+# excluded, staying a roll about the chassis' long axis; the difference is millimetre-scale at a
+# ten-degree lean, and a hitbox that rolled would be a hitbox that changed width mid-corner.
 func _pivot_correction(front_axle_offset: float, yaw: float) -> Vector3:
 	var pivot: Vector3 = Vector3(0.0, 0.0, -front_axle_offset)
 	return pivot - Basis(Vector3.UP, yaw) * pivot
