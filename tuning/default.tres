@@ -4,7 +4,8 @@
 
 [resource]
 script = ExtResource("1_tuning")
-max_speed = 12.0
+max_speed = 10.0
+max_top_speed = 16.0
 acceleration = 5.0
 max_steer_angle_low_speed_degrees = 15.0
 max_steer_angle_high_speed_degrees = 4.0

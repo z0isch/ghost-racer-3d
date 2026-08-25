@@ -11,6 +11,12 @@ extends Resource
 ## Auto-throttle: full throttle unless the brake is held, so the brake is the only longitudinal
 ## input. No reverse — [member reverse_max_speed] is the clamp's lower bound and is 0.
 @export var max_speed: float = 14.0
+## Absolute ceiling on [method KartModel._effective_top_speed]: [member max_speed] plus every
+## permanent bonus a boost_raises_top_speed or [method KartModel.add_top_speed_bonus] ghost has
+## banked so far this Run is clamped here, so no amount of ghosts collected can push the kart's
+## top speed past it. Does not touch [method KartModel.apply_boost]'s instant overspeed — that is
+## a deliberate, self-bleeding excursion above top speed, not part of it.
+@export var max_top_speed: float = 20.0
 @export var reverse_max_speed: float = 0.0
 @export var acceleration: float = 7.0
 @export var brake_deceleration: float = 15.0

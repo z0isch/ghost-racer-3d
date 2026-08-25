@@ -535,7 +535,7 @@ func _speed_fraction() -> float:
 ## longitudinal ceiling, the speed-fraction taper, KartState.max_speed — reads through, so the
 ## bonus shows up everywhere top_speed already did rather than needing its own plumbing.
 func _effective_top_speed() -> float:
-	return tuning.max_speed + _top_speed_bonus
+	return minf(tuning.max_speed + _top_speed_bonus, tuning.max_top_speed)
 
 
 # A long way round at low speed, barely any swing flat out. Too steep and fast corners go numb, too

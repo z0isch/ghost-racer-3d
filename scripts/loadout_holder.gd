@@ -18,8 +18,11 @@ var _cache: Dictionary[String, CircuitLoadout] = {}
 
 
 ## Returns the cached loadout for [param circuit], loading it from [member Circuit.loadout_path] on
-## first ask. A fresh zeroed CircuitLoadout for a null circuit, an empty path, an absent file, or a
-## file that fails to load as one — a bare circuit is a valid circuit, not an error.
+## first ask. A null circuit or an empty path gets a bare zeroed CircuitLoadout — nothing to author
+## a clock count from. An absent file or a file that fails to load as one gets a fresh
+## CircuitLoadout instead, its clock_count seeded to [method _authored_clock_count] rather than
+## left at 0 — a bare circuit is a valid circuit, not an error, and one nobody has bought into yet
+## should still show every clock it authors.
 func for_circuit(circuit: Circuit) -> CircuitLoadout:
 	if circuit == null or circuit.loadout_path.is_empty():
 		return CircuitLoadout.new()
@@ -36,9 +39,31 @@ func for_circuit(circuit: Circuit) -> CircuitLoadout:
 
 	if loadout == null:
 		loadout = CircuitLoadout.new()
+		loadout.clock_count = _authored_clock_count(circuit)
 
 	_cache[path] = loadout
 	return loadout
+
+
+## How many clocks [param circuit]'s scene actually authors under its root "Clocks" node — the
+## same count [method ClockField._resolve_clocks] and [method InertCircuit._apply_loadout] arrive
+## at once the scene is live, read here from an instance that is never added to the tree (so no
+## _ready fires and nothing else about the scene runs). Seeds a brand-new loadout's clock_count so
+## a circuit nobody has bought into yet starts with every authored clock live rather than none —
+## CircuitLoadout itself has no way to know this number (its own doc), so the one caller that
+## creates a fresh loadout is the one caller that resolves it.
+func _authored_clock_count(circuit: Circuit) -> int:
+	if circuit == null or circuit.circuit_scene == null:
+		return 0
+	var instance: Node = circuit.circuit_scene.instantiate()
+	var clocks: Node = instance.get_node_or_null("Clocks")
+	var count: int = 0
+	if clocks != null:
+		for child: Node in clocks.get_children():
+			if child is Node3D:
+				count += 1
+	instance.free()
+	return count
 
 
 ## Writes the cached loadout for [param circuit] back to disk. No-op on a null circuit or an empty

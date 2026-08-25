@@ -43,7 +43,7 @@ extends Resource
 ## a Run only ever ends by Timeout or Abort, exactly as before this existed. A short, tightly-looped
 ## circuit can want a race decided by laps rather than by outlasting a budget that a wrap bonus keeps
 ## refilling.
-@export var max_wraps: int = 4
+@export var max_wraps: int = 0
 
 ## How many slipstream ghosts caught in one Run fill the slipstream bar
 ## ([member RunDirector.slipstream_target]). Per circuit rather than a global constant for the same
@@ -52,4 +52,4 @@ extends Resource
 ## and one shared number would top the bar out in the opening third of a long Run and leave it dead
 ## for the rest. A playtest dial — set it near what a well-driven Run on this circuit actually
 ## catches. 0 (or below) means this circuit has no target and the bar never fills.
-@export var slipstream_bar_target: int = 10
+@export var slipstream_bar_target: int = 6
