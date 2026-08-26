@@ -21,7 +21,7 @@
 [ext_resource type="Script" uid="uid://da76lipm4pj0o" path="res://scripts/wrap_hud.gd" id="19_wrap_hud"]
 [ext_resource type="Script" uid="uid://ddj5wvkg3i5r2" path="res://scripts/slipstream_ghost_field.gd" id="20_slipstream_ghost_field"]
 [ext_resource type="Script" uid="uid://ct7mrq3bxna48" path="res://scripts/resource_bars_hud.gd" id="21_resource_bars_hud"]
-[ext_resource type="Script" path="res://scripts/rewind_hud.gd" id="22_rewind_hud"]
+[ext_resource type="Script" uid="uid://bjq8sdih7yw0j" path="res://scripts/rewind_hud.gd" id="22_rewind_hud"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_moebius"]
 sky_top_color = Color(0.22114116, 0.5285429, 0.5401196, 1)
@@ -169,7 +169,7 @@ kart_clearance = 25.0
 placement_jitter = 0.5
 min_speed = 0.5
 max_speed = 18.0
-max_lane_gradient = 0.3
+max_lane_gradient = 0.4
 lane_bias = 0.0
 hit_slow_multiplier = 0.75
 hit_shake_trauma = 0.7

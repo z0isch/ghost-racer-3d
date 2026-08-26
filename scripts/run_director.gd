@@ -78,6 +78,7 @@ enum RunPhase {
 	COUNTDOWN,
 	RACING,
 	REWIND,
+	RESUMING,
 	RESULTS,
 }
 
@@ -129,7 +130,7 @@ enum RunPhase {
 ## integral on purpose: hazards are consumed on contact and thicken over a Run, so the interesting
 ## range is a handful of hits, and a hundred-point pool would only ever be drawn as three chunky
 ## jumps pretending to be a smooth drain.
-@export var starting_condition: int = 3
+@export var starting_condition: int = 1
 
 ## How many slipstream ghosts caught fill the slipstream bar. Set by race.gd from
 ## [member Circuit.slipstream_bar_target], the same way max_wraps is — the director doesn't know
@@ -155,7 +156,12 @@ enum RunPhase {
 ## How far back a Rewind may scrub, in seconds — the cap, or the Run's own start, whichever comes
 ## first (the ring buffer's own length expresses both; see [member _rewind_frames]). One number for
 ## the whole game, not per-circuit: a dial nobody varies is a dial that can disagree with itself.
-@export var max_rewind_seconds: float = 8.0
+@export var max_rewind_seconds: float = 2.0
+
+## How long the world stays frozen after a Rewind is accepted before Racing actually resumes — a
+## beat to register that the scrub ended and the wreck was avoided, rather than being thrown
+## straight back into a moving kart the instant the button is released.
+@export var rewind_resume_pause_seconds: float = 0.5
 
 var _kart: Kart
 var _camera: ChaseCamera
@@ -194,6 +200,10 @@ var _rewind_frames: Array[Array] = []
 ## Clamped to [member _rewind_frames]'s own bounds, which is what makes the buffer's length express
 ## both the max_rewind_seconds cap and "back to the Run's start" at once.
 var _rewind_scrub_frames: int = 0
+
+## Seconds left of the post-accept pause, counting down while [member phase] is RESUMING. Set from
+## [member rewind_resume_pause_seconds] the instant a Rewind is accepted.
+var _resume_pause_remaining: float = 0.0
 
 ## The recording length captured in the director's own last-restored rewind frame — the truncation
 ## point a rewind accepted from here will cut the promoted recording to. Read out of the frame
@@ -481,12 +491,34 @@ func _physics_process(delta: float) -> void:
 				_append_sample.call_deferred()
 
 		RunPhase.REWIND:
+			# There is no accept input: letting go of the scrub is the accept, the instant it
+			# happens. A driver who never touches rewind_scrub sits at depth 0 indefinitely
+			# rather than auto-resuming, since is_action_just_released never fires without a
+			# prior press.
 			if Input.is_action_pressed("rewind_scrub"):
 				_advance_rewind_scrub()
-			if Input.is_action_just_pressed("rewind_accept"):
+			elif Input.is_action_just_released("rewind_scrub"):
 				_accept_rewind()
-			elif Input.is_action_just_pressed("rewind_decline"):
+				return
+			if Input.is_action_just_pressed("rewind_decline"):
 				_decline_rewind()
+
+		RunPhase.RESUMING:
+			# The world is already restored to the accepted instant — see _accept_rewind — so
+			# this phase is nothing but a held beat before RACING's own per-frame work (the run
+			# clock, the sweep, the recording) starts back up.
+			_resume_pause_remaining -= delta
+			if _resume_pause_remaining <= 0.0:
+				# Kart.frozen pins KartModel's forward speed at 0 every physics frame it is held
+				# (see KartModel._integrate_forward_speed) — that is exactly what keeps the kart
+				# still through this pause, but it also means whatever speed the accepted frame
+				# restored has been silently zeroed out over and over for the length of the pause.
+				# Re-applying that same frame here, the instant before unfreezing, is what makes
+				# the kart pull away at the speed it was accepted at rather than from a standstill.
+				_restore_rewind_frame(_rewind_frames.size() - 1)
+				_phase = RunPhase.RACING
+				if _kart != null:
+					_kart.frozen = false
 
 		RunPhase.RESULTS:
 			if Input.is_action_just_pressed("reset"):
@@ -768,8 +800,8 @@ func _advance_rewind_scrub() -> void:
 
 
 # Commits the scrubbed-to instant: the world is already live there (restoring has been a no-op
-# beyond bookkeeping since the last scrub), so this only truncates the recording and resumes
-# RACING. The buffer is cut back to the accepted frame rather than cleared outright — the seconds
+# beyond bookkeeping since the last scrub), so this only truncates the recording and hands off to
+# RESUMING. The buffer is cut back to the accepted frame rather than cleared outright — the seconds
 # still behind it remain a legitimate rewind target for an immediate second Rewind, and only the
 # now-erased "future" beyond the accepted frame is invalid.
 func _accept_rewind() -> void:
@@ -778,9 +810,9 @@ func _accept_rewind() -> void:
 	_truncate_recording()
 	_rewind_frames.resize(index + 1)
 	_rewind_scrub_frames = 0
-	_phase = RunPhase.RACING
-	if _kart != null:
-		_kart.frozen = false
+	# The kart stays frozen through this: RESUMING unfreezes it once the pause elapses, not here.
+	_phase = RunPhase.RESUMING
+	_resume_pause_remaining = rewind_resume_pause_seconds
 	# The teleport-equivalent for the swept fields' own previous-position tracking: restore_state
 	# already put _has_last_kart_pose/_has_last_kart_position back to whatever the captured frame
 	# held, so nothing further is needed here — unlike _begin_countdown, this is not a teleport, it
