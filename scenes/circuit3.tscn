@@ -11,15 +11,15 @@ albedo_color = Color(0.46229059, 0.46229064, 0.4622904, 1)
 
 [sub_resource type="Curve3D" id="Curve3D_kwvsp"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 16.228777, -5.5, 0, 0, -3.136723e-06, 0, 35.87993, 30, -6, 7, 34.5, -6, 7.0000005),
-"tilts": PackedFloat32Array(0, -0.29778022)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 18.071545, -9, 0, 0, -3.8839194e-06, 0, 44.426857, 30, -6, 7, 39, -6, 7.000001),
+"tilts": PackedFloat32Array(0, -0.2487096)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_f7ioj"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 10.437223, 5.5, 0, 0, -1.6423305e-06, 0, 18.786072, 30, -6, 7, 25.5, -6, 6.9999995),
-"tilts": PackedFloat32Array(0, -0.58291376)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 8.594457, 9, 0, 0, -8.9513424e-07, 0, 10.239142, 30, -6, 7, 21, -6, 6.999999),
+"tilts": PackedFloat32Array(0, -0.927295)
 }
 point_count = 2
 
@@ -32,15 +32,15 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_25r6w"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 15.918439, -4.5, 0, 0, 7.976235, 0, -6.4590273, -9, 6, 53, -50.31388, 6, 22.085365),
-"tilts": PackedFloat32Array(0, -0.09179967)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 11.50388, -9, 0, 0, 8.930957, 0, -7.232146, -9, 6, 53, -52.516502, 6, 19.365355),
+"tilts": PackedFloat32Array(0, -0.09880112)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_8sjf6"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 24.747557, 4.5, 0, 0, 4.9756804, 0, -4.0292263, -9, 6, 53, -43.391357, 6, 30.633972),
-"tilts": PackedFloat32Array(0, -0.079880014)
+"points": PackedVector3Array(0, 0, 0, 0, 0, 29.162117, 9, 0, 0, 4.020958, 0, -3.2561073, -9, 6, 53, -41.188736, 6, 33.35398),
+"tilts": PackedFloat32Array(0, -0.07635313)
 }
 point_count = 2
 
@@ -53,14 +53,14 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_qkvbf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 4.6632066, -4.5, 0, 0, 1.0792485, 0, 18.717575, 31.299, 0, -3.834999, -19.408567, 0, -20.82775),
+"points": PackedVector3Array(0, 0, 0, 0, 0, -2.551587, -9, 0, 0, 0.9278634, 0, 16.092081, 31.299, 0, -3.834999, -14.91603, 0, -21.086786),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_x05ix"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 19.092794, 4.5, 0, 0, 1.3820189, 0, 23.96857, 31.299, 0, -3.834999, -28.393644, 0, -20.309671),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 26.307589, 9, 0, 0, 1.533404, 0, 26.594065, 31.299, 0, -3.834999, -32.88618, 0, -20.050634),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
@@ -74,14 +74,14 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_an3qf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 26.8763, -4.499999, 0, 0, -2.216528, 0, -1.3476701, -18.299002, 0, -28.165005, 20.999094, 0, 28.000982),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 31.419605, -8.999998, 0, 0, -1.119464, 0, -0.6806448, -18.299002, 0, -28.165005, 18.661259, 0, 31.846046),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_mxsjf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 17.78969, 4.499999, 0, 0, -4.4106565, 0, -2.681721, -18.299002, 0, -28.165005, 25.674765, 0, 20.310854),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 13.246387, 8.999998, 0, 0, -5.50772, 0, -3.3487463, -18.299002, 0, -28.165005, 28.0126, 0, 16.46579),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
@@ -95,14 +95,14 @@ point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_sllld"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 16.998476, -4.5, 0, 0, 2.2265038, 0, -11.454373, -34, 0, -28, 29.582682, 0, 27.141356),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 21.663952, -9, 0, 0, 1.1457173, 0, -5.8942065, -34, 0, -28, 25.16536, 0, 26.282717),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
 
 [sub_resource type="Curve3D" id="Curve3D_nad8w"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 7.6675243, 4.5, 0, 0, 4.3880773, 0, -22.574709, -34, 0, -28, 38.417328, 0, 28.858637),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 3.0020483, 9, 0, 0, 5.468864, 0, -28.134876, -34, 0, -28, 42.83465, 0, 29.717276),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
@@ -157,7 +157,7 @@ auto_lanes = false
 lanes = Array[int]([0])
 prior_mag = 8.333
 next_mag = 13.333
-lane_width = 15.0
+lane_width = 18.0
 shoulder_width_l = 0.0
 shoulder_width_r = 0.0
 gutter_profile = Vector2(0, 0)
