@@ -829,6 +829,69 @@ func _apply_material(node: Node, material: StandardMaterial3D) -> void:
 		_apply_material(child, material)
 
 
+## Everything a Rewind must put back, as plain data, for HazardGhostField.capture_state's identical
+## reason and identical shape.
+func capture_state() -> Dictionary:
+	var distances: PackedFloat32Array = PackedFloat32Array()
+	var node_visible: PackedByteArray = PackedByteArray()
+	var ribbon_visible: PackedByteArray = PackedByteArray()
+	distances.resize(_ghosts.size())
+	node_visible.resize(_ghosts.size())
+	ribbon_visible.resize(_ghosts.size())
+	for i in _ghosts.size():
+		var ghost: Slipstream = _ghosts[i]
+		distances[i] = ghost.distance
+		node_visible[i] = 1 if ghost.node.visible else 0
+		ribbon_visible[i] = 1 if ghost.ribbon.visible else 0
+	return {
+		"count": _ghosts.size(),
+		"distances": distances,
+		"node_visible": node_visible,
+		"ribbon_visible": ribbon_visible,
+		"elapsed": _elapsed,
+		"spawn_timer": _spawn_timer,
+		"last_kart_centre": _last_kart_centre,
+		"last_kart_yaw": _last_kart_yaw,
+		"has_last_kart_pose": _has_last_kart_pose,
+	}
+
+
+## Puts back exactly what [method capture_state] produced, for HazardGhostField.restore_state's
+## identical reason: un-spawns past the captured count, asserting rather than handling a capture
+## with more cars than are currently live.
+func restore_state(state: Dictionary) -> void:
+	var count: int = state["count"]
+	assert(count <= _ghosts.size(),
+		"SlipstreamGhostField: rewind capture holds more cars than are currently live")
+	for i in range(_ghosts.size() - 1, count - 1, -1):
+		_ghosts[i].node.queue_free()
+		_ghosts[i].ribbon.queue_free()
+	_ghosts.resize(count)
+
+	var distances: PackedFloat32Array = state["distances"]
+	var node_visible: PackedByteArray = state["node_visible"]
+	var ribbon_visible: PackedByteArray = state["ribbon_visible"]
+	for i in count:
+		var ghost: Slipstream = _ghosts[i]
+		ghost.distance = distances[i]
+		ghost.node.visible = node_visible[i] != 0
+		ghost.taken = not ghost.node.visible
+		ghost.ribbon.visible = ribbon_visible[i] != 0
+		if ghost.lane_length > 0.0:
+			var pose: Transform3D = _pose_at(
+				ghost.lane_positions, ghost.lane_yaws, ghost.lane_cumulative, ghost.distance)
+			ghost.node.global_transform = pose
+			ghost.origin = pose.origin
+			ghost.yaw = Hitbox.yaw_of(pose.basis)
+
+	_elapsed = state["elapsed"]
+	_spawn_timer = state["spawn_timer"]
+	_last_kart_centre = state["last_kart_centre"]
+	_last_kart_yaw = state["last_kart_yaw"]
+	_has_last_kart_pose = state["has_last_kart_pose"]
+	_update_ribbons()
+
+
 ## One ghost, resolved at spawn. RefCounted for ClockField.Clock's reason.
 class Slipstream extends RefCounted:
 	var node: Node3D = null # the wrapper; visibility toggles here

@@ -533,6 +533,37 @@ func _apply_material(node: Node, material: StandardMaterial3D) -> void:
 		_apply_material(child, material)
 
 
+## Everything a Rewind must put back, as plain data, for ClockField.capture_state's identical
+## reason and identical shape — plus [member _elapsed], the pulse's own clock, so a restored ghost's
+## alpha wobble does not visibly jump.
+func capture_state() -> Dictionary:
+	var taken: PackedByteArray = PackedByteArray()
+	taken.resize(_ghosts.size())
+	for i in _ghosts.size():
+		taken[i] = 1 if _ghosts[i].taken else 0
+	return {
+		"taken": taken,
+		"elapsed": _elapsed,
+		"last_kart_centre": _last_kart_centre,
+		"last_kart_yaw": _last_kart_yaw,
+		"has_last_kart_pose": _has_last_kart_pose,
+	}
+
+
+## Puts back exactly what [method capture_state] produced, for ClockField.restore_state's identical
+## reason: a ghost's node.visible is derived from its taken flag.
+func restore_state(state: Dictionary) -> void:
+	var taken: PackedByteArray = state["taken"]
+	for i in mini(taken.size(), _ghosts.size()):
+		var ghost: Ghost = _ghosts[i]
+		ghost.taken = taken[i] != 0
+		ghost.node.visible = not ghost.taken
+	_elapsed = state["elapsed"]
+	_last_kart_centre = state["last_kart_centre"]
+	_last_kart_yaw = state["last_kart_yaw"]
+	_has_last_kart_pose = state["has_last_kart_pose"]
+
+
 ## One ghost, resolved at spawn. RefCounted for ClockField.Clock's reason: no allocation in the
 ## physics step, only at a re-place.
 class Ghost extends RefCounted:

@@ -21,6 +21,7 @@
 [ext_resource type="Script" uid="uid://da76lipm4pj0o" path="res://scripts/wrap_hud.gd" id="19_wrap_hud"]
 [ext_resource type="Script" uid="uid://ddj5wvkg3i5r2" path="res://scripts/slipstream_ghost_field.gd" id="20_slipstream_ghost_field"]
 [ext_resource type="Script" uid="uid://ct7mrq3bxna48" path="res://scripts/resource_bars_hud.gd" id="21_resource_bars_hud"]
+[ext_resource type="Script" path="res://scripts/rewind_hud.gd" id="22_rewind_hud"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_moebius"]
 sky_top_color = Color(0.22114116, 0.5285429, 0.5401196, 1)
@@ -222,6 +223,7 @@ checkpoints_path = NodePath("../Circuit/Checkpoints")
 clock_field_path = NodePath("../ClockField")
 hazard_ghost_field_path = NodePath("../HazardGhostField")
 slipstream_ghost_field_path = NodePath("../SlipstreamGhostField")
+boost_ghost_field_path = NodePath("../BoostGhostField")
 restart_countdown_seconds = 1.0
 
 [node name="PaceGhost" type="Node3D" parent="." unique_id=871962825]
@@ -368,6 +370,38 @@ theme_override_constants/outline_size = 10
 theme_override_font_sizes/font_size = 30
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="RewindHud" type="CanvasLayer" parent="." unique_id=744120860]
+script = ExtResource("22_rewind_hud")
+director_path = NodePath("../RunDirector")
+
+[node name="DepthLabel" type="Label" parent="RewindHud" unique_id=744120861]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 14
+theme_override_font_sizes/font_size = 128
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PromptLabel" type="Label" parent="RewindHud" unique_id=744120862]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -400.0
+offset_top = 210.0
+offset_right = 400.0
+offset_bottom = 244.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 24
+horizontal_alignment = 1
 
 [node name="RunHud" type="CanvasLayer" parent="." unique_id=744120865]
 script = ExtResource("7_run_hud")

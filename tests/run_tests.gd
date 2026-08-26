@@ -21,6 +21,7 @@ func _initialize() -> void:
 		GhostLineTest.new(),
 		IncomeGhostSweepTest.new(),
 		CheckpointLadderTest.new(),
+		RewindTest.new(),
 	]
 
 	var failures: PackedStringArray = PackedStringArray()

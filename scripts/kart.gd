@@ -184,6 +184,42 @@ func _physics_process(delta: float) -> void:
 	_aim_hitbox()
 
 
+## Everything a Rewind must put back, as plain data: the pose as position + Y-yaw (exactly what the
+## body's transform is — see the class doc), the two body-owned flags a Run cares about, and the
+## whole feel model's own snapshot. Not [member _current_ground_collider] (a Node reference —
+## re-derived by the ground ray on the next [method _physics_process], exactly as it is after any
+## other teleport).
+func capture_state() -> Dictionary:
+	return {
+		"position": global_position,
+		"yaw": global_rotation.y,
+		"is_jumping": _is_jumping,
+		"surface": current_surface,
+		"model": _model.capture_state(),
+	}
+
+
+## Puts back exactly what [method capture_state] produced. The transform is rebuilt from position
+## + yaw alone, matching how it was captured, rather than reading back a full Transform3D — the
+## body's pose is exactly that pair (see the class doc), so this can never disagree with a bank or
+## pitch nothing here ever writes.
+func restore_state(state: Dictionary) -> void:
+	var restored_position: Vector3 = state["position"]
+	var restored_yaw: float = state["yaw"]
+	global_transform = Transform3D(Basis(Vector3.UP, restored_yaw), restored_position)
+	velocity = Vector3.ZERO
+	_is_jumping = state["is_jumping"]
+	var surface: int = state["surface"]
+	_current_surface = surface as SurfaceType
+	var model_state: Dictionary = state["model"]
+	_model.restore_state(model_state)
+	_model.snapshot_into(_state)
+	_state.is_grounded = not _is_jumping
+	_state.is_jumping = _is_jumping
+	_cosmetics.update_view(_state, 0.0)
+	_aim_hitbox()
+
+
 ## Teleports to a caller-supplied pose, clearing every scrap of motion, drift and cosmetic
 ## state. The start line is a property of the track, so the pose is an argument rather than
 ## remembered state.

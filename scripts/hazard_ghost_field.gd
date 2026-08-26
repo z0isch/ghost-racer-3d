@@ -970,6 +970,75 @@ func _apply_material(node: Node, material: StandardMaterial3D) -> void:
 		_apply_material(child, material)
 
 
+## Everything a Rewind must put back, as plain data: each standing hazard's own position along its
+## (fixed, never-re-evaluated) lane and whether it and its ribbon are visible — visible is how a hit
+## is marked today ([method _sweep_ghosts]), so taken is derived from it on restore rather than
+## carried separately. [member _ghosts].size() is the spawn-order watermark [method restore_state]
+## un-spawns traffic against: interval thickening only ever appends, so a capture's own count is
+## exactly how many of today's cars existed at that instant.
+func capture_state() -> Dictionary:
+	var distances: PackedFloat32Array = PackedFloat32Array()
+	var node_visible: PackedByteArray = PackedByteArray()
+	var ribbon_visible: PackedByteArray = PackedByteArray()
+	distances.resize(_ghosts.size())
+	node_visible.resize(_ghosts.size())
+	ribbon_visible.resize(_ghosts.size())
+	for i in _ghosts.size():
+		var hazard: Hazard = _ghosts[i]
+		distances[i] = hazard.distance
+		node_visible[i] = 1 if hazard.node.visible else 0
+		ribbon_visible[i] = 1 if hazard.ribbon.visible else 0
+	return {
+		"count": _ghosts.size(),
+		"distances": distances,
+		"node_visible": node_visible,
+		"ribbon_visible": ribbon_visible,
+		"elapsed": _elapsed,
+		"spawn_timer": _spawn_timer,
+		"last_kart_centre": _last_kart_centre,
+		"last_kart_yaw": _last_kart_yaw,
+		"has_last_kart_pose": _has_last_kart_pose,
+	}
+
+
+## Puts back exactly what [method capture_state] produced. Un-spawns every hazard past the
+## captured count first — freeing its node and its ribbon, then truncating [member _ghosts] — since
+## restoring a capture with MORE cars than are currently live cannot happen (traffic is only ever
+## added by the spawn timer and only ever removed by a restore, both director-ordered); asserted
+## rather than handled, per the spec this ships against.
+func restore_state(state: Dictionary) -> void:
+	var count: int = state["count"]
+	assert(count <= _ghosts.size(),
+		"HazardGhostField: rewind capture holds more cars than are currently live")
+	for i in range(_ghosts.size() - 1, count - 1, -1):
+		_ghosts[i].node.queue_free()
+		_ghosts[i].ribbon.queue_free()
+	_ghosts.resize(count)
+
+	var distances: PackedFloat32Array = state["distances"]
+	var node_visible: PackedByteArray = state["node_visible"]
+	var ribbon_visible: PackedByteArray = state["ribbon_visible"]
+	for i in count:
+		var hazard: Hazard = _ghosts[i]
+		hazard.distance = distances[i]
+		hazard.node.visible = node_visible[i] != 0
+		hazard.taken = not hazard.node.visible
+		hazard.ribbon.visible = ribbon_visible[i] != 0
+		if hazard.lane_length > 0.0:
+			var pose: Transform3D = _pose_at(
+				hazard.lane_positions, hazard.lane_yaws, hazard.lane_cumulative, hazard.distance)
+			hazard.node.global_transform = pose
+			hazard.origin = pose.origin
+			hazard.yaw = Hitbox.yaw_of(pose.basis)
+
+	_elapsed = state["elapsed"]
+	_spawn_timer = state["spawn_timer"]
+	_last_kart_centre = state["last_kart_centre"]
+	_last_kart_yaw = state["last_kart_yaw"]
+	_has_last_kart_pose = state["has_last_kart_pose"]
+	_update_ribbons()
+
+
 ## One hazard, resolved at spawn. RefCounted for ClockField.Clock's reason.
 class Hazard extends RefCounted:
 	var node: Node3D = null # the wrapper; visibility toggles here

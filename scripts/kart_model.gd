@@ -386,6 +386,52 @@ func freeze(value: bool) -> void:
 	_frozen = value
 
 
+## Everything a Rewind must put back, as plain data — the whole of the driving and boost state that
+## isn't re-derived from tuning each step. Not [member _slip_ceiling]/[member _steer_ceiling]
+## (recomputed from tuning and speed every [method step], so storing them risks the copy going
+## stale) and not [member tuning] itself (shared, not per-Run state).
+func capture_state() -> Dictionary:
+	return {
+		"forward_speed": _forward_speed,
+		"steer_angle": _steer_angle,
+		"rear_slip_angle": _rear_slip_angle,
+		"brake_strength": _brake_strength,
+		"brake_slip_influence": _brake_slip_influence,
+		"boost_credit": _boost_credit,
+		"boost_bleed": _boost_bleed,
+		"boost_charges": _boost_charges,
+		"charge_bump": _charge_bump,
+		"charge_bleed": _charge_bleed,
+		"top_speed_bonus": _top_speed_bonus,
+		"hop_active": _hop_active,
+		"hop_elapsed": _hop_elapsed,
+		"yaw_rate": _yaw_rate,
+		"lateral_speed": _lateral_speed,
+	}
+
+
+## Puts back exactly what [method capture_state] produced, then re-derives the two ceilings
+## [method capture_state] deliberately left out — the same re-derivation [method reset] does.
+func restore_state(state: Dictionary) -> void:
+	_forward_speed = state["forward_speed"]
+	_steer_angle = state["steer_angle"]
+	_rear_slip_angle = state["rear_slip_angle"]
+	_brake_strength = state["brake_strength"]
+	_brake_slip_influence = state["brake_slip_influence"]
+	_boost_credit = state["boost_credit"]
+	_boost_bleed = state["boost_bleed"]
+	_boost_charges = state["boost_charges"]
+	_charge_bump = state["charge_bump"]
+	_charge_bleed = state["charge_bleed"]
+	_top_speed_bonus = state["top_speed_bonus"]
+	_hop_active = state["hop_active"]
+	_hop_elapsed = state["hop_elapsed"]
+	_yaw_rate = state["yaw_rate"]
+	_lateral_speed = state["lateral_speed"]
+	_slip_ceiling = _current_slip_ceiling()
+	_steer_ceiling = _current_steer_ceiling()
+
+
 ## Clears every scrap of motion and drift state. Called by the body's reset_to().
 func reset() -> void:
 	_forward_speed = 0.0

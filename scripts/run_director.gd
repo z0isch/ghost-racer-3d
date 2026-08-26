@@ -77,6 +77,7 @@ signal condition_lost(remaining: int)
 enum RunPhase {
 	COUNTDOWN,
 	RACING,
+	REWIND,
 	RESULTS,
 }
 
@@ -96,6 +97,10 @@ enum RunPhase {
 ## SlipstreamGhostField.slipstream_hit]. Left unset, catching a slipstream ghost still banks no
 ## time — the field pays the boost charge on its own regardless.
 @export var slipstream_ghost_field_path: NodePath
+## The BoostGhostField, needed only so a Rewind can capture and restore it — nothing about a normal
+## Run reads this path. Left unset, a boost ghost taken just before a wreck simply isn't rolled
+## back by a Rewind.
+@export var boost_ghost_field_path: NodePath
 
 ## Where the ghost line is persisted. Loaded on [method _ready] if the file exists, and overwritten
 ## every time a Run promotes a new record — so the "drive one Run to get ghosts" tax is paid once,
@@ -147,6 +152,11 @@ enum RunPhase {
 @export var first_countdown_seconds: float = 3.0
 @export var restart_countdown_seconds: float = 2.0
 
+## How far back a Rewind may scrub, in seconds — the cap, or the Run's own start, whichever comes
+## first (the ring buffer's own length expresses both; see [member _rewind_frames]). One number for
+## the whole game, not per-circuit: a dial nobody varies is a dial that can disagree with itself.
+@export var max_rewind_seconds: float = 8.0
+
 var _kart: Kart
 var _camera: ChaseCamera
 var _start_line: Node3D
@@ -160,6 +170,35 @@ var _checkpoint_count: int = 0
 var _checkpoints: Array[Checkpoint] = []
 var _last_kart_position: Vector3 = Vector3.ZERO
 var _has_last_kart_position: bool = false
+
+var _clock_field: ClockField
+var _boost_ghost_field: BoostGhostField
+var _hazard_ghost_field: HazardGhostField
+var _slipstream_ghost_field: SlipstreamGhostField
+
+## Everything a Rewind must capture/restore, resolved once in [method _ready] and positionally
+## matched to every entry of [member _rewind_frames]: Kart, ClockField, BoostGhostField,
+## HazardGhostField, SlipstreamGhostField (whichever of those are wired up) and the director itself
+## last. Duck-typed via has_method rather than a shared base class — GDScript has no interfaces, and
+## a base class would force ClockField and the three ghost fields into a common ancestor they
+## otherwise have no reason to share.
+var _rewindables: Array[Object] = []
+
+## Frames of whole-world state, one per physics frame of Racing, oldest first. Bounded by
+## max_rewind_seconds — a rewind can never reach past the newest ceil(max_rewind_seconds /
+## physics_tick) frames, so nothing older is worth the memory. Each entry is an Array of
+## Dictionary, positionally matched to [member _rewindables]. Cleared in [method _begin_countdown].
+var _rewind_frames: Array[Array] = []
+
+## How many frames back from the newest the scrub currently sits, 0 at the instant Rewind opened.
+## Clamped to [member _rewind_frames]'s own bounds, which is what makes the buffer's length express
+## both the max_rewind_seconds cap and "back to the Run's start" at once.
+var _rewind_scrub_frames: int = 0
+
+## The recording length captured in the director's own last-restored rewind frame — the truncation
+## point a rewind accepted from here will cut the promoted recording to. Read out of the frame
+## rather than recomputed, since the director's own capture_state is what carried it.
+var _rewind_recording_length: int = 0
 
 ## How many checkpoints this Run has taken, across every wrap — unlike checkpoint_index, which
 ## resets to 0 on a wrap, this counts straight through, alongside _ladder_rung (which pays for the
@@ -340,6 +379,11 @@ var slipstream_taken: int:
 var run_ended_wrecked: bool:
 	get: return _wrecked
 
+## How many seconds deep the current Rewind scrub sits, for RewindHud's readout. Meaningful only
+## while [member phase] is REWIND.
+var rewind_depth_seconds: float:
+	get: return _rewind_scrub_frames / float(Engine.physics_ticks_per_second)
+
 
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
@@ -354,37 +398,41 @@ func _ready() -> void:
 
 	_resolve_checkpoints()
 
-	var clock_field: ClockField = get_node_or_null(clock_field_path) as ClockField
-	if clock_field != null:
+	_clock_field = get_node_or_null(clock_field_path) as ClockField
+	if _clock_field != null:
 		# unbind(2) drops clock_taken's position and direction arguments. Godot does not drop surplus
 		# arguments by itself: connected bare, every pickup would fail at emit time and no Run could
 		# ever be extended.
-		clock_field.clock_taken.connect(_on_clock_taken.unbind(2))
+		_clock_field.clock_taken.connect(_on_clock_taken.unbind(2))
 	else:
 		push_warning("RunDirector: no ClockField — no Run can be extended.")
 
-	var hazard_field: HazardGhostField = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
-	if hazard_field != null:
+	_boost_ghost_field = get_node_or_null(boost_ghost_field_path) as BoostGhostField
+
+	_hazard_ghost_field = get_node_or_null(hazard_ghost_field_path) as HazardGhostField
+	if _hazard_ghost_field != null:
 		# unbind(2) drops hazard_hit's position and direction arguments, for clock_taken's identical
 		# reason: _on_clock_taken only ever banks the seconds it's handed, whichever pickup handed
 		# them. See HazardGhostField.hit_time_bonus's doc for why a hit pays a bonus at all, on
 		# trial. A hop reaches nothing here: it neither costs nor pays.
-		hazard_field.hazard_hit.connect(_on_clock_taken.unbind(2))
-		# The second thing a hit does, and the only one that can end the Run. Connected separately
+		_hazard_ghost_field.hazard_hit.connect(_on_clock_taken.unbind(2))
+		# The second thing a hit does, and the only one that can open a Rewind. Connected separately
 		# rather than folded into _on_clock_taken: banking seconds is what every pickup in the game
 		# does, and Condition damage is what exactly one of them does.
-		hazard_field.hazard_hit.connect(_on_hazard_hit.unbind(3))
+		_hazard_ghost_field.hazard_hit.connect(_on_hazard_hit.unbind(3))
 
-	var slipstream_field: SlipstreamGhostField = (
+	_slipstream_ghost_field = (
 		get_node_or_null(slipstream_ghost_field_path) as SlipstreamGhostField)
-	if slipstream_field != null:
+	if _slipstream_ghost_field != null:
 		# unbind(2) drops slipstream_hit's position and direction arguments, for clock_taken's
 		# identical reason.
-		slipstream_field.slipstream_hit.connect(_on_clock_taken.unbind(2))
+		_slipstream_ghost_field.slipstream_hit.connect(_on_clock_taken.unbind(2))
 		# The slipstream bar's numerator, counted here rather than on the field: the count is per-Run
 		# state, and the director is the single owner of that (see this class's own doc). The field
 		# goes on paying the boost charge and the top-speed raise itself, which are not Run state.
-		slipstream_field.slipstream_hit.connect(_on_slipstream_taken.unbind(3))
+		_slipstream_ghost_field.slipstream_hit.connect(_on_slipstream_taken.unbind(3))
+
+	_build_rewindables()
 
 	# The phase must resolve before Kart's physics step reads frozen, or the GO frame is spent still
 	# frozen — a dead frame the driver feels as a hitch off the line. Checkpoint detection needs the
@@ -396,9 +444,13 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	# The director owns "reset". During Countdown/Racing it means Abort: discard the Run and
+	# The director owns "reset". During Countdown/Racing/Rewind it means Abort: discard the Run and
 	# re-run the countdown. During Results it starts a new Run instead — there is no in-progress Run
 	# left to discard, so it must not fall into the Abort branch below.
+	#
+	# REWIND falling into this branch too is deliberate, not an oversight: a Run gone badly enough
+	# to open a Rewind is often one a driver would rather restart than salvage. Do not carve out a
+	# REWIND exception here.
 	if _phase != RunPhase.RESULTS and Input.is_action_just_pressed("reset"):
 		# The partial recording is thrown away here rather than left standing: a Run abandoned at
 		# 90% can never become a ghost line, and the previous line is left untouched.
@@ -423,9 +475,18 @@ func _physics_process(delta: float) -> void:
 				# Queued, not called: this runs at the head of the physics frame, and the swept test
 				# needs the position the kart ends the frame at. Sampling is queued after the sweep so
 				# a Run-ending crossing in this same flush swaps the buffers before the sample is
-				# appended.
+				# appended. The rewind capture is queued from inside _append_sample itself, not here —
+				# see that method's own comment for why that is what makes it genuinely last.
 				_sweep_pending_checkpoint.call_deferred()
 				_append_sample.call_deferred()
+
+		RunPhase.REWIND:
+			if Input.is_action_pressed("rewind_scrub"):
+				_advance_rewind_scrub()
+			if Input.is_action_just_pressed("rewind_accept"):
+				_accept_rewind()
+			elif Input.is_action_just_pressed("rewind_decline"):
+				_decline_rewind()
 
 		RunPhase.RESULTS:
 			if Input.is_action_just_pressed("reset"):
@@ -481,10 +542,11 @@ func _on_clock_taken(seconds: float) -> void:
 # itself (HazardGhostField.hit_slow_multiplier) — that is the cue felt through the controls; this is
 # what the hit accumulates toward.
 #
-# The Run ends here, in the same deferred flush the hit arrived in, exactly as a Timeout ends one at
-# the head of a physics frame. Unlike _on_clock_taken this does need its own phase guard: the field
-# sweeps its whole list in one flush and can hit two hazards in one frame at speed, so the hit that
-# empties the bar can be followed immediately by another arriving into an already-ended Run.
+# Condition reaching zero opens a Rewind here, in the same deferred flush the hit arrived in,
+# rather than ending the Run outright — see CONTEXT.md's **Rewind**. Unlike _on_clock_taken this
+# does need its own phase guard: the field sweeps its whole list in one flush and can hit two
+# hazards in one frame at speed, so the hit that empties the bar can be followed immediately by
+# another arriving into a Run already in Rewind.
 func _on_hazard_hit() -> void:
 	if _phase != RunPhase.RACING:
 		return
@@ -492,10 +554,18 @@ func _on_hazard_hit() -> void:
 	condition_lost.emit(_condition)
 	if _condition > 0:
 		return
-	# Set before complete_run, which emits run_completed: the listener composing the results screen
-	# reads run_ended_wrecked at that edge and must not see the previous Run's answer.
-	_wrecked = true
-	complete_run()
+
+	_phase = RunPhase.REWIND
+	_rewind_scrub_frames = 0
+	if _kart != null:
+		_kart.frozen = true
+	# Snaps the world to the last whole frame the ring buffer actually holds — the hit itself lands
+	# mid-flush, after this same frame's capture was already queued (see _append_sample), so the
+	# buffer's newest entry is one physics tick behind the live kart. Restoring it here is what
+	# "seeds the scrub at zero depth" means: the frozen world the driver sees is exactly what depth
+	# 0.0 will show, not a half-tick further on than the ring buffer can account for.
+	if not _rewind_frames.is_empty():
+		_restore_rewind_frame(_rewind_frames.size() - 1)
 
 
 # One slipstream ghost caught. The bar is uncapped here and clamped where it is drawn: a Run that
@@ -629,6 +699,162 @@ func _append_sample() -> void:
 	_recording_positions.append(_kart.global_position)
 	_recording_yaws.append(_kart.global_rotation.y)
 
+	# Queued from HERE rather than directly from _physics_process: a call_deferred issued while the
+	# deferred queue is already flushing (which this is, since _append_sample is itself a deferred
+	# call) is appended to the END of that same flush's queue — after every other node's own deferred
+	# sweep this tick (ClockField, the three ghost fields), which have already been queued by the
+	# time _physics_process ran but have not executed yet. That is what makes this capture genuinely
+	# last in the frame, rather than merely last of the two calls the director itself queues.
+	#
+	# The ordering matters exactly once it matters: a capture taken before a pickup's own sweep
+	# stores a frame where a clock reads taken but the seconds it grants have not yet reached
+	# _earned_seconds, and restoring that frame later hands back the clock without the time it paid.
+	_capture_rewind_frame.call_deferred()
+
+
+# --- Rewind --------------------------------------------------------------------------------------
+
+# Resolved once from whichever of Kart/ClockField/BoostGhostField/HazardGhostField/
+# SlipstreamGhostField are wired up, plus the director itself last. has_method rather than a shared
+# base class or interface, which GDScript has neither of.
+func _build_rewindables() -> void:
+	_rewindables.clear()
+	var candidates: Array = [_kart, _clock_field, _boost_ghost_field, _hazard_ghost_field,
+		_slipstream_ghost_field]
+	for candidate: Object in candidates:
+		if candidate != null and candidate.has_method("capture_state"):
+			_rewindables.append(candidate)
+	_rewindables.append(self)
+
+
+func _rewind_frame_cap() -> int:
+	return maxi(1, ceili(max_rewind_seconds * Engine.physics_ticks_per_second))
+
+
+# Guarded on RACING rather than assumed: this is queued from _append_sample, which can itself have
+# been queued in a frame that _sweep_pending_checkpoint or _on_hazard_hit already moved out of
+# RACING by the time this runs (a Timeout on the same flush, or the hit that just opened a Rewind).
+func _capture_rewind_frame() -> void:
+	if _phase != RunPhase.RACING:
+		return
+	var frame: Array = []
+	frame.resize(_rewindables.size())
+	for i in _rewindables.size():
+		# .call rather than a static capture_state() call: _rewindables is a plain, untyped Array —
+		# duck-typed on purpose, since GDScript has no interface a Kart and a ClockField could share
+		# — so its elements carry no static type the compiler could resolve the method on.
+		frame[i] = _rewindables[i].call("capture_state")
+	_rewind_frames.append(frame)
+	if _rewind_frames.size() > _rewind_frame_cap():
+		_rewind_frames.pop_front()
+
+
+func _restore_rewind_frame(index: int) -> void:
+	if index < 0 or index >= _rewind_frames.size():
+		return
+	var frame: Array = _rewind_frames[index]
+	for i in _rewindables.size():
+		_rewindables[i].call("restore_state", frame[i])
+
+
+# Held: depth advances at 1x realtime, one physics tick of buffer per physics tick held, so the
+# world genuinely plays backward rather than previewing a target depth.
+func _advance_rewind_scrub() -> void:
+	var max_depth: int = _rewind_frames.size() - 1
+	if max_depth <= 0:
+		return
+	_rewind_scrub_frames = mini(_rewind_scrub_frames + 1, max_depth)
+	_restore_rewind_frame(_rewind_frames.size() - 1 - _rewind_scrub_frames)
+
+
+# Commits the scrubbed-to instant: the world is already live there (restoring has been a no-op
+# beyond bookkeeping since the last scrub), so this only truncates the recording and resumes
+# RACING. The buffer is cut back to the accepted frame rather than cleared outright — the seconds
+# still behind it remain a legitimate rewind target for an immediate second Rewind, and only the
+# now-erased "future" beyond the accepted frame is invalid.
+func _accept_rewind() -> void:
+	var index: int = _rewind_frames.size() - 1 - _rewind_scrub_frames
+	_restore_rewind_frame(index)
+	_truncate_recording()
+	_rewind_frames.resize(index + 1)
+	_rewind_scrub_frames = 0
+	_phase = RunPhase.RACING
+	if _kart != null:
+		_kart.frozen = false
+	# The teleport-equivalent for the swept fields' own previous-position tracking: restore_state
+	# already put _has_last_kart_pose/_has_last_kart_position back to whatever the captured frame
+	# held, so nothing further is needed here — unlike _begin_countdown, this is not a teleport, it
+	# is the world resuming exactly where it was captured.
+
+
+# The Wreck path: the driver declined, so the Run ends exactly as it always has. Restores the
+# newest buffer frame (depth 0, unchanged since REWIND opened — nothing captures while scrubbing)
+# first: a decline must wreck the Run as it stood the instant Condition reached zero, not wherever
+# a scrub was left but never accepted. Without this, a decline after any scrubbing would freeze the
+# kart at the scrubbed-to pose and judge the Run on that instant's earnings/checkpoints/clock
+# rather than everything actually earned up to the hit.
+func _decline_rewind() -> void:
+	_restore_rewind_frame(_rewind_frames.size() - 1)
+	_rewind_frames.clear()
+	_rewind_scrub_frames = 0
+	# Set before complete_run, which emits run_completed: the listener composing the results screen
+	# reads run_ended_wrecked at that edge and must not see the previous Run's answer.
+	_wrecked = true
+	complete_run()
+
+
+# On accept, the recording is cut back to the sample count the accepted frame's own capture_state
+# reported — always in lockstep across positions/yaws, per the existing comment on those fields.
+# _recording_checkpoints holds sample indices into _recording_positions and is monotonic, so the
+# drop is a resize to the first index whose value is >= n; a stale trailing index is not cosmetic,
+# it is an out-of-bounds read in _ghost_wrap_time and in the income runner the moment this line is
+# promoted and reseated.
+func _truncate_recording() -> void:
+	var n: int = _rewind_recording_length
+	_recording_positions.resize(n)
+	_recording_yaws.resize(n)
+	var keep: int = _recording_checkpoints.size()
+	while keep > 0 and _recording_checkpoints[keep - 1] >= n:
+		keep -= 1
+	_recording_checkpoints.resize(keep)
+
+
+## Everything a Rewind must put back on the director itself, as plain data — the rewindable
+## contract's own [member _run_clock] is deliberately excluded: it is the entire price of a Rewind,
+## and the one thing that does not come back (CONTEXT.md's **Rewind**).
+func capture_state() -> Dictionary:
+	return {
+		"run_earnings": _run_earnings,
+		"run_checkpoints_taken": _run_checkpoints_taken,
+		"earned_seconds": _earned_seconds,
+		"ladder_rung": _ladder_rung,
+		"checkpoint_index": _checkpoint_index,
+		"wrap_start_clock": _wrap_start_clock,
+		"wraps_completed": _wraps_completed,
+		"condition": _condition,
+		"slipstream_taken": _slipstream_taken,
+		"recording_length": _recording_positions.size(),
+	}
+
+
+## Puts back exactly what [method capture_state] produced.
+func restore_state(state: Dictionary) -> void:
+	_run_earnings = state["run_earnings"]
+	_run_checkpoints_taken = state["run_checkpoints_taken"]
+	_earned_seconds = state["earned_seconds"]
+	_ladder_rung = state["ladder_rung"]
+	_checkpoint_index = state["checkpoint_index"]
+	_wrap_start_clock = state["wrap_start_clock"]
+	_wraps_completed = state["wraps_completed"]
+	_condition = state["condition"]
+	_slipstream_taken = state["slipstream_taken"]
+	# Not applied to the recording arrays here: those are cut only on accept ([method
+	# _truncate_recording]), off this same number, so a mid-scrub restore can walk the buffer freely
+	# without repeatedly resizing packed arrays that a further scrub might walk straight back past.
+	_rewind_recording_length = state["recording_length"]
+	condition_lost.emit(_condition)
+	_update_gate_visibility()
+
 
 # Populates the ghost line from disk before the first countdown, so ghosts stand on the circuit
 # from the session's first Run rather than only after one is driven and promoted. Silent on a
@@ -729,6 +955,10 @@ func _begin_countdown(seconds: float) -> void:
 	# Cleared here rather than in complete_run: the results screen is still up and still reading it
 	# right until the next countdown starts.
 	_wrecked = false
+	# Cleared alongside every other per-Run field: a Rewind's ring buffer belongs to exactly one Run,
+	# and an Abort out of REWIND must not leave stale frames for the next Run to stumble into.
+	_rewind_frames.clear()
+	_rewind_scrub_frames = 0
 	_update_gate_visibility()
 	_has_last_kart_position = false # the teleport below invalidates the swept segment
 

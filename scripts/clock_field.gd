@@ -254,6 +254,36 @@ func _respawn_clocks() -> void:
 		clock.node.visible = true
 
 
+## Everything a Rewind must put back, as plain data: each clock's own taken flag and the swept
+## previous-pose the field tracks between frames. Not the clocks' node references — [member
+## Clock.node] stays put; only [member Clock.taken] and its derived visibility change.
+func capture_state() -> Dictionary:
+	var taken: PackedByteArray = PackedByteArray()
+	taken.resize(_clocks.size())
+	for i in _clocks.size():
+		taken[i] = 1 if _clocks[i].taken else 0
+	return {
+		"taken": taken,
+		"last_kart_centre": _last_kart_centre,
+		"last_kart_yaw": _last_kart_yaw,
+		"has_last_kart_pose": _has_last_kart_pose,
+	}
+
+
+## Puts back exactly what [method capture_state] produced. A clock's node.visible is derived from
+## its taken flag here rather than carried separately, since the two never disagree ([method
+## _sweep_clocks] sets both in the same breath).
+func restore_state(state: Dictionary) -> void:
+	var taken: PackedByteArray = state["taken"]
+	for i in mini(taken.size(), _clocks.size()):
+		var clock: Clock = _clocks[i]
+		clock.taken = taken[i] != 0
+		clock.node.visible = not clock.taken
+	_last_kart_centre = state["last_kart_centre"]
+	_last_kart_yaw = state["last_kart_yaw"]
+	_has_last_kart_pose = state["has_last_kart_pose"]
+
+
 ## One clock, resolved once from its marker. RefCounted for the same reason RunDirector.Checkpoint
 ## is: built in _ready, never allocated in the physics step. The origin is the centre of the disc.
 class Clock extends RefCounted:
