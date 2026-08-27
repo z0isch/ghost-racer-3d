@@ -7,3 +7,5 @@ Time matters at the beginning and then avoidance matters more is fun
 - Freeze hazard ghosts that explode when you run over
 - Add time drop?
 - Magnet?
+- shockwave after landing from a jump
+- grapple hook
