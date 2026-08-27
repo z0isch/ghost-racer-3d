@@ -39,6 +39,6 @@ extends Resource
 ## five counts above, driven for rather than paid for — awarded, not bought — and floored rather
 ## than clamped above, since this resource has no way to know its own ceiling. See race.gd's
 ## _on_run_completed for where that ceiling is applied.
-@export var tune: float = 0.0:
+@export var tune: float = 0:
 	set(value):
 		tune = maxf(value, 0.0)

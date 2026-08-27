@@ -21,7 +21,7 @@ extends Resource
 @export var display_name: String = ""
 ## How long a Run on this circuit lasts, in seconds. Configured per circuit rather than a global
 ## constant, since the two existing circuits may want different budgets.
-@export var run_duration_seconds: float = 25.0
+@export var run_duration_seconds: float = 20.0
 ## What the first checkpoint of a Run pays; the nth pays n times it (CONTEXT.md's **Checkpoint
 ## ladder**). One number for the whole circuit and deliberately not per-checkpoint: a checkpoint
 ## cannot be skipped, so its value can never be a decision. Value that varies is the clock's.
@@ -29,16 +29,16 @@ extends Resource
 ## Seconds between each extra hazard ghost added on top of the standing field —
 ## HazardGhostField.spawn_interval_seconds's own doc. 0.0 (or below) means a circuit's hazard
 ## traffic never thickens mid-Run, exactly as before checkpoint-driven spawning existed.
-@export var hazard_spawn_interval_seconds: float = 8
+@export var hazard_spawn_interval_seconds: float = 3
 ## Seconds between each extra slipstream ghost added on top of the standing field —
 ## SlipstreamGhostField.spawn_interval_seconds's own doc. 0.0 (or below) means a circuit's
 ## slipstream traffic never thickens mid-Run, matching hazard_spawn_interval_seconds's own reason.
-@export var slipstream_spawn_interval_seconds: float = 8
+@export var slipstream_spawn_interval_seconds: float = 0.0
 ## Seconds added to the Run budget every time the checkpoint sequence wraps back to the first
 ## checkpoint — completing a full circuit pays a time bonus exactly as a clock pickup does. Per
 ## circuit rather than a global constant, since a short circuit's wrap is a much smaller fraction of
 ## a Run than a long one's. 0.0 means a wrap banks nothing, exactly as before this existed.
-@export var wrap_bonus_seconds: float = 15.0
+@export var wrap_bonus_seconds: float = 14.0
 ## How many wraps a Run may complete before it ends, independent of the clock. 0 means unlimited —
 ## a Run only ever ends by Timeout or Abort, exactly as before this existed. A short, tightly-looped
 ## circuit can want a race decided by laps rather than by outlasting a budget that a wrap bonus keeps

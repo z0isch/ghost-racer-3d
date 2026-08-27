@@ -13,7 +13,7 @@ extends Node
 ##
 ## The total only ever goes up. Nothing subtracts from it, checkpoints are banked the instant they
 ## are taken, and an abort costs the abandoned Run its earnings but not its contribution here. It is a
-## reward rather than a currency or a score: the pace ghost is promoted on the earn rate, not on
+## reward rather than a currency or a score: the pace ghost is promoted on track position, not on
 ## this, and nothing is won or lost by having more.
 ##
 ## Persisted to [constant SAVE_PATH], the first thing in the game that has to be: an income ghost

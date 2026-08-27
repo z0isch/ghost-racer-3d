@@ -172,11 +172,11 @@ func _physics_process(_delta: float) -> void:
 ##
 ## The Tune award lives in this same handler rather than in RunDirector (CONTEXT.md's **Tune**):
 ## RunDirector owns Run state and must not learn about [autoload LoadoutHolder], where this scene
-## already holds the circuit's loadout and its save callable. Awarded only when the Run took the
-## record AND had an incumbent pace ghost to take it from — a circuit's first completed Run is a
-## record with nothing on the track yet, so it beats nothing and earns nothing.
+## already holds the circuit's loadout and its save callable. Awarded on any record-taking Run,
+## including a circuit's first completed Run — [member RunDirector.raced_ghost] is null there (no
+## incumbent record to have raced against), but the Run still earns its Tune.
 func _on_run_completed(_run_time: float, is_record: bool) -> void:
-	if is_record and _kart != null and _director != null and _director.raced_ghost != null:
+	if is_record and _kart != null and _director != null:
 		var headroom: float = _kart.tune_headroom
 		var awarded: float = minf(TUNE_AWARD, headroom - _loadout.tune)
 		if awarded > 0.0:

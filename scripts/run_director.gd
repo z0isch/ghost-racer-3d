@@ -13,9 +13,10 @@ extends Node
 ## Kart knows nothing about Runs — the director drives it through Kart.frozen and Kart.reset_to().
 
 signal run_started()
-## [param is_record] means this Run set a new record earn rate. Carried on the signal rather than
-## left for listeners to derive, since deriving it means comparing against a value the director has
-## just overwritten.
+## [param is_record] means this Run finished further round the circuit than the pace ghost stood at
+## that same instant (see [method complete_run]). Carried on the signal rather than left for
+## listeners to derive, since deriving it means comparing against a value the director has just
+## overwritten.
 signal run_completed(run_time: float, is_record: bool)
 signal run_aborted()
 ## Fired as the kart is teleported to the start line, so anything holding a swept previous-position
@@ -88,6 +89,10 @@ enum RunPhase {
 @export var start_line_path: NodePath
 ## The Checkpoints node: one inert Marker3D each, node order = circuit order.
 @export var checkpoints_path: NodePath
+## The circuit's RoadContainer, walked into the centreline [member complete_run]'s promotion rule
+## and [member ahead_of_pace] project both karts' positions onto (see [method _build_centreline]) —
+## the same walk BoostGhostField and HazardGhostField already do off their own road_container_path.
+@export var road_container_path: NodePath
 ## The ClockField whose pickups extend [member run_budget].
 @export var clock_field_path: NodePath
 ## The HazardGhostField whose hit ghosts spend Condition, and may extend [member run_budget], via
@@ -166,6 +171,7 @@ enum RunPhase {
 var _kart: Kart
 var _camera: ChaseCamera
 var _start_line: Node3D
+var _road_container: RoadContainer
 var _fallback_start_pose: Transform3D = Transform3D.IDENTITY
 var _phase: RunPhase = RunPhase.COUNTDOWN
 var _run_clock: float = 0.0
@@ -219,9 +225,10 @@ var _run_checkpoints_taken: int = 0
 ## session or loaded from disk. Null until a line exists to compare against, which is the whole
 ## "no comparison to draw" condition: a circuit nobody has completed a Run on has no ghost.
 ##
-## Holds the earn rate too, so the promotion bar and the figures it was computed from are one object
-## rather than a scalar beside a struct that could disagree with it — [member record_earn_rate]
-## reads out of here.
+## Holds the earn rate too, so RunHud's "RECORD" readout and the figures it was computed from are
+## one object rather than a scalar beside a struct that could disagree with it — [member
+## record_earn_rate] reads out of here. Promotion itself (see [method complete_run]) is decided on
+## track position, not on anything stored here.
 var _record_totals: RunTotals = null
 
 ## The record that stood when the Run that just finished was driven — the ghost actually raced,
@@ -229,6 +236,12 @@ var _record_totals: RunTotals = null
 ## Without it a Run that takes the record would be compared against itself and every delta on the
 ## results screen would read zero, which is the opposite of what beating your best should look like.
 var _raced_ghost: RunTotals = null
+
+## Live readout of [member ahead_of_pace]/[member pace_gap_meters], refreshed once a physics frame
+## while Racing by [method _update_pace_progress]. Stale (whatever the last Racing frame left them)
+## outside Racing — callers that care are the same HUD elements that already gate on [member phase].
+var _ahead_of_pace: bool = false
+var _pace_gap_meters: float = NAN
 
 ## Which rung the next checkpoint pays: 1 for the Run's first, rising by one at every checkpoint
 ## taken and running straight through every wrap. Reset only in _begin_countdown, alongside
@@ -247,6 +260,18 @@ var _wrap_start_clock: float = 0.0
 ## be read against the pace ghost's own time on that same wrap number rather than an arbitrary one.
 ## Reset only in _begin_countdown.
 var _wraps_completed: int = 0
+
+## One lap's worth of the circuit's road centreline, cut and oriented at the start line exactly as
+## BoostGhostField/HazardGhostField build their own — see [method _build_centreline]. Empty until
+## that walk succeeds, and again a no-op once it has: the road doesn't change shape mid-session.
+var _centreline_positions: PackedVector3Array = PackedVector3Array()
+## Cumulative arclength at each [member _centreline_positions] sample, so a position's progress
+## round the lap can be read off the nearest sample without re-summing (RoadCentreline._nearest_index's
+## search, [method _arclength]'s own copy of it, for the reason BoostGhostField's duplicate has).
+var _centreline_cumulative: PackedFloat32Array = PackedFloat32Array()
+## The lap's total length — [member _centreline_cumulative]'s last entry, cached so
+## [method _arclength]'s callers don't each re-index it. 0.0 until the centreline is built.
+var _centreline_loop_length: float = 0.0
 
 ## Segments of Condition left this Run. Reset to [member starting_condition] at every countdown,
 ## alongside the clock and the ladder: a Run is a clean priced attempt, and Condition carried in
@@ -309,10 +334,9 @@ var run_earnings: int:
 var earn_rate: float:
 	get: return 0.0 if _run_clock <= 0.0 else _run_earnings / _run_clock
 
-## The record earn rate, and the bar a Run must strictly beat to promote its recording to the pace
-## ghost. Stored nowhere else: promotion is exactly "strictly higher rate" with no side conditions,
-## so the ghost is the record-holding Run by construction. Read out of [member _record_totals], so
-## the bar and the Run it came from cannot drift apart.
+## The record Run's own earn rate — RunHud's "RECORD" readout and the results screen's figures, not
+## a promotion bar: [method complete_run] promotes on track position, not on this. Read out of
+## [member _record_totals], so the figure and the Run it came from cannot drift apart.
 var record_earn_rate: float:
 	get: return -1.0 if _record_totals == null else _record_totals.rate
 
@@ -326,6 +350,21 @@ var record_totals: RunTotals:
 ## comparison matters most — the ones that took the record. Null if that Run had no ghost to race.
 var raced_ghost: RunTotals:
 	get: return _raced_ghost
+
+## True while Racing when the kart's own track position — wraps completed times the centreline's
+## lap length, plus its own arclength along it ([method _arclength]) — sits further round the
+## circuit than the pace ghost's position at this exact instant ([method _ghost_track_distance]).
+## This is the same odometer [method complete_run]'s promotion rule compares on; a HUD reading this
+## live is watching the same number the end of the Run will be judged by. False whenever there is
+## nothing to compare against (no ghost yet, or no centreline built).
+var ahead_of_pace: bool:
+	get: return _ahead_of_pace
+
+## Metres the kart's own track position sits ahead of (positive) or behind (negative) the pace
+## ghost's, along the shared centreline — see [member ahead_of_pace]. NAN under that same "nothing
+## to compare" condition.
+var pace_gap_meters: float:
+	get: return _pace_gap_meters
 
 ## The Run's whole time budget: the circuit's configured duration plus every clock taken so far.
 ## Not known at Countdown and rises mid-Run, which is exactly what the HUD readout jumping *up*
@@ -406,6 +445,10 @@ func _ready() -> void:
 	if _start_line == null:
 		push_warning("RunDirector: no StartLine node — falling back to the kart's authored transform.")
 
+	_road_container = get_node_or_null(road_container_path) as RoadContainer
+	if _road_container == null:
+		push_warning("RunDirector: no RoadContainer — promotion falls back to \"any Run is a record\".")
+
 	_resolve_checkpoints()
 
 	_clock_field = get_node_or_null(clock_field_path) as ClockField
@@ -449,6 +492,11 @@ func _ready() -> void:
 	# opposite, the kart's position after move_and_slide, hence the deferred swept test.
 	process_physics_priority = -100
 
+	# Deferred, not called here: the RoadSegments it walks are built by the RoadManager's own
+	# _ready, which has no ordering guarantee against this one — BoostGhostField's identical reason
+	# for deferring its own first _place_ghosts.
+	_build_centreline.call_deferred()
+
 	_load_ghost_line()
 	_begin_countdown(first_countdown_seconds)
 
@@ -479,6 +527,7 @@ func _physics_process(delta: float) -> void:
 
 		RunPhase.RACING:
 			_run_clock += delta
+			_update_pace_progress()
 			if _run_clock >= run_budget:
 				complete_run()
 			else:
@@ -537,10 +586,21 @@ func complete_run() -> void:
 	# about to stop existing.
 	_raced_ghost = _record_totals
 
+	# Promotion is not on earn rate: it is on track position. Project the kart's own finishing
+	# position onto the centreline (wraps completed times the lap length, plus its own arclength
+	# along it) and compare against where the pace ghost's nose sat at this exact instant of the
+	# Run's clock ([method _ghost_track_distance]) — the same perpendicular-to-the-centreline
+	# projection on both sides, so "further round the track, right now" is the whole rule. earn_rate
+	# is still recorded below for the results screen and RunHud's "RECORD" readout, but no longer
+	# gates promotion.
+	#
 	# The null record is the "first completed Run promotes unconditionally" rule: a circuit with no
-	# ghost has no bar, so a zero-earning opening Run still promotes. The strict > is the rest: a tie
-	# does not displace the incumbent.
-	var is_record: bool = _record_totals == null or rate > _record_totals.rate
+	# ghost has no bar, so a zero-progress opening Run still promotes. The strict > is the rest: a
+	# tie does not displace the incumbent.
+	var current_distance: float = (_wraps_completed * _centreline_loop_length
+			+ _arclength(_kart.global_position if _kart != null else Vector3.ZERO))
+	var record_distance: float = _ghost_track_distance(run_time)
+	var is_record: bool = _record_totals == null or current_distance > record_distance
 	if is_record:
 		_record_totals = RunTotals.of(_run_earnings, _run_checkpoints_taken, run_time, rate)
 		# Packed arrays are copy-on-write, so duplicate() is ~1 µs and the copy is never
@@ -949,6 +1009,113 @@ func _ghost_wrap_time(wrap_number: int) -> float:
 	if wrap_number > 1:
 		start_sample = _ghost_line_checkpoints[(wrap_number - 1) * per_wrap - 1]
 	return float(end_sample - start_sample) / ticks
+
+
+# Walks [member _road_container] into one lap's worth of centreline positions plus a matching
+# cumulative-arclength array — [member _arclength], [member complete_run] and
+# [method _update_pace_progress]'s shared reference for "how far round the track is this point".
+# BoostGhostField._build_centreline's identical walk, kept as its own copy here rather than shared:
+# that one also caches yaws it has no use for.
+#
+# A no-op once [member _centreline_positions] is non-empty — the road doesn't change shape
+# mid-session — and deferred out of _ready (see the call there) for the same RoadManager-ordering
+# reason BoostGhostField defers its own first build.
+func _build_centreline() -> void:
+	if not _centreline_positions.is_empty() or _road_container == null:
+		return
+
+	var loop: PackedVector3Array = RoadCentreline.walk_loop(_road_container)
+	if loop.size() < 2:
+		return
+	if _start_line != null:
+		loop = RoadCentreline.cut_and_orient(loop, _start_line)
+
+	_centreline_positions = loop
+	_centreline_cumulative = PackedFloat32Array()
+	_centreline_cumulative.append(0.0)
+	for i in range(1, loop.size()):
+		_centreline_cumulative.append(_centreline_cumulative[i - 1] + loop[i - 1].distance_to(loop[i]))
+	_centreline_loop_length = _centreline_cumulative[_centreline_cumulative.size() - 1]
+
+
+# The nearest centreline sample to [param position], returned as that sample's own arclength — the
+# "drop a perpendicular from the nose to the centreline" projection both complete_run's promotion
+# rule and _update_pace_progress read a kart's (or a ghost's) progress round the lap off of.
+# RoadCentreline._nearest_index's identical squared-distance search, duplicated for
+# BoostGhostField._kart_arclength's own reason: RoadCentreline carries no cumulative array of its
+# own to resolve the index into an arclength. 0.0 with no centreline built, so a missing
+# RoadContainer degrades to "every position reads as arclength 0" rather than an out-of-bounds read.
+func _arclength(position: Vector3) -> float:
+	if _centreline_positions.is_empty():
+		return 0.0
+	var best_index: int = 0
+	var best_distance: float = INF
+	for i in _centreline_positions.size():
+		var distance: float = _centreline_positions[i].distance_squared_to(position)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = i
+	return _centreline_cumulative[best_index]
+
+
+# How many wraps the pace ghost had closed by [param sample_index] of its own recording —
+# [method _ghost_track_distance]'s wrap term. [member _ghost_line_checkpoints] is monotonic
+# ascending (see its own doc), so the count of crossings at or before the sample is found by
+# walking from the front and stopping at the first one still ahead, exactly [method _ghost_wrap_time]'s
+# per_wrap fallback for a ghost line predating checkpoints_per_wrap.
+func _ghost_wraps_at_sample(sample_index: int) -> int:
+	var per_wrap: int = _ghost_checkpoints_per_wrap if _ghost_checkpoints_per_wrap > 0 else _checkpoint_count
+	if per_wrap <= 0:
+		return 0
+	var crossings: int = 0
+	for sample: int in _ghost_line_checkpoints:
+		if sample > sample_index:
+			break
+		crossings += 1
+	# Floor is exactly what is wanted: a wrap only counts once its closing checkpoint has been
+	# crossed, so a partial wrap's leftover crossings are meant to be discarded here.
+	@warning_ignore("integer_division")
+	return crossings / per_wrap
+
+
+# The pace ghost's own track-position odometer at Run-clock [param t]: wraps closed by that instant
+# times the lap length, plus the arclength of wherever its nose sat — interpolated between samples
+# exactly as [method PaceGhost._apply] draws it, so the ghost this compares against is the one a
+# driver actually sees. -INF when there is nothing to compare against (no centreline, or no ghost
+# line loaded), so a Run being judged against it always reads as ahead rather than erroring.
+func _ghost_track_distance(t: float) -> float:
+	if _centreline_positions.is_empty() or _ghost_line_positions.is_empty():
+		return -INF
+
+	var ticks: float = t * Engine.physics_ticks_per_second
+	var last: int = _ghost_line_positions.size() - 1
+	var index: int = clampi(int(ticks), 0, last)
+	var position: Vector3
+	if index >= last:
+		# Out of samples: the ghost finished before this instant, so it stands wherever it finished
+		# (PaceGhost._process's identical "out of samples" case, hidden there rather than parked —
+		# here it is parked, since a Run outlasting the ghost must still compare against something).
+		position = _ghost_line_positions[last]
+	else:
+		var weight: float = clampf(ticks - index, 0.0, 1.0)
+		position = _ghost_line_positions[index].lerp(_ghost_line_positions[index + 1], weight)
+
+	return _ghost_wraps_at_sample(index) * _centreline_loop_length + _arclength(position)
+
+
+# Refreshes [member ahead_of_pace]/[member pace_gap_meters] once a physics frame while Racing —
+# read-only state a HUD polls, computed off the same odometer [method complete_run] promotes on, so
+# what a driver watches live is the number the end of the Run is actually judged against.
+func _update_pace_progress() -> void:
+	if _kart == null or _record_totals == null or _centreline_positions.is_empty():
+		_ahead_of_pace = false
+		_pace_gap_meters = NAN
+		return
+
+	var current_distance: float = _wraps_completed * _centreline_loop_length + _arclength(_kart.global_position)
+	var ghost_distance: float = _ghost_track_distance(_run_clock)
+	_pace_gap_meters = current_distance - ghost_distance
+	_ahead_of_pace = _pace_gap_meters > 0.0
 
 
 # Mirrors the promotion in complete_run to disk, so the next session's _load_ghost_line picks up

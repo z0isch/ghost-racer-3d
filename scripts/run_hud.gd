@@ -13,7 +13,10 @@ extends CanvasLayer
 ##                     it. For the last [member urgency_seconds] it is replaced entirely — see
 ##                     [method _apply_urgency].
 ##   RATE            — top-right, the live cumulative average the completed Run will be judged on.
-##                     Neither windowed nor smoothed: see [member RunDirector.earn_rate].
+##                     Neither windowed nor smoothed: see [member RunDirector.earn_rate]. Tinted by
+##                     [member RunDirector.ahead_of_pace] while Racing — the promotion test is now
+##                     track position, not this figure, so RATE alone can no longer tell a driver
+##                     whether they are on course to take the record.
 ##   RECORD          — the bar to beat, which is also the pace ghost's rate.
 ##
 ## There is no per-Run clock counter: it would disambiguate a good line from a good time, but the
@@ -30,6 +33,13 @@ extends CanvasLayer
 ## The money green, the same value PickupPopups and PurseHud use. Shared so that green means money
 ## everywhere on screen, and a new record is a money event.
 @export var record_flash_color: Color = Color(0.29, 0.93, 0.42)
+
+## RATE's tint while [member RunDirector.ahead_of_pace] is true — the same green as a record flash,
+## so "ahead" reads as the good thing it is before the Run even ends.
+@export var ahead_of_pace_color: Color = Color(0.29, 0.93, 0.42)
+## RATE's tint while racing behind the pace ghost. Not [member urgency_color]'s red: that colour is
+## reserved for the clock running out, a harder and more urgent fact than merely trailing the ghost.
+@export var behind_pace_color: Color = Color(0.95, 0.65, 0.25)
 
 ## When the clock stops being a clock: the last stretch of a Run, where a clock two corners away has
 ## stopped being worth going for. The hundredths in the corner have nothing left to say here — what
@@ -62,6 +72,7 @@ const UNSET_TEXT: String = "--.--"
 var _director: RunDirector
 var _record_base_color: Color
 var _record_flash: float = 0.0
+var _rate_base_color: Color
 
 @onready var _current_label: Label = $CurrentLabel
 @onready var _final_seconds_label: Label = $FinalSecondsLabel
@@ -74,6 +85,7 @@ func _ready() -> void:
 	_director = get_node(director_path) as RunDirector
 
 	_record_base_color = _record_label.modulate
+	_rate_base_color = _rate_label.modulate
 	# Set from the export rather than authored in the scene, so the one place that says what the last
 	# seconds look like is the one place that decides when they start.
 	_final_seconds_label.add_theme_color_override("font_color", urgency_color)
@@ -98,6 +110,7 @@ func _process(delta: float) -> void:
 	# Polled, never cached: earn_rate is a computed property over the expression complete_run judges
 	# the Run on, so the number watched climbing is the number scored.
 	_rate_label.text = "RATE  %s" % _format_rate(_director.earn_rate, _director.run_clock)
+	_rate_label.modulate = _pace_color(_director.phase, _director.pace_gap_meters)
 	# The record needs no blanking window: it is either set or not, and its sentinel says which. A
 	# session's first Run runs against RECORD --.--/s and promotes whatever it manages.
 	_record_label.text = "RECORD  %s" % _format_rate(_director.record_earn_rate, INF)
@@ -169,3 +182,12 @@ static func _format_rate(rate: float, elapsed: float) -> String:
 	if rate < 0.0 or elapsed < RATE_BLANK_SECONDS:
 		return "%s/s" % UNSET_TEXT
 	return "$%.2f/s" % rate
+
+
+## RATE's colour for this frame, off [member RunDirector.pace_gap_meters]. Read here rather than
+## cached on the director's own edge: unlike the record flash, ahead/behind is not an event, it is a
+## standing fact this frame either does or doesn't hold, and a fact like that belongs polled.
+func _pace_color(phase: RunDirector.RunPhase, gap_meters: float) -> Color:
+	if phase != RunDirector.RunPhase.RACING or is_nan(gap_meters):
+		return _rate_base_color
+	return ahead_of_pace_color if gap_meters > 0.0 else behind_pace_color
