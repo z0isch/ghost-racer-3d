@@ -40,16 +40,30 @@ const WORLD_SCENE_PATH: String = "res://main.tscn"
 ## a time.
 const DEV_SPAWN_INTERVAL_STEP_SECONDS: float = 1.0
 
+## m/s of Tune awarded per record-taking Run (CONTEXT.md's **Tune**). Clamped at the award site to
+## the ceiling's remaining headroom, so a circuit reaches a full Tune in a fixed number of awarding
+## Runs and awards nothing thereafter.
+const TUNE_AWARD: float = 0.5
+
 @export var kart_path: NodePath = NodePath("Kart")
 @export var run_director_path: NodePath = NodePath("RunDirector")
+@export var countdown_hud_path: NodePath = NodePath("CountdownHud")
 @export var clock_field_path: NodePath = NodePath("ClockField")
 @export var boost_ghost_field_path: NodePath = NodePath("BoostGhostField")
 @export var hazard_ghost_field_path: NodePath = NodePath("HazardGhostField")
 @export var slipstream_ghost_field_path: NodePath = NodePath("SlipstreamGhostField")
 
 var _kart: Kart
+var _countdown_hud: CountdownHud
+var _director: RunDirector
 var _exiting: bool = false
 var _circuit: Circuit
+
+## Resolved once in _enter_tree, alongside the ghost line, and held here so the completion handler
+## can reach them without re-resolving from [autoload LoadoutHolder] itself — see the comment on
+## their resolution below.
+var _loadout: CircuitLoadout
+var _save_loadout: Callable
 
 
 func _enter_tree() -> void:
@@ -70,19 +84,16 @@ func _enter_tree() -> void:
 		run_director.wrap_bonus_seconds = circuit.wrap_bonus_seconds
 		run_director.max_wraps = circuit.max_wraps
 		run_director.slipstream_bar_target = circuit.slipstream_bar_target
-		# The reverse edge of the wiring this scene already does: it hands the circuit's ghost line
-		# to the director, so it is also the natural place to forward a promoted one back out to
-		# [autoload IncomeRunner], which sits inside no scene and has no connection of its own to the
-		# director. RunDirector must not learn about the runner — it owns Run state and knows nothing
-		# about autoloads.
-		run_director.run_completed.connect(_on_run_completed)
+	_director = run_director
 
 	# Resolved once, in the same breath as the ghost line, and pushed into the clock field and the
 	# two ghost fields — so those fields go on taking their counts from whoever owns them rather
 	# than each growing its own dependency on [autoload LoadoutHolder] (CONTEXT.md's **Loadout
-	# holder**).
+	# holder**). Held on the node (not just local) so _on_run_completed can reach them too.
 	var loadout: CircuitLoadout = LoadoutHolder.for_circuit(circuit)
 	var save_loadout: Callable = LoadoutHolder.save.bind(circuit)
+	_loadout = loadout
+	_save_loadout = save_loadout
 
 	var clock_field: ClockField = get_node_or_null(clock_field_path) as ClockField
 	if clock_field != null:
@@ -111,9 +122,25 @@ func _enter_tree() -> void:
 		slipstream_field.ghost_count = loadout.slipstream_ghost_count
 		slipstream_field.spawn_interval_seconds = circuit.slipstream_spawn_interval_seconds
 
+	# Seeded here rather than in _ready: this Tune is permanent and circuit-scoped, not Run state,
+	# so nothing has to remember to re-seed it on the way into the next Run.
+	var kart: Kart = get_node_or_null(kart_path) as Kart
+	if kart != null:
+		kart.tune = loadout.tune
+
 
 func _ready() -> void:
 	_kart = get_node_or_null(kart_path) as Kart
+	_countdown_hud = get_node_or_null(countdown_hud_path) as CountdownHud
+
+	# Connected here rather than in _enter_tree, deliberately: _ready propagates bottom-up, so this
+	# root's own _ready runs after every child's, including CountdownHud's — which connects its own
+	# run_completed handler from its _ready. That ordering is load-bearing for the Tune award: this
+	# handler pushes the award to CountdownHud.set_tune_award, and CountdownHud's own handler clears
+	# any award left over from the Run before. Connecting here, after CountdownHud has already
+	# connected, is what guarantees this handler's push lands after that clear rather than before it.
+	if _director != null:
+		_director.run_completed.connect(_on_run_completed)
 
 
 func _physics_process(_delta: float) -> void:
@@ -142,7 +169,23 @@ func _physics_process(_delta: float) -> void:
 ## promotion needs forwarding. The re-seat is invisible when it happens — income ghosts are hidden
 ## inside a race — so there is no visual cost to snapping it immediately rather than waiting for the
 ## player to leave.
+##
+## The Tune award lives in this same handler rather than in RunDirector (CONTEXT.md's **Tune**):
+## RunDirector owns Run state and must not learn about [autoload LoadoutHolder], where this scene
+## already holds the circuit's loadout and its save callable. Awarded only when the Run took the
+## record AND had an incumbent pace ghost to take it from — a circuit's first completed Run is a
+## record with nothing on the track yet, so it beats nothing and earns nothing.
 func _on_run_completed(_run_time: float, is_record: bool) -> void:
+	if is_record and _kart != null and _director != null and _director.raced_ghost != null:
+		var headroom: float = _kart.tune_headroom
+		var awarded: float = minf(TUNE_AWARD, headroom - _loadout.tune)
+		if awarded > 0.0:
+			_loadout.tune += awarded
+			_save_loadout.call()
+			_kart.tune = _loadout.tune
+			if _countdown_hud != null:
+				_countdown_hud.set_tune_award(awarded)
+
 	if is_record:
 		IncomeRunner.reseat(_circuit)
 

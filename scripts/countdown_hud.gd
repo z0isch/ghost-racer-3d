@@ -82,6 +82,12 @@ var _headline_text: String = ""
 var _wrecked: bool = false
 var _reveal_hold: float = 0.0
 
+## m/s of Tune awarded on the Run that just ended, or 0.0 for no award (CONTEXT.md's **Tune**).
+## Pushed explicitly by race.gd's set_tune_award rather than read off the loadout, so the subtitle
+## does not depend on which run_completed handler ran first — both fire inside the same
+## synchronous emit, ahead of the _process frame that draws it.
+var _tune_award: float = 0.0
+
 # The results table, one entry per row, as three parallel columns. Parallel rather than one row
 # object per row because that is how it is drawn: each column is a single RichTextLabel, which is
 # what makes the columns line up without a table layout, and the reveal is "the first N of each".
@@ -92,6 +98,7 @@ var _row_deltas: PackedStringArray = PackedStringArray()
 @onready var _label: Label = $CountdownLabel
 @onready var _results: Control = $Results
 @onready var _headline: Label = $Results/Headline
+@onready var _tune_award_label: Label = $Results/TuneAward
 @onready var _names: RichTextLabel = $Results/Rows/Names
 @onready var _values: RichTextLabel = $Results/Rows/Values
 @onready var _deltas: RichTextLabel = $Results/Rows/Deltas
@@ -113,12 +120,24 @@ func _ready() -> void:
 func _on_run_completed(run_time: float, is_record: bool) -> void:
 	_results_elapsed = 0.0
 	_is_record = is_record
+	# Cleared here rather than left standing, so a later non-awarding Run cannot show the previous
+	# Run's figure. race.gd's own call to set_tune_award, if this Run earns one, is guaranteed to
+	# land after this clear rather than before it: both handlers fire inside the same synchronous
+	# run_completed emit, in connection order, and race.gd connects from its own _ready — which,
+	# since this node is race.gd's child, runs after this node's _ready already has.
+	_tune_award = 0.0
 	# Read off the director at the edge rather than carried on the signal: unlike is_record, this is
 	# not a value the director overwrites on its way out — see RunDirector.run_ended_wrecked.
 	_wrecked = _director.run_ended_wrecked
 	_reveal_hold = wreck_hold_seconds if _wrecked else 0.0
 	_headline_text = _format_headline(is_record, _wrecked)
 	_build_rows(_director, run_time)
+
+
+## Called by race.gd from its own run_completed handler, the same instant the award happens (or not
+## at all, on a Run that earned nothing) — see race.gd's _on_run_completed.
+func set_tune_award(amount: float) -> void:
+	_tune_award = amount
 
 
 func _process(delta: float) -> void:
@@ -176,6 +195,15 @@ func _draw_results() -> void:
 	# instead of walking the text sideways.
 	_headline.pivot_offset = _headline.size * 0.5
 	_headline.scale = Vector2.ONE * (pop_scale + record_pulse_scale * pulse)
+
+	# The Tune award: gold like the headline, since it is the headline's consequence, but
+	# deliberately not pulsing and not taking pop_scale — the headline's own doc argues it must be
+	# the single big statement that outranks four green deltas, so this reads as standing beside it
+	# rather than competing with it. Only its alpha rides the same reveal clock.
+	_tune_award_label.visible = _tune_award > 0.0
+	if _tune_award_label.visible:
+		_tune_award_label.text = "TUNE +%.1f TOP SPEED" % _tune_award
+		_tune_award_label.modulate = Color(1.0, 1.0, 1.0, pop)
 
 	# +1 so the first row lands the instant the headline settles rather than one interval later.
 	var revealed: int = clampi(

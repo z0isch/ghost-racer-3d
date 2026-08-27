@@ -109,6 +109,8 @@ func _ready() -> void:
 	_model = KartModel.new(tuning)
 	tuning = _model.tuning
 	_model.freeze(frozen)
+	# Re-applies whatever race.gd's _enter_tree already set on [member tune] — see its own doc.
+	_model.tune = tune
 
 
 # The "reset" action is read by RunDirector alone; two readers of one action in one frame is a race.
@@ -394,6 +396,24 @@ var speed: float:
 ## The tuned speed ceiling, for consumers that want a 0..1 fraction of it (ChaseCamera's FOV).
 var max_speed: float:
 	get: return _model.top_speed
+
+## The circuit's earned Tune, in m/s (CONTEXT.md's **Tune**). Set once by race.gd from the
+## circuit's loadout, and again on every award; read by DebugHud.
+##
+## The same ordering hazard [member frozen] is already guarded against: race.gd seeds this from
+## _enter_tree, which runs before this node's own _ready creates _model. Held in the backing
+## field regardless of whether _model exists yet, and re-applied to it once _ready creates one.
+var tune: float = 0.0:
+	set(value):
+		tune = value
+		if _model != null:
+			_model.tune = value
+	get: return _model.tune if _model != null else tune
+
+## The room left in the shared top-speed ceiling above tuning.max_speed. Read by race.gd's award
+## logic so KartTuning stays the kart's own knowledge. See [member KartModel.tune_headroom].
+var tune_headroom: float:
+	get: return _model.tune_headroom if _model != null else 0.0
 
 ## Rear slip magnitude above an epsilon. Read by the camera and the cosmetics.
 ##

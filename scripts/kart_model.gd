@@ -71,6 +71,14 @@ var _charge_bleed: float = 0.0
 ## of "the kart's top speed" see the raised number without a second code path.
 var _top_speed_bonus: float = 0.0
 
+## Permanent, per-circuit top-speed gain earned before this Run even started (CONTEXT.md's
+## **Tune**) — not [member _top_speed_bonus] under a new name. The two have different lifetimes:
+## this is constant for the whole Run and set once, from outside, by whoever seeded the kart with
+## its circuit's loadout; _top_speed_bonus is banked over the course of a Run and zeroed by every
+## [method reset]. Deliberately absent from [method capture_state] / [method restore_state]: it
+## cannot change during a Run, so a Rewind has nothing to put back.
+var _tune: float = 0.0
+
 # The hop's whole state: whether a window is open, and how far into it. Two fields rather than
 # folding "open" into a sign or sentinel on the elapsed time, for reset()'s reason: both go back to
 # their plain zero values together.
@@ -538,6 +546,20 @@ var frozen: bool:
 var top_speed: float:
 	get: return _effective_top_speed()
 
+## The circuit's earned Tune, in m/s. Floored at 0.0 on write, matching CircuitLoadout.tune's own
+## clamp — nothing here re-derives the ceiling that bounds it above; that clamp lives at the award
+## site (race.gd's _on_run_completed), which is the one place that knows [member tune_headroom].
+var tune: float:
+	get: return _tune
+	set(value): _tune = maxf(value, 0.0)
+
+## The room left in the shared top-speed ceiling above tuning.max_speed — what a full Tune adds up
+## to, and what [method _effective_top_speed] can add [member _tune] and [member _top_speed_bonus]
+## into before the ceiling itself is hit. Read through the kart by race.gd's award logic so
+## KartTuning stays the kart's own knowledge and nothing else in the scene learns the resource.
+var tune_headroom: float:
+	get: return tuning.max_top_speed - tuning.max_speed
+
 ## m/s the kart is currently carrying above its ceiling on boost credit, 0.0 when not boosting. Not
 ## a stored "boost amount" — it is the overspeed itself, so it cannot disagree with the speed on
 ## screen.
@@ -576,12 +598,13 @@ func _speed_fraction() -> float:
 	return clampf(absf(_forward_speed) / effective_top_speed, 0.0, 1.0) if effective_top_speed > 0.0 else 0.0
 
 
-## tuning.max_speed plus whatever [member _top_speed_bonus] a boost-raises-top-speed ghost has
-## banked so far this Run. The single source every consumer of "the kart's top speed" — the
-## longitudinal ceiling, the speed-fraction taper, KartState.max_speed — reads through, so the
-## bonus shows up everywhere top_speed already did rather than needing its own plumbing.
+## tuning.max_speed plus [member _tune] plus whatever [member _top_speed_bonus] a
+## boost-raises-top-speed ghost has banked so far this Run. The single source every consumer of
+## "the kart's top speed" — the longitudinal ceiling, the speed-fraction taper, KartState.max_speed
+## — reads through, so both the Tune and the bonus show up everywhere top_speed already did rather
+## than needing their own plumbing.
 func _effective_top_speed() -> float:
-	return minf(tuning.max_speed + _top_speed_bonus, tuning.max_top_speed)
+	return minf(tuning.max_speed + _tune + _top_speed_bonus, tuning.max_top_speed)
 
 
 # A long way round at low speed, barely any swing flat out. Too steep and fast corners go numb, too

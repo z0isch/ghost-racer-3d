@@ -22,6 +22,9 @@ var _slipstream_field: SlipstreamGhostField
 @onready var _speed_label: Label = $SpeedLabel
 @onready var _road_label: Label = $RoadLabel
 @onready var _spawn_interval_label: Label = get_node_or_null("SpawnIntervalLabel") as Label
+## Optional, for _spawn_interval_label's own reason: this HUD runs in the open world too, where
+## there is no circuit and so no Tune (CONTEXT.md's **Tune**). Authored into race.tscn's HUD only.
+@onready var _tune_label: Label = get_node_or_null("TuneLabel") as Label
 
 
 func _ready() -> void:
@@ -44,6 +47,9 @@ func _process(_delta: float) -> void:
 			_road_label.text = "Off-road"
 		_:
 			_road_label.text = "?"
+
+	if _tune_label != null:
+		_tune_label.text = "Tune: +%.1f" % _target.tune
 
 	if _spawn_interval_label == null:
 		return
