@@ -105,12 +105,16 @@ var _is_jumping: bool = false
 
 
 func _ready() -> void:
+	# Read before _model exists: [member tune]'s getter reads through _model once there is one, so
+	# taking this after the assignment below would read the new model's 0.0 back over the value
+	# race.gd's _enter_tree seeded into the backing field.
+	var seeded_tune: float = tune
 	# Assigned back so the inspector shows the resource the kart is actually running on.
 	_model = KartModel.new(tuning)
 	tuning = _model.tuning
 	_model.freeze(frozen)
 	# Re-applies whatever race.gd's _enter_tree already set on [member tune] — see its own doc.
-	_model.tune = tune
+	_model.tune = seeded_tune
 
 
 # The "reset" action is read by RunDirector alone; two readers of one action in one frame is a race.
